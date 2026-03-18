@@ -1,7 +1,7 @@
 # KPI Catalog — Frammer AI Dashboard
-> Complete catalog of all 35 KPIs. Includes Phase 1 (dashboard-ready) and Phase 2+ (complex/future).
+> Complete catalog of all 42 KPIs from draft — 35 active (Phase 1 + Phase 2+), 7 documented as dropped.
 > Source: `draft/Filtered_kpis.txt`, `draft/complete_kpis.txt`
-> Dropped: IHS, YAQBR, ACI (no source data), CCCI (obfuscated URLs), CEI/CTF/HRYR (redundant).
+> Active: 35 | Dropped (with full documentation): 7 — see Category F.
 
 ---
 
@@ -358,14 +358,76 @@ MCI_overall = AVG(MCI across [headline, team_name, language, input_type,
 
 ---
 
-## Dropped KPIs
+## Category F — Dropped KPIs (Documented for Reference)
 
-| KPI | Reason |
-|-----|--------|
-| IHS (Integration Health Score) | Requires system API call logs — not in dataset |
-| YAQBR (YouTube API Quota) | Requires YouTube API quota data — not available |
-| ACI (Audience Comment Intelligence) | Requires raw comment text for NLP — only count available |
-| CCCI (Cross-Channel Coordination Index) | source_url is obfuscated — cross-channel matching impossible |
-| CEI (Content Efficiency Index) | Redundant with AHY — same formula, different units |
-| CTF (Content Thumbnail Fit) | Redundant with CPDG — simpler/weaker version of same concept |
-| HRYR (High-Retention Yield Rate) | Literally equals avg_view_percentage — renaming a column, not a KPI |
+> These KPIs were defined in the draft but excluded from implementation.
+> Documented here with full formulas so context is not lost.
+
+---
+
+### F1. IHS — Integration Health Score ❌ `UNCOMPUTABLE`
+**Definition:** Composite score measuring technical health of all Frammer system integrations (API uptime, call success rate, etc.).
+**Formula:**
+```
+health_c = (successful_calls_c / total_calls_c) × 100
+IHS = SUM_c(w_c × health_c)  where w_c derived from incident impact
+```
+**Why dropped:** Requires system-level API call logs (success/failure per integration). Not present in the video analytics dataset.
+**If data available:** Would live in a Tech/Ops monitoring dashboard, not the analytics dashboard.
+
+---
+
+### F2. YAQBR — YouTube API Quota Burn Rate ❌ `UNCOMPUTABLE`
+**Definition:** Tracks daily consumption of YouTube Data API quota relative to the 10,000 unit daily hard limit.
+**Formula:**
+```
+YAQBR = (units_consumed_today / 10,000) × 100
+hours_until_exhaustion = (10,000 - consumed_so_far) / burn_rate_per_hour
+```
+**Why dropped:** Requires YouTube API quota tracking data (platform-level infrastructure metric). Not derivable from video analytics records.
+**If data available:** Useful for platform engineering team dashboards.
+
+---
+
+### F3. ACI — Audience Comment Intelligence ❌ `UNCOMPUTABLE`
+**Definition:** Converts raw YouTube comments into editorial intelligence — sentiment score, request density, and discussion index per video/topic.
+**Formula:**
+```
+SS_T  = COUNT(positive comments) / COUNT(total comments) × 100    (sentiment)
+RD_T  = COUNT(comments with intent keywords) / COUNT(total) × 100  (request density)
+DI_T  = AVG(reply_count_per_comment)                               (discussion index)
+```
+**Why dropped:** Requires raw comment text for NLP processing. Dataset only has `comments` as an integer count.
+**If data available:** High-value KPI — would feed directly into editorial decisions. Worth adding if Frammer API provides comment text.
+
+---
+
+### F4. CCCI — Cross-Channel Coordination Index ❌ `UNCOMPUTABLE`
+**Definition:** Measures how often a single piece of source content is republished across multiple Frammer workspaces.
+**Formula:** `COUNT(source_videos published on > 1 workspace) / COUNT(distinct source videos) × 100`
+**Why dropped:** `source_url` is obfuscated (`source_1`, `source_2`, …`source_N`) — cannot match the same source video across workspace rows. Requires un-obfuscated source identifiers.
+**If data available:** Directly answers PS Section 6C cross-workspace reuse analysis.
+
+---
+
+### F5. CEI — Content Efficiency Index ❌ `REDUNDANT` → use AHY instead
+**Definition:** Return on content production — watch time generated per unit of content duration.
+**Formula:** `CEI = SUM(total_watch_time_hours) / SUM(video_duration_sec / 3600)`
+**Why dropped:** Algebraically identical to AHY. CEI uses hours/hours (dimensionless ratio), AHY uses hours/seconds (per-second yield). Both measure the same thing. AHY retained as it has a more descriptive name and cleaner interpretation.
+**Superseded by:** AHY (B3 in this catalog)
+
+---
+
+### F6. CTF — Content Thumbnail Fit ❌ `REDUNDANT` → use CPDG instead
+**Definition:** Measures alignment between content discovery effectiveness (CTR) and delivery quality (avg view %).
+**Formula:** `CTF = AVG((avg_view_percentage / 100) × ctr_percentage)` grouped by team/type
+**Why dropped:** Captures the same hook-vs-delivery concept as CPDG but with a simpler (less rigorous) formula. CPDG uses Z-score normalization making it comparable across different content scales. CTF does not normalize, so high-volume content with naturally higher CTR distorts the score.
+**Superseded by:** CPDG (B1 in this catalog)
+
+---
+
+### F7. HRYR — High-Retention Yield Rate ❌ `REDUNDANT` → use avg_view_percentage directly
+**Definition:** Classifies content based on proportion of video duration consumed on average.
+**Formula:** `Retention(%) = avg_view_duration_sec / video_duration_sec × 100`
+**Why dropped:** This formula equals `avg_view_percentage` exactly — it is an existing column in the dataset, not a derived KPI. Treating it as a separate metric adds confusion without new information.
+**Superseded by:** Direct use of `avg_view_percentage` column in all queries.
