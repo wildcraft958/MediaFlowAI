@@ -79,7 +79,8 @@ def check_thresholds(client_id: str = "CLIENT_1") -> list[dict]:
 @mcp.tool()
 def fire_alert(alert: dict) -> dict:
     """
-    Dispatch an alert via email or Slack webhook.
+    Dispatch an alert via Slack webhook.
+    Email dispatch is planned for future integration (Phase 2).
 
     Args:
         alert: {kpi, workspace, value, threshold, status, message}
@@ -90,14 +91,10 @@ def fire_alert(alert: dict) -> dict:
     cfg = _client_config()
     channels_fired = []
 
-    email = cfg.get("alert_channels", {}).get("email", "")
     slack = cfg.get("alert_channels", {}).get("slack_webhook", "")
+    # email: future integration — Phase 2 (Cloud Pub/Sub → SendGrid)
 
     msg = alert.get("message", str(alert))
-
-    if email:
-        # In production: send via smtplib. Stubbed here.
-        channels_fired.append(f"email:{email}")
 
     if slack:
         try:

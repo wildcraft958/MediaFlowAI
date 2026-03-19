@@ -3,8 +3,11 @@ Frammer AI Analytics — FastAPI backend
 Run from project root:  uv run uvicorn api.main:app --reload --port 8000
 """
 from contextlib import asynccontextmanager
+from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from api.db import get_db
 from api.routers import health, dimensions, dashboard, kpis, trends, crosstab, videos, admin, nlq
@@ -26,7 +29,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origins=["http://localhost:5173", "http://localhost:3000", "*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -35,3 +38,12 @@ app.add_middleware(
 # Mount routers — all under /api prefix
 for r in [health, dimensions, dashboard, kpis, trends, crosstab, videos, admin, nlq]:
     app.include_router(r.router, prefix="/api")
+
+# Static file serving for production (npm run build → frontend/dist/)
+_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+if _DIST.is_dir():
+    app.mount("/assets", StaticFiles(directory=str(_DIST / "assets")), name="static")
+
+    @app.get("/{path:path}")
+    async def spa_catchall(path: str):
+        return FileResponse(str(_DIST / "index.html"))

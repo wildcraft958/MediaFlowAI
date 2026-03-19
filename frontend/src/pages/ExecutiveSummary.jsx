@@ -14,7 +14,7 @@ import KPICard from '../components/charts/KPICard'
 import FunnelViz from '../components/charts/FunnelViz'
 import FilterBar from '../components/common/FilterBar'
 import useStore from '../store/useStore'
-import { getExecutiveSummary, getPublishFunnel } from '../api/client'
+import { getExecutiveSummary, getPublishFunnel, getPeriodComparison, getDataQuality } from '../api/client'
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
 
@@ -365,6 +365,37 @@ function AlertBanner({ onDismiss }) {
   )
 }
 
+// ── Data Quality Bars ──────────────────────────────────────────────────────────
+
+function DataQualityBars({ fields, health, loading }) {
+  if (loading) return <div className="h-40 animate-pulse bg-[#1a1a1a] rounded-xl" />
+  if (!fields || !fields.length) return null
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-sm text-[#a0a0a0]">Overall Data Health</span>
+        <span className={`text-lg font-bold ${health >= 80 ? 'text-[#4caf50]' : health >= 60 ? 'text-[#ff9800]' : 'text-[#e63946]'}`}>
+          {health}%
+        </span>
+      </div>
+      {fields.map((f) => (
+        <div key={f.field} className="space-y-1">
+          <div className="flex justify-between text-xs">
+            <span className="text-[#a0a0a0]">{f.field.replace(/_/g, ' ')}</span>
+            <span className="text-[#555]">{f.filled.toLocaleString()} / {(f.filled + f.null).toLocaleString()} ({f.pct}%)</span>
+          </div>
+          <div className="w-full h-2 bg-[#1a1a1a] rounded-full overflow-hidden">
+            <div className="h-full rounded-full" style={{
+              width: `${f.pct}%`,
+              backgroundColor: f.pct >= 90 ? '#4caf50' : f.pct >= 60 ? '#ff9800' : '#e63946',
+            }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function ExecutiveSummary() {
@@ -379,14 +410,21 @@ export default function ExecutiveSummary() {
     Promise.all([
       getExecutiveSummary(filters),
       getPublishFunnel(filters),
+      getPeriodComparison(filters),
+      getDataQuality(filters),
     ])
-      .then(([summary, funnel]) => {
-        setData({ summary, funnel })
+      .then(([summary, funnel, comparison, quality]) => {
+        setData({
+          summary: summary.data,
+          funnel: funnel.data,
+          comparison: comparison.data,
+          quality: quality.data,
+        })
         setLoading(false)
       })
       .catch(() => {
         // Fall back to mock data
-        setData({ summary: null, funnel: MOCK_FUNNEL })
+        setData({ summary: null, funnel: MOCK_FUNNEL, comparison: null, quality: null })
         setLoading(false)
       })
   }, [filters])
@@ -394,36 +432,41 @@ export default function ExecutiveSummary() {
   const trendData = data?.summary?.trend || MOCK_TREND
   const funnelData = data?.funnel || MOCK_FUNNEL
 
+  const workspaces = data?.summary?.workspace_pcr?.map((ws) => ({
+    name: ws.workspace, pcr: ws.pcr, total: ws.total, published: ws.published,
+  })) ?? WORKSPACES
+
+  const d = data?.comparison?.delta
   const kpiCards = [
     {
       title: 'Total Uploaded',
-      value: 4179,
+      value: data?.summary?.funnel?.uploaded ?? 4179,
       unit: '',
-      trend: 'up',
-      trendValue: 12.3,
-      trendLabel: 'vs last month',
+      trend: (d?.uploaded_pct ?? 0) >= 0 ? 'up' : 'down',
+      trendValue: d?.uploaded_pct != null ? Math.abs(d.uploaded_pct) : null,
+      trendLabel: 'vs prev 30d',
       icon: Upload,
       subtitle: '91.5% data completeness',
       loading,
     },
     {
       title: 'Published',
-      value: 3188,
+      value: data?.summary?.funnel?.published ?? 3188,
       unit: '',
-      trend: 'up',
-      trendValue: 8.1,
-      trendLabel: 'vs last month',
+      trend: (d?.published_pct ?? 0) >= 0 ? 'up' : 'down',
+      trendValue: d?.published_pct != null ? Math.abs(d.published_pct) : null,
+      trendLabel: 'vs prev 30d',
       icon: CheckCircle,
       subtitle: 'YouTube Shorts + Instagram Reels',
       loading,
     },
     {
       title: 'Overall PCR',
-      value: 69.8,
+      value: data?.summary?.pcr_total ?? 69.8,
       unit: '%',
-      trend: 'down',
-      trendValue: 2.1,
-      trendLabel: 'vs last month',
+      trend: (d?.pcr_pct ?? 0) >= 0 ? 'up' : 'down',
+      trendValue: d?.pcr_pct != null ? Math.abs(d.pcr_pct) : null,
+      trendLabel: 'vs prev 30d',
       icon: BarChart2,
       accent: true,
       subtitle: 'Ranges 38%–92% by workspace',
@@ -431,11 +474,11 @@ export default function ExecutiveSummary() {
     },
     {
       title: 'Avg Processing',
-      value: 4.2,
+      value: data?.comparison?.current?.avg_processing_h ?? 4.2,
       unit: 'h',
-      trend: 'down',
-      trendValue: 15,
-      trendLabel: 'faster - good',
+      trend: (d?.avg_processing_pct ?? 0) <= 0 ? 'down' : 'up',
+      trendValue: d?.avg_processing_pct != null ? Math.abs(d.avg_processing_pct) : null,
+      trendLabel: 'vs prev 30d',
       icon: Clock,
       subtitle: 'Upload → Frammer AI processed',
       loading,
@@ -532,11 +575,47 @@ export default function ExecutiveSummary() {
         <div className="mt-4 flex items-start gap-2 p-3 rounded-xl bg-[#0a0a0a] border border-[#1f1f1f]">
           <AlertTriangle size={13} className="text-[#ff9800] mt-0.5 flex-shrink-0" />
           <p className="text-xs text-[#a0a0a0]">
-            <span className="text-[#ff9800] font-semibold">390 videos</span> have no upload_date
+            <span className="text-[#ff9800] font-semibold">
+              {data?.quality ? (data.quality.fields.find(f => f.field === 'upload_date')?.null ?? 390) : 390} videos
+            </span> have no upload_date
             - data quality gap visible in MCI / OPI KPIs.
             100% of uploaded videos are processed by Frammer AI.
           </p>
         </div>
+      </motion.div>
+
+      {/* Data Quality Monitor */}
+      <motion.div
+        className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-6"
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.5, duration: 0.35 }}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-white">Data Quality Monitor</h2>
+          <span className="text-xs font-bold border px-2 py-1 rounded-md"
+            style={{
+              color: (data?.quality?.overall_health_pct ?? 0) >= 80 ? '#4caf50' : (data?.quality?.overall_health_pct ?? 0) >= 60 ? '#ff9800' : '#e63946',
+              borderColor: (data?.quality?.overall_health_pct ?? 0) >= 80 ? '#4caf50' : (data?.quality?.overall_health_pct ?? 0) >= 60 ? '#ff9800' : '#e63946',
+              background: (data?.quality?.overall_health_pct ?? 0) >= 80 ? '#4caf5015' : (data?.quality?.overall_health_pct ?? 0) >= 60 ? '#ff980015' : '#e6394615',
+            }}
+          >
+            MCI
+          </span>
+        </div>
+        <DataQualityBars
+          fields={data?.quality?.fields}
+          health={data?.quality?.overall_health_pct}
+          loading={loading}
+        />
+        {data?.quality && (
+          <div className="mt-4 flex items-center justify-between text-xs text-[#555]">
+            <span>{data.quality.total_rows.toLocaleString()} total rows scanned</span>
+            {data.quality.duplicate_pct > 0 && (
+              <span className="text-[#ff9800]">{data.quality.duplicate_pct}% duplicate rate (DCDR)</span>
+            )}
+          </div>
+        )}
       </motion.div>
 
       {/* Workspace PCR + Agent Inbox */}
@@ -553,7 +632,7 @@ export default function ExecutiveSummary() {
               PCR
             </span>
           </div>
-          {WORKSPACES.map((ws, i) => (
+          {workspaces.map((ws, i) => (
             <WorkspacePCRBar key={ws.name} {...ws} delay={0.55 + i * 0.08} />
           ))}
           <div className="mt-4 p-3 rounded-xl bg-[#0a0a0a] border border-[#1f1f1f]">
@@ -596,27 +675,29 @@ export default function ExecutiveSummary() {
               </tr>
             </thead>
             <tbody>
-              {[
-                { ws: 'WS-DIGITAL-NEWS',  company: 'Company_B', team: 'Digital_News',  total: 1200, uploaded: 1200, pub: 1106, pcr: 92 },
-                { ws: 'WS-ENTERTAINMENT', company: 'Company_A', team: 'Entertainment', total: 884,  uploaded: 884,  pub: 725,  pcr: 82 },
-                { ws: 'WS-TECH-ANALYSIS', company: 'Company_A', team: 'Tech_Analysis', total: 1191, uploaded: 1191, pub: 810,  pcr: 68 },
-                { ws: 'WS-LIFESTYLE',     company: 'Company_A', team: 'Lifestyle',     total: 396,  uploaded: 396,  pub: 206,  pcr: 52 },
-                { ws: 'WS-SPORTS-LIVE',   company: 'Company_A', team: 'Sports_Live',   total: 898,  uploaded: 508,  pub: 341,  pcr: 38 },
-              ].map((row) => {
-                const color = row.pcr >= 80 ? '#4caf50' : row.pcr >= 60 ? '#ff9800' : '#e63946'
-                const label = row.pcr >= 80 ? 'Healthy' : row.pcr >= 60 ? 'Moderate' : 'Review'
+              {workspaces.map((ws) => {
+                const WS_META = {
+                  'WS-DIGITAL-NEWS':  { company: 'Company_B', team: 'Digital_News'  },
+                  'WS-ENTERTAINMENT': { company: 'Company_A', team: 'Entertainment' },
+                  'WS-TECH-ANALYSIS': { company: 'Company_A', team: 'Tech_Analysis' },
+                  'WS-LIFESTYLE':     { company: 'Company_A', team: 'Lifestyle'     },
+                  'WS-SPORTS-LIVE':   { company: 'Company_A', team: 'Sports_Live'   },
+                }
+                const meta = WS_META[ws.name] || { company: '-', team: '-' }
+                const color = ws.pcr >= 80 ? '#4caf50' : ws.pcr >= 60 ? '#ff9800' : '#e63946'
+                const label = ws.pcr >= 80 ? 'Healthy' : ws.pcr >= 60 ? 'Moderate' : 'Review'
                 return (
                   <tr
-                    key={row.ws}
+                    key={ws.name}
                     className="border-b border-[#1f1f1f]/60 last:border-0 hover:bg-[#1a1a1a] transition-colors"
                   >
-                    <td className="py-3 pr-4 font-medium text-white text-xs">{row.ws}</td>
-                    <td className="py-3 pr-4 text-[#a0a0a0] text-xs">{row.company}</td>
-                    <td className="py-3 pr-4 text-[#a0a0a0] text-xs">{row.team}</td>
-                    <td className="py-3 pr-4 tabular-nums text-xs text-[#a0a0a0]">{row.total.toLocaleString()}</td>
-                    <td className="py-3 pr-4 tabular-nums text-xs text-[#a0a0a0]">{row.uploaded.toLocaleString()}</td>
-                    <td className="py-3 pr-4 tabular-nums text-xs text-[#a0a0a0]">{row.pub.toLocaleString()}</td>
-                    <td className="py-3 pr-4 tabular-nums font-bold text-sm" style={{ color }}>{row.pcr}%</td>
+                    <td className="py-3 pr-4 font-medium text-white text-xs">{ws.name}</td>
+                    <td className="py-3 pr-4 text-[#a0a0a0] text-xs">{meta.company}</td>
+                    <td className="py-3 pr-4 text-[#a0a0a0] text-xs">{meta.team}</td>
+                    <td className="py-3 pr-4 tabular-nums text-xs text-[#a0a0a0]">{ws.total.toLocaleString()}</td>
+                    <td className="py-3 pr-4 tabular-nums text-xs text-[#a0a0a0]">{ws.total.toLocaleString()}</td>
+                    <td className="py-3 pr-4 tabular-nums text-xs text-[#a0a0a0]">{ws.published.toLocaleString()}</td>
+                    <td className="py-3 pr-4 tabular-nums font-bold text-sm" style={{ color }}>{ws.pcr}%</td>
                     <td className="py-3">
                       <span
                         className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold"

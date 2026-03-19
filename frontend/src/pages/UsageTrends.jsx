@@ -3,7 +3,7 @@
  * Sub-tabs: Time Analysis | Category Breakdown | Storage Metrics
  */
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Clock, TrendingUp, Database, Youtube, Instagram } from 'lucide-react'
 import ReactECharts from 'echarts-for-react'
@@ -15,7 +15,7 @@ import FilterBar from '../components/common/FilterBar'
 import CountHoursToggle from '../components/common/CountHoursToggle'
 import DataTable from '../components/common/DataTable'
 import useStore from '../store/useStore'
-import { getDailyTrends, getCategoryTrends } from '../api/client'
+import { getDailyTrends, getCategoryTrends, getOutputTypeTrends, getExecutiveSummary, getPeriodComparison } from '../api/client'
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
 
@@ -76,9 +76,10 @@ const WORKSPACE_HOURS = [
 
 // ── Sub-tab components ─────────────────────────────────────────────────────────
 
-function TimeAnalysis({ dailyData, loading, metric }) {
+function TimeAnalysis({ dailyData, categoryData, loading, metric, comparison }) {
   const totalUploaded = dailyData.reduce((s, d) => s + (d.uploaded || 0), 0)
   const totalHours = dailyData.reduce((s, d) => s + (d.uploaded_hours || 0), 0)
+  const d = comparison?.delta
 
   return (
     <div className="space-y-6">
@@ -87,11 +88,11 @@ function TimeAnalysis({ dailyData, loading, metric }) {
         {[
           {
             title: 'Avg Processing Time',
-            value: 4.2,
+            value: comparison?.current?.avg_processing_h ?? 4.2,
             unit: 'h',
-            trend: 'down',
-            trendValue: 15,
-            trendLabel: 'improving',
+            trend: (d?.avg_processing_pct ?? 0) <= 0 ? 'down' : 'up',
+            trendValue: d?.avg_processing_pct != null ? Math.abs(d.avg_processing_pct) : null,
+            trendLabel: 'vs prev 30d',
             icon: Clock,
             subtitle: 'Upload → Frammer AI processed',
             loading,
@@ -110,9 +111,9 @@ function TimeAnalysis({ dailyData, loading, metric }) {
             title: 'Total Hours',
             value: metric === 'hours' ? Math.round(totalHours) : totalUploaded,
             unit: metric === 'hours' ? 'h' : '',
-            trend: 'up',
-            trendValue: 8.4,
-            trendLabel: 'vs last period',
+            trend: (d?.uploaded_pct ?? 0) >= 0 ? 'up' : 'down',
+            trendValue: d?.uploaded_pct != null ? Math.abs(d.uploaded_pct) : null,
+            trendLabel: 'vs prev 30d',
             icon: Database,
             subtitle: metric === 'hours' ? 'Uploaded video hours' : 'Videos uploaded',
             loading,
@@ -176,7 +177,7 @@ function TimeAnalysis({ dailyData, loading, metric }) {
             Top Input Types ({metric === 'count' ? 'Videos' : 'Hours'})
           </h2>
           <HorizontalBarChart
-            data={MOCK_CATEGORY.map((c) => ({
+            data={categoryData.map((c) => ({
               label: c.type.replace(/_/g, ' '),
               value: metric === 'count' ? c.count : c.hours,
             }))}
@@ -188,7 +189,7 @@ function TimeAnalysis({ dailyData, loading, metric }) {
   )
 }
 
-function CategoryBreakdown({ loading, metric }) {
+function CategoryBreakdown({ loading, metric, outputTypeData = MOCK_OUTPUT_TYPES }) {
   const outputTableColumns = [
     { key: 'type', label: 'Output Type', sortable: true },
     {
@@ -242,7 +243,7 @@ function CategoryBreakdown({ loading, metric }) {
         transition={{ delay: 0.1 }}
       >
         <h2 className="text-lg font-semibold text-white mb-4">Output Type by Volume</h2>
-        <OutputTypeGroupedBar metric={metric} loading={loading} />
+        <OutputTypeGroupedBar metric={metric} loading={loading} data={outputTypeData} />
       </motion.div>
 
       {/* Table */}
@@ -254,9 +255,9 @@ function CategoryBreakdown({ loading, metric }) {
         <h2 className="text-lg font-semibold text-white mb-4">Output Type Performance</h2>
         <DataTable
           columns={outputTableColumns}
-          data={MOCK_OUTPUT_TYPES}
+          data={outputTypeData}
           loading={loading}
-          total={MOCK_OUTPUT_TYPES.length}
+          total={outputTypeData.length}
           page={1}
           pageSize={10}
         />
@@ -322,9 +323,10 @@ function CategoryBreakdown({ loading, metric }) {
   )
 }
 
-function StorageMetrics({ loading, metric }) {
-  const totalHours = WORKSPACE_HOURS.reduce((s, w) => s + w.hours, 0)
-  const avgDuration = (totalHours / 4569).toFixed(2)
+function StorageMetrics({ loading, metric, workspaceHours = WORKSPACE_HOURS, weeklyHours = WEEKLY_HOURS }) {
+  const totalHours = workspaceHours.reduce((s, w) => s + (w.hours || 0), 0)
+  const totalCount = workspaceHours.reduce((s, w) => s + (w.count || 0), 0)
+  const avgDuration = totalCount > 0 ? (totalHours / totalCount).toFixed(2) : '0.00'
 
   return (
     <div className="space-y-6">
@@ -375,9 +377,9 @@ function StorageMetrics({ loading, metric }) {
           Video Duration by Workspace ({metric === 'hours' ? 'Hours' : 'Count'})
         </h2>
         <HorizontalBarChart
-          data={WORKSPACE_HOURS.map((w) => ({
-            label: w.name.replace('WS-', ''),
-            value: metric === 'hours' ? w.hours : w.count,
+          data={workspaceHours.map((w) => ({
+            label: (w.name || w.workspace || '').replace('WS-', ''),
+            value: metric === 'hours' ? (w.hours || 0) : (w.count || 0),
           }))}
           loading={loading}
           height={200}
@@ -394,7 +396,7 @@ function StorageMetrics({ loading, metric }) {
         <h2 className="text-lg font-semibold text-white mb-4">
           Weekly Upload {metric === 'hours' ? 'Hours' : 'Count'}
         </h2>
-        <WeeklyHoursChart data={WEEKLY_HOURS} metric={metric} />
+        <WeeklyHoursChart data={weeklyHours} metric={metric} />
       </motion.div>
     </div>
   )
@@ -477,10 +479,11 @@ function HorizontalBarChart({ data, loading, height = 240 }) {
   )
 }
 
-function OutputTypeGroupedBar({ metric, loading }) {
-  const types = MOCK_OUTPUT_TYPES.map((o) => o.type.replace(/_/g, ' '))
-  const totalVals = MOCK_OUTPUT_TYPES.map((o) => o.total)
-  const pubVals = MOCK_OUTPUT_TYPES.map((o) => o.published)
+function OutputTypeGroupedBar({ metric, loading, data = MOCK_OUTPUT_TYPES }) {
+  const types = data.map((o) => o.type.replace(/_/g, ' '))
+  const totalVals = data.map((o) => o.total)
+  const pubVals = data.map((o) => o.published)
+  const lowestIdx = pubVals.indexOf(Math.min(...pubVals))
 
   const option = {
     backgroundColor: 'transparent',
@@ -533,7 +536,7 @@ function OutputTypeGroupedBar({ metric, loading }) {
         barMaxWidth: 32,
         itemStyle: {
           borderRadius: [4, 4, 0, 0],
-          color: (params) => params.dataIndex === 4
+          color: (params) => params.dataIndex === lowestIdx
             ? '#e63946'
             : '#666666',
         },
@@ -541,7 +544,7 @@ function OutputTypeGroupedBar({ metric, loading }) {
           data: [
             {
               name: 'Lowest',
-              coord: ['my key moments', pubVals[4]],
+              coord: [types[lowestIdx], pubVals[lowestIdx]],
               value: 'Lowest PCR',
               itemStyle: { color: '#e63946' },
               label: { color: '#fff', fontSize: 10 },
@@ -640,18 +643,53 @@ export default function UsageTrends() {
 
   useEffect(() => {
     setLoading(true)
-    Promise.all([getDailyTrends(filters), getCategoryTrends(filters)])
-      .then(([daily, category]) => {
-        setData({ daily, category })
+    Promise.all([
+      getDailyTrends(filters),
+      getCategoryTrends(filters),
+      getOutputTypeTrends(filters),
+      getExecutiveSummary(filters),
+      getPeriodComparison(filters),
+    ])
+      .then(([daily, category, outputType, exec, comparison]) => {
+        setData({
+          daily: daily.data,
+          category: category.data,
+          outputType: outputType.data,
+          workspacePcr: exec.data?.workspace_pcr,
+          comparison: comparison.data,
+        })
         setLoading(false)
       })
       .catch(() => {
-        setData({ daily: MOCK_DAILY, category: MOCK_CATEGORY })
+        setData({ daily: MOCK_DAILY, category: MOCK_CATEGORY, outputType: null, workspacePcr: null, comparison: null })
         setLoading(false)
       })
   }, [filters])
 
   const dailyData = data?.daily || MOCK_DAILY
+  const categoryData = data?.category ?? MOCK_CATEGORY
+  const outputTypeData = data?.outputType ?? MOCK_OUTPUT_TYPES
+
+  // Derive workspace hours from executive summary (total_hours field added in WS-8)
+  const workspaceHours = data?.workspacePcr?.map((ws) => ({
+    name: ws.workspace,
+    hours: ws.total_hours || 0,
+    count: ws.total,
+  })) ?? WORKSPACE_HOURS
+
+  // Aggregate daily data into weekly buckets (groups of 7 days)
+  const weeklyHours = React.useMemo(() => {
+    const weeks = []
+    for (let w = 0; w < Math.ceil(dailyData.length / 7); w++) {
+      const slice = dailyData.slice(w * 7, w * 7 + 7)
+      weeks.push({
+        week: `W${w + 1}`,
+        hours: +slice.reduce((s, d) => s + (d.uploaded_hours || 0), 0).toFixed(1),
+        count: slice.reduce((s, d) => s + (d.uploaded || 0), 0),
+      })
+    }
+    return weeks.length ? weeks : WEEKLY_HOURS
+  }, [dailyData])
 
   return (
     <motion.div
@@ -697,13 +735,13 @@ export default function UsageTrends() {
           transition={{ duration: 0.2 }}
         >
           {activeSubTab === 'time' && (
-            <TimeAnalysis dailyData={dailyData} loading={loading} metric={metric} />
+            <TimeAnalysis dailyData={dailyData} categoryData={categoryData} loading={loading} metric={metric} comparison={data?.comparison} />
           )}
           {activeSubTab === 'category' && (
-            <CategoryBreakdown loading={loading} metric={metric} />
+            <CategoryBreakdown loading={loading} metric={metric} outputTypeData={outputTypeData} />
           )}
           {activeSubTab === 'storage' && (
-            <StorageMetrics loading={loading} metric={metric} />
+            <StorageMetrics loading={loading} metric={metric} workspaceHours={workspaceHours} weeklyHours={weeklyHours} />
           )}
         </motion.div>
       </AnimatePresence>

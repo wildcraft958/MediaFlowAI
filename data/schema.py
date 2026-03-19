@@ -406,24 +406,20 @@ def create_kpi_views(con):
         ORDER BY frammer_workspace, week
     """)
 
-    # MCI — Metadata Completeness Index
+    # MCI — Metadata Completeness Index (checks fields that actually have nulls)
     con.execute("""
         CREATE OR REPLACE VIEW v_mci AS
         SELECT
             frammer_workspace,
-            ROUND(AVG(CASE WHEN headline  IS NOT NULL AND headline  != '' THEN 1.0 ELSE 0 END) * 100, 2) AS headline_pct,
-            ROUND(AVG(CASE WHEN team_name IS NOT NULL AND team_name != '' THEN 1.0 ELSE 0 END) * 100, 2) AS team_pct,
-            ROUND(AVG(CASE WHEN language  IS NOT NULL AND language  != '' THEN 1.0 ELSE 0 END) * 100, 2) AS language_pct,
-            ROUND(AVG(CASE WHEN input_type IS NOT NULL AND input_type != '' THEN 1.0 ELSE 0 END) * 100, 2) AS input_type_pct,
-            ROUND(AVG(
-                (CASE WHEN headline  != '' THEN 1 ELSE 0 END +
-                 CASE WHEN team_name != '' THEN 1 ELSE 0 END +
-                 CASE WHEN language  != '' THEN 1 ELSE 0 END +
-                 CASE WHEN input_type != '' THEN 1 ELSE 0 END) / 4.0
-            ) * 100, 2) AS overall_mci_pct
+            ROUND(COUNT(upload_date) * 100.0 / COUNT(*), 1) AS upload_date_pct,
+            ROUND(COUNT(processed_date) * 100.0 / COUNT(*), 1) AS processed_date_pct,
+            ROUND(COUNT(billable_flag) * 100.0 / COUNT(*), 1) AS billable_flag_pct,
+            ROUND(COUNT(output_type) * 100.0 / COUNT(*), 1) AS output_type_pct,
+            ROUND(COUNT(published_platform) * 100.0 / COUNT(*), 1) AS platform_pct,
+            ROUND((COUNT(upload_date) + COUNT(processed_date) + COUNT(billable_flag)
+                 + COUNT(output_type) + COUNT(published_platform)) * 100.0 / (COUNT(*) * 5), 1) AS overall_mci_pct
         FROM frammer_dataset
-        WHERE published_flag = true
-        GROUP BY frammer_workspace
+        GROUP BY frammer_workspace ORDER BY overall_mci_pct
     """)
 
     # DCDR — Duplicate Detection Rate

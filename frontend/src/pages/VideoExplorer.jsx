@@ -3,7 +3,7 @@
  * Searchable, filterable DataTable of all videos with ZSP scoring + CSV export
  */
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import {
   Search, Download, Youtube, Instagram, AlertTriangle, ChevronDown,
@@ -98,7 +98,7 @@ function generateMockVideos(count = 4569) {
   return videos
 }
 
-const ALL_VIDEOS = generateMockVideos(4569)
+// Mock videos kept only as export fallback; server-side data is primary source
 
 // ── Helper components ─────────────────────────────────────────────────────────
 
@@ -165,45 +165,28 @@ export default function VideoExplorer() {
   const [sortState, setSortState] = useState({ key: null, dir: 'asc' })
   const [loading, setLoading] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [apiData, setApiData] = useState(null)
   const filters = useStore((s) => s.filters)
 
-  // Try to fetch from API; fall back to mock on error
   useEffect(() => {
-    // Videos are generated client-side as mock — no API call needed for demo
-    // In production: getVideos({ ...filters, page, search }) would be called here
+    setLoading(true)
+    getVideos({
+      ...filters,
+      page,
+      limit: PAGE_SIZE,
+      search: search.trim() || undefined,
+      workspace: filterWs || undefined,
+      input_type: filterInput || undefined,
+      output_type: filterOutput || undefined,
+      team: filterTeam || undefined,
+    })
+      .then((res) => setApiData(res.data))
+      .catch(() => setApiData(null))
+      .finally(() => setLoading(false))
   }, [filters, page, search, filterWs, filterInput, filterOutput, filterTeam])
 
-  // Derived filtered + sorted data
-  const filteredVideos = useMemo(() => {
-    let vids = ALL_VIDEOS
-    if (search.trim()) {
-      const q = search.trim().toLowerCase()
-      vids = vids.filter(
-        (v) =>
-          v.headline.toLowerCase().includes(q) ||
-          v.id.toLowerCase().includes(q) ||
-          v.uploadedBy.toLowerCase().includes(q)
-      )
-    }
-    if (filterWs) vids = vids.filter((v) => v.workspace === filterWs)
-    if (filterInput) vids = vids.filter((v) => v.inputType === filterInput)
-    if (filterOutput) vids = vids.filter((v) => v.outputType === filterOutput)
-    if (filterTeam) vids = vids.filter((v) => v.team === filterTeam)
-    if (sortState.key) {
-      vids = [...vids].sort((a, b) => {
-        const av = a[sortState.key]
-        const bv = b[sortState.key]
-        const cmp = av < bv ? -1 : av > bv ? 1 : 0
-        return sortState.dir === 'asc' ? cmp : -cmp
-      })
-    }
-    return vids
-  }, [search, filterWs, filterInput, filterOutput, filterTeam, sortState])
-
-  const pageData = useMemo(
-    () => filteredVideos.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
-    [filteredVideos, page]
-  )
+  const pageData = apiData?.data ?? []
+  const totalCount = apiData?.total ?? 0
 
   const handleSort = useCallback((s) => { setSortState(s); setPage(1) }, [])
 
@@ -214,7 +197,7 @@ export default function VideoExplorer() {
     } catch {
       // Fallback: generate CSV from filtered data
       const headers = ['ID', 'Headline', 'Workspace', 'Input Type', 'Output Type', 'Published', 'Platform', 'Uploaded By', 'Upload Date', 'ZSP Score']
-      const rows = filteredVideos.map((v) =>
+      const rows = pageData.map((v) =>
         [v.id, `"${v.headline}"`, v.workspace, v.inputType, v.outputType,
          v.published ? 'Yes' : 'No', v.platform || '-', v.uploadedBy, v.uploadDate || '-', v.zsp].join(',')
       )
@@ -330,7 +313,7 @@ export default function VideoExplorer() {
       <div>
         <h1 className="text-2xl font-bold text-white mb-1">Video Explorer</h1>
         <p className="text-sm text-[#a0a0a0]">
-          Browse, search, and export all {ALL_VIDEOS.length.toLocaleString()} videos across 5 workspaces
+          Browse, search, and export 4,569 videos across 5 workspaces
         </p>
       </div>
 
@@ -404,20 +387,20 @@ export default function VideoExplorer() {
       {/* Stats row */}
       <div className="flex items-center gap-4 text-xs text-[#555]">
         <span>
-          <span className="text-white font-semibold">{filteredVideos.length.toLocaleString()}</span>
+          <span className="text-white font-semibold">{totalCount.toLocaleString()}</span>
           {' '}videos{hasActiveFilters && ' (filtered)'}
         </span>
         <span>·</span>
         <span>
           <span className="text-[#4caf50] font-semibold">
-            {filteredVideos.filter((v) => v.published).length.toLocaleString()}
-          </span> published
+            {pageData.filter((v) => v.published).length.toLocaleString()}
+          </span> published (this page)
         </span>
         <span>·</span>
         <span>
           <span className="text-[#e63946] font-semibold">
-            {filteredVideos.filter((v) => !v.uploadDate).length.toLocaleString()}
-          </span> missing upload_date
+            {pageData.filter((v) => !v.uploadDate).length.toLocaleString()}
+          </span> missing upload_date (this page)
         </span>
         {hasActiveFilters && (
           <>
@@ -432,7 +415,7 @@ export default function VideoExplorer() {
         columns={columns}
         data={pageData}
         loading={loading}
-        total={filteredVideos.length}
+        total={totalCount}
         page={page}
         pageSize={PAGE_SIZE}
         onPageChange={(p) => setPage(p)}

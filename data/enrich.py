@@ -238,6 +238,13 @@ def adjust_publish_rates(df: pd.DataFrame, rng: np.random.Generator) -> pd.DataF
     Handles both boolean and string representations of published_flag.
     """
     out = df.copy()
+    # Coerce extension-array string columns (ArrowDtype / StringDtype) to plain object
+    # so that .loc[mask, col] = None/np.nan works without PyArrow wrapping errors.
+    # This can occur when the caller passes a DataFrame produced by pd.concat().
+    for col in PUBLISH_METRIC_COLS:
+        if col in out.columns and pd.api.types.is_extension_array_dtype(out[col]):
+            out[col] = out[col].astype(object)
+
     # published_flag is always boolean at this point (normalised in enrich_dataset)
     for ws, target_rate in WORKSPACE_TARGET_RATES.items():
         ws_mask  = out["frammer_workspace"] == ws
@@ -253,7 +260,8 @@ def adjust_publish_rates(df: pd.DataFrame, rng: np.random.Generator) -> pd.DataF
             out.loc[to_flip, "published_flag"] = False
             for col in PUBLISH_METRIC_COLS:
                 if col in out.columns:
-                    out.loc[to_flip, col] = np.nan
+                    # Use None for ArrowDtype string cols; None also becomes NaN in float cols
+                    out.loc[to_flip, col] = None
 
     return out
 
@@ -304,6 +312,9 @@ def enrich_dataset(df: pd.DataFrame, seed: int = 42) -> pd.DataFrame:
 
     # 7. Introduce channel-level publish variance (PS Section 6C requirement)
     out = adjust_publish_rates(out, rng)
+
+    # 8. billable_flag — published videos are billable (PS §8C)
+    out["billable_flag"] = np.where(out["published_flag"], "True", "False")
 
     return out
 

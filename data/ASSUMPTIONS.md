@@ -197,6 +197,20 @@ was already below the 95% target — algorithm only flips published→unpublishe
 
 ---
 
+## Change 8: `billable_flag` — Billing Analytics
+
+**Problem:** `billable_flag` was 100% null, making PS §8C ("billable vs non-billable analytics") unqueryable.
+
+**Decision:** Set `billable_flag` to match `published_flag`. Published content = billable usage for the client (the video was processed by Frammer AI and approved for distribution). Unpublished videos consumed AI processing but generated no publishable output — they may be billable at a lower rate in reality, but using `published_flag` as a proxy gives a clear, defensible split that enables billing analytics without additional data.
+
+**Implementation:** `out["billable_flag"] = out["published_flag"].map({True: "True", False: "False"})` — stored as VARCHAR to match existing schema conventions (all flag columns are VARCHAR).
+
+**Result:** 3,188 billable (69.8%) / 1,381 non-billable (30.2%) — meaningful billing split across all 5 workspaces.
+
+**PS reference:** Section 8C ("billable vs non-billable usage analytics")
+
+---
+
 ## What Was NOT Changed
 
 | Column | Reason kept as-is |
@@ -252,13 +266,48 @@ frammer_workspace*     ← NEW: replaces channel (Change 4)
 
 ---
 
+## Change 7: Date Shift — Rolling Window Alignment
+
+**Problem:** The synthetic dataset was generated with `upload_date` spanning
+2024-11-19 → 2025-11-19. Once real calendar time advanced past 2025-11-19, the
+dashboard's 90-day rolling trend chart returned 0 rows — all data was outside
+the window. This made the Usage & Trends tab and all time-series features invisible.
+
+**Decision:** Shift all timestamps forward so `max(upload_date)` equals today's date
+at midnight. This preserves the full 1-year data span and all relative durations;
+only the absolute dates change.
+
+**Script:** `data/shift_dates.py`
+```bash
+python data/shift_dates.py   # shifts CSV + rebuilds frammer.duckdb
+```
+
+**Shift applied (2026-03-19):** +119 days
+- `upload_date`:    2024-11-19 → 2025-11-19  →  2025-03-19 → 2026-03-19
+- `processed_date`: shifted by same offset (preserves upload→process lag)
+
+**Key property:** Because the shift is derived as `today - max(upload_date)`,
+re-running `shift_dates.py` on any future date will re-align the window to
+that new date. The script is idempotent.
+
+**PS rationale:** The problem statement explicitly permits synthetic data
+(Section 9). Date alignment is a presentation-only adjustment; no analytical
+values (PCR, TEU, ZSP, etc.) are affected.
+
+**`/api/trends/daily` default:** `days=90` (natural 90-day window now covers
+real data). The earlier workaround (`days=500`) has been reverted.
+
+---
+
 ## Reproducibility
 
 ```bash
 cd GCAgent/
-python data/enrich.py          # regenerates data/frammer_dataset.csv
+python data/enrich.py           # regenerates data/frammer_dataset.csv
+python data/shift_dates.py      # shifts dates to rolling window (run after enrich)
 python -m pytest data/test_enrich.py -v  # 32 tests, all pass
-python data/schema.py          # rebuilds frammer.duckdb from frammer_dataset.csv
+python data/schema.py           # rebuilds frammer.duckdb from frammer_dataset.csv
 ```
 
-Seed: `42`. Given the same `Corrected_dataset.csv`, output is byte-identical.
+Seed: `42`. Given the same `Corrected_dataset.csv`, `enrich.py` output is byte-identical.
+`shift_dates.py` output depends on the current date — run it to re-align to today.

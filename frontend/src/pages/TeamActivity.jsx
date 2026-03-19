@@ -17,7 +17,7 @@ import FilterBar from '../components/common/FilterBar'
 import CountHoursToggle from '../components/common/CountHoursToggle'
 import Badge from '../components/common/Badge'
 import useStore from '../store/useStore'
-import { getCrosstab } from '../api/client'
+import { getCrosstab, getKPI, getExecutiveSummary, getUserActivity } from '../api/client'
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
 
@@ -266,7 +266,7 @@ function OutputTypeByTeamChart({ loading }) {
   )
 }
 
-function CrossTabHeatmap({ d1, d2, loading }) {
+function CrossTabHeatmap({ d1, d2, loading, apiData, metric }) {
   const rows = {
     workspace: ['WS-DIGITAL-NEWS', 'WS-ENTERTAINMENT', 'WS-TECH-ANALYSIS', 'WS-LIFESTYLE', 'WS-SPORTS-LIVE'],
     team: ['Digital_News', 'Entertainment', 'Tech_Analysis', 'Sports_Live', 'Lifestyle'],
@@ -280,17 +280,30 @@ function CrossTabHeatmap({ d1, d2, loading }) {
     workspace: ['WS-DIGITAL-NEWS', 'WS-ENTERTAINMENT', 'WS-TECH-ANALYSIS', 'WS-LIFESTYLE', 'WS-SPORTS-LIVE'],
   }
 
-  const yLabels = (rows[d1] || rows.workspace).map((r) => r.replace('WS-', '').replace(/_/g, ' '))
-  const xLabels = (cols[d2] || cols.input_type).map((c) => c.replace(/_/g, ' '))
+  let yLabels, xLabels, heatData
 
-  // Generate heatmap data
-  const heatData = []
-  yLabels.forEach((_, yi) => {
-    xLabels.forEach((_, xi) => {
-      heatData.push([xi, yi, Math.round(20 + Math.random() * 350)])
+  if (apiData && apiData.length > 0) {
+    const colKeys = Object.keys(apiData[0]).filter((k) => k !== 'd1_val')
+    yLabels = apiData.map((r) => String(r.d1_val).replace('WS-', '').replace(/_/g, ' '))
+    xLabels = colKeys.map((c) => String(c).replace(/_/g, ' '))
+    heatData = []
+    apiData.forEach((row, yi) => {
+      colKeys.forEach((col, xi) => {
+        heatData.push([xi, yi, Number(row[col]) || 0])
+      })
     })
-  })
-  const maxVal = Math.max(...heatData.map((d) => d[2]))
+  } else {
+    yLabels = (rows[d1] || rows.workspace).map((r) => r.replace('WS-', '').replace(/_/g, ' '))
+    xLabels = (cols[d2] || cols.input_type).map((c) => c.replace(/_/g, ' '))
+    heatData = []
+    yLabels.forEach((_, yi) => {
+      xLabels.forEach((_, xi) => {
+        heatData.push([xi, yi, Math.round(20 + Math.random() * 350)])
+      })
+    })
+  }
+
+  const maxVal = Math.max(...heatData.map((d) => d[2]), 1)
 
   const option = {
     backgroundColor: 'transparent',
@@ -301,7 +314,10 @@ function CrossTabHeatmap({ d1, d2, loading }) {
       borderWidth: 1,
       textStyle: { color: '#fff', fontSize: 12 },
       formatter(p) {
-        return `${yLabels[p.data[1]]} × ${xLabels[p.data[0]]}<br/>Count: <b>${p.data[2].toLocaleString()}</b>`
+        const label = metric === 'hours' ? 'Hours' : metric === 'pcr_pct' ? 'PCR %' : 'Count'
+        return `${yLabels[p.data[1]]} × ${xLabels[p.data[0]]}<br/>${label}: <b>${
+          metric === 'hours' ? p.data[2].toFixed(2) : p.data[2].toLocaleString()
+        }</b>`
       },
     },
     visualMap: {
@@ -388,17 +404,35 @@ export default function TeamActivity() {
   const [dim1, setDim1] = useState('workspace')
   const [dim2, setDim2] = useState('input_type')
   const [crossTabLoading, setCrossTabLoading] = useState(false)
+  const [crossTabData, setCrossTabData] = useState(null)
   const filters = useStore((s) => s.filters)
   const metric = useStore((s) => s.metric)
 
   useEffect(() => {
     setLoading(true)
-    // Simulate API fetch
-    setTimeout(() => {
-      setData({ users: MOCK_USERS })
-      setLoading(false)
-    }, 400)
+    Promise.all([
+      getExecutiveSummary(filters),
+      getKPI('LPI', filters),
+      getUserActivity(filters),
+    ])
+      .then(([exec, lpi, users]) => {
+        setData({
+          workspacePcr: exec.data?.workspace_pcr,
+          lpi: lpi.data?.data,
+          users: users.data,
+        })
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
   }, [filters])
+
+  useEffect(() => {
+    setCrossTabLoading(true)
+    getCrosstab({ d1: dim1, d2: dim2, metric, ...filters })
+      .then((res) => setCrossTabData(res.data ?? res))
+      .catch(() => setCrossTabData(null))
+      .finally(() => setCrossTabLoading(false))
+  }, [dim1, dim2, filters, metric])
 
   // User Activity table columns
   const userColumns = [
@@ -467,7 +501,36 @@ export default function TeamActivity() {
     },
   ]
 
+  const treemapData = data?.workspacePcr?.map((ws) => ({
+    name: `${ws.workspace}\n${ws.workspace.replace('WS-', '').replace(/-/g, ' ')} · ${ws.pcr}% PCR`,
+    value: ws.total,
+    pcr: ws.pcr,
+  })) ?? TREEMAP_DATA
+
+  const lpiRows = data?.lpi ?? []
+  const lpiPair = [
+    {
+      lang: 'English',
+      lpi: lpiRows.find((r) => r.language === 'English')?.lpi_score ?? +0.12,
+      pcr: lpiRows.find((r) => r.language === 'English')?.pcr ?? 71.4,
+      count: lpiRows.find((r) => r.language === 'English')?.count ?? 3290,
+      pct: '72%',
+    },
+    {
+      lang: 'Hindi',
+      lpi: lpiRows.find((r) => r.language === 'Hindi')?.lpi_score ?? -0.08,
+      pcr: lpiRows.find((r) => r.language === 'Hindi')?.pcr ?? 66.8,
+      count: lpiRows.find((r) => r.language === 'Hindi')?.count ?? 1279,
+      pct: '28%',
+    },
+  ]
+
   const users = data?.users || MOCK_USERS
+  const activeCount = users.filter((u) => u.status === 'active').length
+  const topWs = data?.workspacePcr?.[0]
+  const avgTeu = users.length
+    ? +(users.reduce((s, u) => s + (u.teu || 0), 0) / users.length).toFixed(1)
+    : 11.1
 
   return (
     <motion.div
@@ -490,17 +553,17 @@ export default function TeamActivity() {
         {[
           {
             title: 'Active Users',
-            value: 4,
+            value: activeCount || 4,
             unit: '',
             trend: 'neutral',
-            trendLabel: '4 teams total',
+            trendLabel: `${users.length} total`,
             icon: Users,
-            subtitle: '1 idle (content_editor_04)',
+            subtitle: `${users.length - activeCount} idle`,
             loading,
           },
           {
             title: 'Avg TEU Score',
-            value: 11.1,
+            value: avgTeu,
             unit: 'h',
             trend: 'up',
             trendValue: 3.2,
@@ -511,10 +574,10 @@ export default function TeamActivity() {
           },
           {
             title: 'Top Workspace',
-            value: '92',
+            value: topWs?.pcr ?? 92,
             unit: '%',
             trend: 'up',
-            trendLabel: 'WS-DIGITAL-NEWS',
+            trendLabel: topWs?.workspace ?? 'WS-DIGITAL-NEWS',
             icon: BarChart2,
             accent: true,
             subtitle: 'Highest PCR',
@@ -558,7 +621,7 @@ export default function TeamActivity() {
               <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-[#3a0a0a] border border-[#e63946]" /> &lt;60%</span>
             </div>
           </div>
-          <TreemapViz data={TREEMAP_DATA} loading={loading} metric={metric} />
+          <TreemapViz data={treemapData} loading={loading} metric={metric} />
         </motion.div>
 
         <motion.div
@@ -624,7 +687,7 @@ export default function TeamActivity() {
           </div>
         </div>
 
-        <CrossTabHeatmap d1={dim1} d2={dim2} loading={crossTabLoading} />
+        <CrossTabHeatmap d1={dim1} d2={dim2} loading={crossTabLoading} apiData={crossTabData} metric={metric} />
       </motion.div>
 
       {/* LPI Card */}
@@ -647,22 +710,7 @@ export default function TeamActivity() {
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          {[
-            {
-              lang: 'English',
-              lpi: +0.12,
-              pcr: 71.4,
-              count: 3290,
-              pct: '72%',
-            },
-            {
-              lang: 'Hindi',
-              lpi: -0.08,
-              pcr: 66.8,
-              count: 1279,
-              pct: '28%',
-            },
-          ].map((l) => {
+          {lpiPair.map((l) => {
             const isPositive = l.lpi >= 0
             const color = isPositive ? '#4caf50' : '#e63946'
             const Icon = isPositive ? TrendingUp : TrendingDown

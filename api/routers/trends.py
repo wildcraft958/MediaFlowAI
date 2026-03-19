@@ -27,6 +27,27 @@ def daily_trends(days: int = Query(90, ge=7, le=365), f: FilterParams = Depends(
     return df.to_dict(orient="records")
 
 
+@router.get("/trends/output-type")
+def output_type_trends(f: FilterParams = Depends()):
+    """Frammer output type breakdown — total, published, PCR, avg watch hours."""
+    where, params = build_where_clause(f, alias="")
+    df = query_df(
+        f"""SELECT
+            frammer_output_type AS type,
+            COUNT(*) AS total,
+            SUM(CASE WHEN published_flag=true THEN 1 ELSE 0 END) AS published,
+            ROUND(SUM(CASE WHEN published_flag=true THEN 1 ELSE 0 END)*100.0/COUNT(*),2) AS pcr,
+            ROUND(AVG(avg_view_duration_sec)/3600.0,4) AS avgWatchHours,
+            ROUND(SUM(subscribers_gained),0) AS subscribers,
+            ROUND(SUM(TRY_CAST(impressions AS DOUBLE)),0) AS impressions
+        FROM frammer_dataset
+        {where}
+        GROUP BY frammer_output_type ORDER BY total DESC""",
+        params,
+    )
+    return df.to_dict(orient="records")
+
+
 @router.get("/trends/category")
 def category_trends(f: FilterParams = Depends()):
     where, params = build_where_clause(f, alias="")

@@ -1,9 +1,15 @@
 """
 SQL Generator — produces DuckDB SQL from the CoT plan.
 Adapted from SQL-of-Thought arXiv:2509.00581 (sql_agent).
+
+Public API:
+  generate_sql(question, plan) -> GeneratedSQL   — structured output (new)
+  _postprocess_sql(raw) -> str                   — strip markdown fences
 """
 from __future__ import annotations
 import re
+from typing import Union
+from pydantic import BaseModel, Field
 from api.llm import complete
 from agents.text2sql.schema_linker import get_schema_context
 
@@ -29,15 +35,73 @@ Critical DuckDB syntax rules:
 
 Return ONLY the SQL query, no explanation, no markdown fences."""
 
+# ---------------------------------------------------------------------------
+# Pydantic model
+# ---------------------------------------------------------------------------
 
-def generate_sql(question: str, plan: str) -> str:
-    """Returns a DuckDB SQL SELECT query string."""
-    prompt = _PROMPT_TEMPLATE.format(
-        schema=get_schema_context(),
-        question=question,
-        plan=plan,
-    )
-    return _postprocess_sql(complete(prompt, max_tokens=1024))
+class GeneratedSQL(BaseModel):
+    sql: str = ""                   # complete DuckDB SELECT, no markdown fences
+    confidence: float = 0.5        # 0.0–1.0 self-assessed
+    warnings: list[str] = Field(default_factory=list)  # known limitations
+
+# ---------------------------------------------------------------------------
+# Main function
+# ---------------------------------------------------------------------------
+
+def generate_sql(
+    question: str,
+    plan: Union["QueryPlan", str],  # noqa: F821
+) -> GeneratedSQL:
+    """Returns GeneratedSQL Pydantic object."""
+    # Normalize plan to string
+    if hasattr(plan, "steps"):
+        plan_str = "\n".join(f"{i+1}. {s}" for i, s in enumerate(plan.steps))
+    else:
+        plan_str = str(plan)
+
+    try:
+        from pydantic import ValidationError
+        try:
+            from api.llm import get_llm
+            llm = get_llm(temperature=0.0).with_structured_output(GeneratedSQL)
+            prompt = (
+                f"You are a DuckDB SQL generation agent.\n\n"
+                f"Schema:\n{get_schema_context()}\n\n"
+                f"Question: {question}\n\n"
+                f"Query plan:\n{plan_str}\n\n"
+                "Produce a GeneratedSQL with:\n"
+                "- sql: complete DuckDB SELECT query (no markdown, no fences)\n"
+                "- confidence: float 0.0-1.0 for your confidence\n"
+                "- warnings: any known limitations or assumptions\n\n"
+                "Critical DuckDB rules:\n"
+                "- TRY_CAST(col AS TIMESTAMP) — never ::TIMESTAMP\n"
+                "- published_flag = true (not = 1)\n"
+                "- CAST(impressions AS DOUBLE) for impressions\n"
+                "- No DDL/DML statements."
+            )
+            result = llm.invoke(prompt)
+            result.sql = _postprocess_sql(result.sql)
+            return result
+        except (ValidationError, Exception):
+            pass
+    except ImportError:
+        pass
+
+    # Fallback: text completion
+    try:
+        prompt = _PROMPT_TEMPLATE.format(
+            schema=get_schema_context(),
+            question=question,
+            plan=plan_str,
+        )
+        raw = complete(prompt, max_tokens=1024)
+        return GeneratedSQL(sql=_postprocess_sql(raw), confidence=0.5)
+    except Exception:
+        return GeneratedSQL(
+            sql="SELECT * FROM frammer_dataset LIMIT 10",
+            confidence=0.1,
+            warnings=["Fallback SQL used — generation failed"],
+        )
 
 
 def _postprocess_sql(raw: str) -> str:

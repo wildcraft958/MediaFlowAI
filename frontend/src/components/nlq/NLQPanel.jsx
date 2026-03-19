@@ -24,6 +24,7 @@ import {
   TrendingUp,
 } from 'lucide-react'
 import useStore from '../../store/useStore'
+import { postNLQ, openNLQStream } from '../../api/client'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -56,7 +57,7 @@ function TypingIndicator() {
 }
 
 // ---------------------------------------------------------------------------
-// Thought process collapsible
+// Thought process collapsible (completed)
 // ---------------------------------------------------------------------------
 function ThoughtProcess({ steps }) {
   const [open, setOpen] = useState(false)
@@ -93,6 +94,43 @@ function ThoughtProcess({ steps }) {
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Live thought display (streaming — shows steps as they arrive)
+// ---------------------------------------------------------------------------
+function LiveThoughtDisplay({ steps }) {
+  if (!steps || steps.length === 0) return null
+  return (
+    <div className="mt-1 border border-[#1e2a1e] rounded-lg overflow-hidden bg-[#0d130d]">
+      <div className="px-3 py-2 flex items-center gap-2 border-b border-[#1a2a1a]">
+        <motion.span
+          animate={{ opacity: [1, 0.3, 1] }}
+          transition={{ duration: 1, repeat: Infinity }}
+          className="block w-1.5 h-1.5 rounded-full bg-[#4caf50]"
+        />
+        <span className="text-[10px] font-medium text-[#4caf50]">Running agent…</span>
+      </div>
+      <div className="px-3 py-2 font-mono text-[10px] text-[#555] space-y-1 max-h-28 overflow-y-auto">
+        {steps.map((step, i) => (
+          <motion.div
+            key={i}
+            initial={{ opacity: 0, x: -4 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.15 }}
+            className="flex items-start gap-2"
+          >
+            <span className="text-[#4caf50] flex-shrink-0">▶</span>
+            <span>
+              <span className="text-[#a0a0a0]">[{step.node}]</span>{' '}
+              <span className="text-[#666]">{step.action}</span>
+              {step.detail && <span className="text-[#444]"> — {step.detail}</span>}
+            </span>
+          </motion.div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -219,6 +257,56 @@ function ChartPreviewArea() {
 }
 
 // ---------------------------------------------------------------------------
+// Guardrails
+// ---------------------------------------------------------------------------
+
+// Keywords that signal an analytics / media-ops query
+const ANALYTICS_SIGNALS = [
+  'pcr', 'fsc', 'lpi', 'teu', 'opi', 'mci', 'zsp', 'hthr', 'tsqi', 'pig', 'agv', 'pmi',
+  'kpi', 'metric', 'trend', 'upload', 'publish', 'process', 'workspace', 'team', 'user',
+  'video', 'frammer', 'funnel', 'channel', 'platform', 'youtube', 'instagram', 'shorts', 'reels',
+  'interview', 'news', 'speech', 'debate', 'special', 'report', 'discussion',
+  'digital', 'entertainment', 'sports', 'lifestyle', 'analysis', 'analytics',
+  'dashboard', 'data', 'count', 'hour', 'rate', 'score', 'index', 'performance',
+  'bottleneck', 'gap', 'anomaly', 'deviation', 'breakdown', 'compare', 'top', 'best', 'worst',
+  'summary', 'executive', 'weekly', 'daily', 'monthly', 'growth', 'drop', 'peak',
+]
+
+// Topics clearly outside the analytics domain — graceful block
+const OFF_TOPIC_SIGNALS = [
+  'recipe', 'cook', 'weather', 'forecast', 'poem', 'song', 'story', 'joke', 'travel',
+  'history', 'geography', 'capital of', 'translate', 'language', 'math problem',
+  'calculate 2', 'who is', 'what is the meaning', 'define ', 'synonym', 'antonym',
+  'movie review', 'game', 'sport score', 'stock price', 'crypto', 'bitcoin',
+  'politics', 'election', 'news headline', 'hello world', 'hi there', 'how are you',
+]
+
+const OFF_TOPIC_REPLY = {
+  role: 'bot',
+  text: "I can only answer questions about the Frammer AI analytics dashboard — KPIs, workspace performance, publish funnels, video trends, and team activity.\n\nTry asking:\n• \"Which workspace has the lowest PCR?\"\n• \"Show upload vs publish trend for WS-SPORTS-LIVE\"\n• \"What is the LPI score for Hindi content?\"",
+  thoughts: ['Query scoped outside analytics domain', 'Guardrail triggered — off-topic request', 'Returning scoped guidance without API call'],
+  filters: [],
+}
+
+function isOffTopic(query) {
+  const lower = query.toLowerCase()
+  // Block if any off-topic signal matches
+  if (OFF_TOPIC_SIGNALS.some((s) => lower.includes(s))) return true
+  // Block if query is very short and has no analytics signal
+  if (lower.length < 8) return true
+  // Allow if any analytics signal is present
+  if (ANALYTICS_SIGNALS.some((s) => lower.includes(s))) return false
+  // For ambiguous queries (no clear signal either way), let them through to the agent
+  return false
+}
+
+function sanitizeAnswer(text) {
+  if (!text || typeof text !== 'string') return 'No response received.'
+  // Strip excessive whitespace
+  return text.trim().replace(/\n{3,}/g, '\n\n').slice(0, 4000)
+}
+
+// ---------------------------------------------------------------------------
 // Placeholder bot response
 // ---------------------------------------------------------------------------
 const PLACEHOLDER_RESPONSE = {
@@ -252,7 +340,7 @@ function ChatInput({ input, setInput, loading, onSend, inputRef }) {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Ask about your analytics..."
+          placeholder="Ask about KPIs, workspaces, trends, videos…"
           rows={1}
           disabled={loading}
           className="flex-1 bg-transparent text-sm text-white placeholder-[#444] resize-none outline-none focus:outline-none focus:ring-0 leading-relaxed min-h-[22px] max-h-28 overflow-y-auto disabled:opacity-50"
@@ -281,9 +369,23 @@ function ChatInput({ input, setInput, loading, onSend, inputRef }) {
 // ---------------------------------------------------------------------------
 // NLQPanel
 // ---------------------------------------------------------------------------
+// Stable per-browser session ID — persists across page reloads, unique per device
+function getSessionId() {
+  const KEY = 'nlq_session_id'
+  let id = localStorage.getItem(KEY)
+  if (!id) {
+    id = crypto.randomUUID()
+    localStorage.setItem(KEY, id)
+  }
+  return id
+}
+
 export default function NLQPanel({ className = '' }) {
   const nlqOpen    = useStore((s) => s.nlqOpen ?? false)
   const setNlqOpen = useStore((s) => s.setNlqOpen)
+
+  // Stable session ID — wires multi-turn history in the backend agent
+  const sessionId = useRef(getSessionId())
 
   // expanded = large centered modal; compact = floating panel (no backdrop, no page block)
   const [expanded, setExpanded] = useState(false)
@@ -295,10 +397,12 @@ export default function NLQPanel({ className = '' }) {
       ts: formatTime(new Date()),
     },
   ])
-  const [input, setInput]     = useState('')
-  const [loading, setLoading] = useState(false)
-  const messagesEndRef         = useRef(null)
-  const inputRef               = useRef(null)
+  const [input, setInput]         = useState('')
+  const [loading, setLoading]     = useState(false)
+  const [liveThoughts, setLiveThoughts] = useState([])  // SSE thought steps (live)
+  const messagesEndRef             = useRef(null)
+  const inputRef                   = useRef(null)
+  const activeSourceRef            = useRef(null)  // current EventSource
 
   function formatTime(d) {
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -317,21 +421,99 @@ export default function NLQPanel({ className = '' }) {
   }, [nlqOpen])
 
   const sendMessage = useCallback(
-    async (text) => {
+    (text) => {
       const query = (text ?? input).trim()
       if (!query || loading) return
 
       setMessages((prev) => [...prev, { role: 'user', text: query, ts: formatTime(new Date()) }])
       setInput('')
+
+      // Input guardrail — block off-topic queries before hitting the API
+      if (isOffTopic(query)) {
+        setMessages((prev) => [...prev, { ...OFF_TOPIC_REPLY, ts: formatTime(new Date()) }])
+        return
+      }
+
+      // Close any existing SSE connection
+      if (activeSourceRef.current) {
+        activeSourceRef.current.close()
+        activeSourceRef.current = null
+      }
+
       setLoading(true)
+      setLiveThoughts([])
 
-      await new Promise((r) => setTimeout(r, 900 + Math.random() * 400))
+      // Sync session ID into store for HITL wiring
+      useStore.getState().setNlqSessionId(sessionId.current)
 
-      setMessages((prev) => [
-        ...prev,
-        { ...PLACEHOLDER_RESPONSE, ts: formatTime(new Date()) },
-      ])
-      setLoading(false)
+      // Try SSE streaming first; fall back to blocking postNLQ if EventSource unavailable
+      if (typeof EventSource !== 'undefined') {
+        const source = openNLQStream(
+          {
+            question: query,
+            session_id: sessionId.current,
+            persona: useStore.getState().persona ?? 'leadership',
+          },
+          (event) => {
+            if (event.type === 'thought_step') {
+              setLiveThoughts((prev) => [...prev, event.data])
+            } else if (event.type === 'final') {
+              const answerText = sanitizeAnswer(event.answer)
+              const thoughts = (event.thought_steps ?? []).map(
+                (s) => `[${s.node}] ${s.action} — ${s.detail ?? ''}`
+              )
+              setMessages((prev) => [
+                ...prev,
+                { role: 'bot', text: answerText, thoughts, filters: [], ts: formatTime(new Date()) },
+              ])
+              setLiveThoughts([])
+              setLoading(false)
+              activeSourceRef.current = null
+            } else if (event.type === 'error') {
+              setMessages((prev) => [
+                ...prev,
+                { ...PLACEHOLDER_RESPONSE, ts: formatTime(new Date()) },
+              ])
+              setLiveThoughts([])
+              setLoading(false)
+              activeSourceRef.current = null
+            } else if (event.type === 'done') {
+              setLiveThoughts([])
+              setLoading(false)
+              activeSourceRef.current = null
+            }
+          }
+        )
+        activeSourceRef.current = source
+      } else {
+        // Fallback: blocking POST
+        postNLQ({
+          question: query,
+          session_id: sessionId.current,
+          persona: useStore.getState().persona ?? 'leadership',
+          filters: useStore.getState().filters ?? {},
+        })
+          .then((res) => {
+            const d = res.data
+            const answerText = sanitizeAnswer(d.answer)
+            const thoughts = d.thought_process
+              ? d.thought_process.split('\n').filter(Boolean).map((l) => l.split(' — ').pop() ?? l)
+              : []
+            setMessages((prev) => [
+              ...prev,
+              { role: 'bot', text: answerText, thoughts, filters: [], ts: formatTime(new Date()) },
+            ])
+          })
+          .catch(() => {
+            setMessages((prev) => [
+              ...prev,
+              { ...PLACEHOLDER_RESPONSE, ts: formatTime(new Date()) },
+            ])
+          })
+          .finally(() => {
+            setLoading(false)
+          })
+      }
     },
     [input, loading]
   )
@@ -420,7 +602,10 @@ export default function NLQPanel({ className = '' }) {
             <div className="flex-shrink-0 w-7 h-7 rounded-full bg-[#e63946]/15 border border-[#e63946]/25 flex items-center justify-center">
               <Bot size={13} className="text-[#e63946]" />
             </div>
-            <TypingIndicator />
+            <div className="flex-1 min-w-0">
+              <TypingIndicator />
+              <LiveThoughtDisplay steps={liveThoughts} />
+            </div>
           </div>
         )}
         <div ref={messagesEndRef} />
@@ -523,7 +708,10 @@ export default function NLQPanel({ className = '' }) {
                     <div className="flex-shrink-0 w-7 h-7 rounded-full bg-[#e63946]/15 border border-[#e63946]/25 flex items-center justify-center">
                       <Bot size={13} className="text-[#e63946]" />
                     </div>
-                    <TypingIndicator />
+                    <div className="flex-1 min-w-0">
+                      <TypingIndicator />
+                      <LiveThoughtDisplay steps={liveThoughts} />
+                    </div>
                   </div>
                 )}
                 <div ref={messagesEndRef} />

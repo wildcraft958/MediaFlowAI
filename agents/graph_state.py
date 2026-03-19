@@ -16,5 +16,17 @@ class AgentState(TypedDict, total=False):
     chart_spec: Optional[dict]
     narrative: Optional[str]
     thought_steps: list[dict]   # [{node, action, detail}]
-    history: list[dict]         # multi-turn memory
+    history: list[dict]         # multi-turn memory [{query, answer, sql}]
     error: Optional[str]
+    _matched_acronym: Optional[str]  # set by Router, consumed by Analytics
+
+    # HITL fields — set when alert needs human approval
+    hitl_pending: bool
+    hitl_payload: Optional[dict]    # alert dict awaiting approval
+    hitl_decision: Optional[str]    # "approve"|"reject" — set on resume
+    pending_inbox_items: list[dict] # items pushed to Agent Inbox this turn
+
+    # Guardrail tracking fields (WS-8D)
+    input_guardrail_violations: list[str]   # e.g. ["pii:email_redacted"]
+    output_guardrail_violations: list[str]
+    pii_redacted: bool                      # True if query was sanitized

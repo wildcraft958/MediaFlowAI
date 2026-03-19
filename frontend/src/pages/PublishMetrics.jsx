@@ -16,6 +16,7 @@ import DataTable from '../components/common/DataTable'
 import FilterBar from '../components/common/FilterBar'
 import Badge from '../components/common/Badge'
 import useStore from '../store/useStore'
+import { getPublishFunnel, getExecutiveSummary, getCategoryTrends, getCrosstab, getKPI, getPeriodComparison } from '../api/client'
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
 
@@ -74,7 +75,8 @@ const FSC_DATA = [
 
 // ── Sub-charts ─────────────────────────────────────────────────────────────────
 
-function OutputTypePCRBar({ loading }) {
+function OutputTypePCRBar({ loading, data = OUTPUT_PCR }) {
+  const minPcr = Math.min(...data.map((o) => o.pcr))
   const option = {
     backgroundColor: 'transparent',
     tooltip: {
@@ -86,40 +88,40 @@ function OutputTypePCRBar({ loading }) {
       textStyle: { color: '#fff', fontSize: 12 },
       formatter(params) {
         const p = params[0]
-        const isLowest = p.name.replace(/ /g, '_') === 'my_key_moments'
+        const isLowest = p.value === minPcr
         return `<b>${p.name}</b><br/>PCR: <b style="color:${isLowest ? '#e63946' : '#4caf50'}">${p.value}%</b>${isLowest ? '<br/><span style="color:#e63946">⚠ Lowest performer</span>' : ''}`
       },
     },
     grid: { left: 130, right: 80, top: 8, bottom: 8, containLabel: false },
     xAxis: {
       type: 'value',
-      min: 60,
-      max: 75,
+      min: Math.floor(minPcr) - 5,
+      max: Math.ceil(Math.max(...data.map((o) => o.pcr))) + 2,
       axisLabel: { color: '#555', fontSize: 11, formatter: '{value}%' },
       splitLine: { lineStyle: { color: '#1a1a1a', type: 'dashed' } },
     },
     yAxis: {
       type: 'category',
-      data: OUTPUT_PCR.map((o) => o.type.replace(/_/g, ' ')).reverse(),
+      data: data.map((o) => o.type.replace(/_/g, ' ')).reverse(),
       axisLabel: { color: '#a0a0a0', fontSize: 11 },
       axisLine: { lineStyle: { color: '#1f1f1f' } },
     },
     series: [
       {
         type: 'bar',
-        data: [...OUTPUT_PCR].reverse().map((o) => ({
+        data: [...data].reverse().map((o) => ({
           value: o.pcr,
           itemStyle: {
-            color: o.isLowest ? '#e63946' : '#666666',
+            color: o.pcr === minPcr ? '#e63946' : '#666666',
             borderRadius: [0, 6, 6, 0],
           },
           label: {
             show: true,
             position: 'right',
-            formatter: `{c}%${o.isLowest ? ' ⚠' : ''}`,
-            color: o.isLowest ? '#e63946' : '#a0a0a0',
+            formatter: `{c}%${o.pcr === minPcr ? ' ⚠' : ''}`,
+            color: o.pcr === minPcr ? '#e63946' : '#a0a0a0',
             fontSize: 11,
-            fontWeight: o.isLowest ? '700' : '400',
+            fontWeight: o.pcr === minPcr ? '700' : '400',
           },
         })),
         barMaxWidth: 28,
@@ -142,7 +144,7 @@ function OutputTypePCRBar({ loading }) {
   )
 }
 
-function CPDGScatter({ loading }) {
+function CPDGScatter({ loading, data = SCATTER_DATA }) {
   const option = {
     backgroundColor: 'transparent',
     tooltip: {
@@ -181,12 +183,12 @@ function CPDGScatter({ loading }) {
     series: [
       {
         type: 'scatter',
-        data: SCATTER_DATA.map((d) => [d.ctr, d.viewPct, d.count, d.type]),
-        symbolSize(data) {
-          return Math.sqrt(data[2]) * 1.8
+        data: data.map((d) => [d.ctr, d.viewPct, d.count, d.type]),
+        symbolSize(val) {
+          return Math.sqrt(val[2]) * 1.8
         },
         itemStyle: {
-          color: (params) => SCATTER_DATA[params.dataIndex]?.color || '#e63946',
+          color: (params) => data[params.dataIndex]?.color || '#e63946',
           opacity: 0.85,
         },
         label: {
@@ -228,10 +230,26 @@ export default function PublishMetrics() {
 
   useEffect(() => {
     setLoading(true)
-    setTimeout(() => {
-      setData({ funnel: FUNNEL_STAGES })
-      setLoading(false)
-    }, 400)
+    Promise.all([
+      getPublishFunnel(filters),
+      getExecutiveSummary(filters),
+      getCategoryTrends(filters),
+      getCrosstab({ d1: 'frammer_output_type', d2: 'published_flag', ...filters }),
+      getKPI('HTHR', filters),
+      getPeriodComparison(filters),
+    ])
+      .then(([funnel, exec, category, xtab, hthr, comparison]) => {
+        setData({
+          funnel: funnel.data,
+          workspacePcr: exec.data?.workspace_pcr,
+          category: category.data,
+          outputPcr: xtab.data,
+          hthr: hthr.data?.data,
+          comparison: comparison.data,
+        })
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
   }, [filters])
 
   // HTHR table columns
@@ -334,6 +352,56 @@ export default function PublishMetrics() {
     },
   ]
 
+  const COLORS = ['#e63946', '#666666', '#444444', '#555555', '#888888', '#aaaaaa', '#cc4444']
+
+  const fscData = data?.workspacePcr?.map((ws) => ({
+    ws: ws.workspace,
+    uploaded: ws.total,
+    processed: ws.total,
+    published: ws.published,
+    uploadToProcess: 100,
+    processToPublish: Math.round(ws.pcr),
+  })) ?? FSC_DATA
+
+  const inputTypeMix = data?.category?.map((c, i) => ({
+    name: c.type.replace(/_/g, ' '),
+    value: c.count,
+    color: COLORS[i % COLORS.length],
+  })) ?? INPUT_TYPE_MIX.map((item) => ({ name: item.name.replace(/_/g, ' '), value: item.value, color: item.color }))
+
+  const scatterData = data?.category?.map((c, i) => ({
+    type: c.type,
+    ctr: c.ctr,
+    viewPct: c.avgView,
+    count: c.count,
+    color: COLORS[i % COLORS.length],
+  })) ?? SCATTER_DATA
+
+  const outputPcrData = data?.outputPcr?.map((row) => {
+    const pub = row['True'] ?? row['true'] ?? 0
+    const notPub = row['False'] ?? row['false'] ?? 0
+    const total = pub + notPub
+    return { type: row.d1_val, total, published: pub, pcr: total > 0 ? +((pub / total * 100).toFixed(1)) : 0 }
+  }).sort((a, b) => b.pcr - a.pcr) ?? OUTPUT_PCR
+
+  // HTHR table: from KPI API or fallback to mock
+  const hthrTableData = data?.hthr?.map((row, i) => ({
+    rank: i + 1,
+    type: row.input_type ?? row.type ?? '',
+    hthr: +(row.hthr_score ?? row.hthr ?? 0).toFixed(2),
+    ctr: +(row.ctr_percentage ?? row.ctr ?? 0).toFixed(1),
+    avgView: +(row.avg_view_percentage ?? row.avgView ?? 0).toFixed(1),
+    impressions: Math.round(row.impressions ?? 0),
+  })) ?? HTHR_DATA
+
+  // Dynamic KPI card values from API
+  const overallPcr = data?.workspacePcr
+    ? +(data.workspacePcr.reduce((s, w) => s + w.published, 0) /
+        data.workspacePcr.reduce((s, w) => s + w.total, 0) * 100).toFixed(1)
+    : 69.8
+  const topOutputPcr = outputPcrData.length ? outputPcrData[0] : { type: 'summary', pcr: 70.9 }
+  const pd = data?.comparison?.delta
+
   return (
     <motion.div
       className="p-6 space-y-6 min-h-screen bg-[#0a0a0a]"
@@ -355,14 +423,14 @@ export default function PublishMetrics() {
         {[
           {
             title: 'Overall Publish Rate',
-            value: 69.8,
+            value: overallPcr,
             unit: '%',
-            trend: 'up',
-            trendValue: 2.1,
-            trendLabel: 'vs target 80%',
+            trend: (pd?.pcr_pct ?? 0) >= 0 ? 'up' : 'down',
+            trendValue: pd?.pcr_pct != null ? Math.abs(pd.pcr_pct) : null,
+            trendLabel: 'vs prev 30d',
             icon: BarChart2,
             accent: true,
-            subtitle: '3,188 published of 4,569 total',
+            subtitle: `${data?.workspacePcr?.reduce((s, w) => s + w.published, 0) ?? 3188} published of ${data?.workspacePcr?.reduce((s, w) => s + w.total, 0) ?? 4569} total`,
             loading,
           },
           {
@@ -370,31 +438,31 @@ export default function PublishMetrics() {
             value: 30.2,
             unit: '%',
             trend: 'down',
-            trendValue: 1.8,
-            trendLabel: 'widening gap',
+            trendValue: null,
+            trendLabel: 'process → publish gap',
             icon: TrendingDown,
             subtitle: 'Processing → Published drop',
             loading,
           },
           {
             title: 'Avg Processing',
-            value: 4.2,
+            value: data?.comparison?.current?.avg_processing_h ?? 4.2,
             unit: 'h',
-            trend: 'down',
-            trendValue: 15,
-            trendLabel: 'improving',
+            trend: (pd?.avg_processing_pct ?? 0) <= 0 ? 'down' : 'up',
+            trendValue: pd?.avg_processing_pct != null ? Math.abs(pd.avg_processing_pct) : null,
+            trendLabel: 'vs prev 30d',
             icon: Clock,
             subtitle: 'Frammer AI processing time',
             loading,
           },
           {
             title: 'Top PCR Output',
-            value: 70.9,
+            value: topOutputPcr.pcr,
             unit: '%',
             trend: 'neutral',
-            trendLabel: 'Summary output type',
+            trendLabel: topOutputPcr.type,
             icon: Target,
-            subtitle: 'summary - highest PCR',
+            subtitle: `${topOutputPcr.type} - highest PCR`,
             loading,
           },
         ].map((card, i) => (
@@ -436,7 +504,7 @@ export default function PublishMetrics() {
         </div>
 
         <div className="space-y-4">
-          {FSC_DATA.sort((a, b) => b.processToPublish - a.processToPublish).map((ws, i) => {
+          {[...fscData].sort((a, b) => b.processToPublish - a.processToPublish).map((ws, i) => {
             const pcr   = ws.processToPublish
             const color = pcr >= 80 ? '#4caf50' : pcr >= 60 ? '#ff9800' : '#e63946'
             const short = ws.ws.replace('WS-', '')
@@ -507,7 +575,7 @@ export default function PublishMetrics() {
           <h2 className="text-lg font-semibold text-white mb-4">Input Type Mix</h2>
           <div style={{ height: 220 }}>
             <DonutChart
-              data={INPUT_TYPE_MIX.map((i) => ({ name: i.name.replace(/_/g, ' '), value: i.value, color: i.color }))}
+              data={inputTypeMix}
               centerValue="7"
               centerLabel="Types"
               loading={loading}
@@ -528,7 +596,7 @@ export default function PublishMetrics() {
               my_key_moments lowest
             </div>
           </div>
-          <OutputTypePCRBar loading={loading} />
+          <OutputTypePCRBar loading={loading} data={outputPcrData} />
           <div className="mt-3 p-3 rounded-xl bg-[#0a0a0a] border border-[#1f1f1f]">
             <p className="text-xs text-[#a0a0a0]">
               <span className="text-[#e63946] font-semibold">my_key_moments</span> at 64.6% is
@@ -552,7 +620,7 @@ export default function PublishMetrics() {
             CTR (click-through) vs Avg View % - bubble size = video count per type
           </p>
         </div>
-        <CPDGScatter loading={loading} />
+        <CPDGScatter loading={loading} data={scatterData} />
       </motion.div>
 
       {/* HTHR Leaderboard */}
@@ -566,9 +634,9 @@ export default function PublishMetrics() {
         </h2>
         <DataTable
           columns={hthrColumns}
-          data={HTHR_DATA}
+          data={hthrTableData}
           loading={loading}
-          total={HTHR_DATA.length}
+          total={hthrTableData.length}
           page={hthrPage}
           pageSize={10}
           onPageChange={setHthrPage}
@@ -590,9 +658,9 @@ export default function PublishMetrics() {
         </div>
         <DataTable
           columns={fscColumns}
-          data={FSC_DATA}
+          data={fscData}
           loading={loading}
-          total={FSC_DATA.length}
+          total={fscData.length}
           page={fscPage}
           pageSize={10}
           onPageChange={setFscPage}

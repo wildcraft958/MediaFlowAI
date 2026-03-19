@@ -48,3 +48,9 @@ Thumbs.db
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/
+
+# ChromaDB (replaced by BigQuery Vector Search)
+.chromadb/
+
+# Corrected dataset — raw source, re-run data/enrich.py to rebuild frammer_dataset.csv
+Corrected_dataset.csv

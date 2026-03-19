@@ -1,8 +1,14 @@
 """
 Schema Linker — maps NL entities to fact/dim columns.
 Adapted from SQL-of-Thought arXiv:2509.00581.
+
+Public API:
+  link_schema(question) -> SchemaLink        — structured output (new)
+  link_schema_dict(question) -> dict[str,str] — backward-compat shim
+  get_schema_context() -> str
 """
 from __future__ import annotations
+from pydantic import BaseModel, Field
 from api.llm import complete
 
 _SCHEMA_CONTEXT = """
@@ -51,22 +57,63 @@ column_name: reason it is needed
 
 Be concise. Only include columns that are directly required."""
 
+# ---------------------------------------------------------------------------
+# Pydantic model
+# ---------------------------------------------------------------------------
 
-def link_schema(question: str) -> dict[str, str]:
-    """Returns {{column_name: reason}} for columns relevant to the question."""
+class SchemaLink(BaseModel):
+    columns: dict[str, str] = Field(default_factory=dict)  # column → reason
+    filter_values: dict[str, str] = Field(default_factory=dict)  # column → extracted value
+    requires_date_filter: bool = False
+    time_window_hint: str = ""  # "last 30 days", "this month", etc.
+
+# ---------------------------------------------------------------------------
+# Main function
+# ---------------------------------------------------------------------------
+
+def link_schema(question: str) -> SchemaLink:
+    """Returns SchemaLink Pydantic object for columns relevant to the question."""
+    try:
+        from pydantic import ValidationError
+        try:
+            from api.llm import get_llm
+            llm = get_llm(temperature=0.0).with_structured_output(SchemaLink)
+            prompt = (
+                f"You are a schema linking agent for a DuckDB analytics database.\n\n"
+                f"Schema:\n{_SCHEMA_CONTEXT}\n\n"
+                f"Question: {question}\n\n"
+                "Identify which columns from frammer_dataset are relevant. "
+                "For filter_values, extract any specific dimension values mentioned "
+                "(e.g. 'WS-SPORTS-LIVE' for frammer_workspace). "
+                "Set requires_date_filter=true if the question involves time/dates. "
+                "Set time_window_hint to any time period mentioned."
+            )
+            result = llm.invoke(prompt)
+            return result
+        except (ValidationError, Exception):
+            pass
+    except ImportError:
+        pass
+
+    # Fallback: parse text output into SchemaLink
     try:
         prompt = _PROMPT_TEMPLATE.format(schema=_SCHEMA_CONTEXT, question=question)
         text = complete(prompt, max_tokens=512)
-        result = {}
+        columns = {}
         for line in text.strip().splitlines():
             if ":" in line:
                 col, _, reason = line.partition(":")
                 col = col.strip()
                 if col and not col.startswith("#"):
-                    result[col] = reason.strip()
-        return result
+                    columns[col] = reason.strip()
+        return SchemaLink(columns=columns)
     except Exception:
-        return {}
+        return SchemaLink()
+
+
+def link_schema_dict(question: str) -> dict[str, str]:
+    """Backward-compat shim — returns columns dict."""
+    return link_schema(question).columns
 
 
 def get_schema_context() -> str:

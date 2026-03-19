@@ -104,6 +104,40 @@ const useStore = create((set, get) => ({
   // ─── Client (multi-tenant) ────────────────────────────────────────────────
   clientId: 'CLIENT_1',
   setClientId: (clientId) => set({ clientId }),
+
+  // ─── NLQ session (HITL wiring) ────────────────────────────────────────────
+  nlqSessionId: 'default',
+  setNlqSessionId: (id) => set({ nlqSessionId: id }),
+
+  // Approve a pending HITL alert — resumes the paused graph
+  approveAlert: async (msgId) => {
+    const { nlqSessionId } = get()
+    try {
+      await fetch('/api/nlq/hitl/resume', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: nlqSessionId, decision: 'approve' }),
+      })
+    } catch {
+      // ignore network errors — UI still updates
+    }
+    get().markMessageRead(msgId)
+  },
+
+  // Reject a pending HITL alert — resumes the graph without firing
+  rejectAlert: async (msgId) => {
+    const { nlqSessionId } = get()
+    try {
+      await fetch('/api/nlq/hitl/resume', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: nlqSessionId, decision: 'reject' }),
+      })
+    } catch {
+      // ignore network errors
+    }
+    get().dismissMessage(msgId)
+  },
 }))
 
 export default useStore

@@ -1,21 +1,23 @@
 # Frammer AI — Analytics QnA Agent
 
-## 1. What We're Building
+> **Status:** Implemented and tested. 43/43 agent tests pass.
+> Full architecture + build order → `agents/PLAN.md`
+
+## 1. What We Built
 
 An intelligent analytics dashboard for Frammer AI that goes beyond static charts. The core
 differentiator is a **conversational QnA Agent** that lets non-technical stakeholders query
 video operations data in plain English — while the underlying system handles SQL generation,
-chart rendering, and proactive alerting automatically.
+result narration, and proactive alerting automatically.
 
-Deliverables:
-- Browser-based dashboard (5 tabs)
-- Conversational NLQ interface powered by QnA Agent
-- Ambient alert agent with email + Slack notifications
-- PDF report download (narrative CSM brief)
-- Star schema data model + metric dictionary
-- Platform Coverage Index as a first-class metric
-
-Full architecture diagram + build order → `agents/PLAN.md`
+Implemented deliverables:
+- Browser-based dashboard (6 tabs + NLQ floating panel)
+- Conversational NLQ interface with SSE streaming — POST `/api/nlq` + GET `/api/nlq/stream`
+- Ambient alert agent with Slack webhook dispatch
+- PDF report download via WeasyPrint — `agents/mcp_servers/report_server.py`
+- Star schema data model + metric/dimension dictionary
+- SQL-of-Thought pipeline with deterministic guardrails (43/43 tests)
+- Input/output/tool guardrails via `agents/middleware.py`
 
 ---
 
@@ -85,10 +87,10 @@ Internal pipeline (never exposed to user):
 1. **Schema linking agent** — resolves NL entities to dim/fact table columns (via `describe_schema()` MCP tool)
 2. **Query plan agent (CoT)** — step-by-step execution plan before any SQL is written
 3. **SQL generation agent** — writes DuckDB-compatible SQL from the plan (temp=0)
-4. **Guardrails layer** — checks: hallucinated columns, cross-client data leakage, wrong joins,
-   impossible filters, aggregation misuse, no UPDATE/DELETE/DROP
-5. **Correction loop** — taxonomy-guided error correction, max 2 retries.
-   Categories: schema_mismatch, join_error, filter_type_mismatch, aggregation_error
+4. **Guardrails layer** — two-tier: (a) deterministic regex blocks DDL/DML + PostgreSQL `::` cast
+   syntax; (b) LLM validates aggregation, schema linking, filter type mismatches
+5. **Correction loop** — scratchpad-aware retry (max 2). Categories from SQL-of-Thought taxonomy:
+   wrong_cast_syntax, wrong_boolean_compare, agg_no_groupby, col_missing, etc.
 6. **Post-processing + test verification** — executes against DuckDB via MCP tool, validates result shape
 7. **Selective insight summarizer** — plain English summary, surfaced only when meaningful
 

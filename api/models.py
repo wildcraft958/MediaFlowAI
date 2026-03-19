@@ -1,7 +1,7 @@
 """Pydantic response models."""
 from __future__ import annotations
-from typing import Any, Optional
-from pydantic import BaseModel
+from typing import Any, Literal, Optional
+from pydantic import BaseModel, Field
 
 
 class HealthResponse(BaseModel):
@@ -86,11 +86,11 @@ class KPIChatResponse(BaseModel):
 
 
 class NLQRequest(BaseModel):
-    question: str
-    filters: dict[str, Any] = {}
-    context: Optional[str] = None
-    session_id: str = "default"
-    persona: str = "leadership"
+    question: str = Field(..., min_length=1, max_length=2000)
+    filters: dict[str, Any] = Field(default_factory=dict)
+    context: Optional[str] = Field(None, max_length=500)
+    session_id: str = Field("default", pattern=r"^[a-zA-Z0-9_\-]{1,64}$")
+    persona: Literal["leadership", "creator"] = "leadership"
 
 
 class NLQResponse(BaseModel):
@@ -98,3 +98,20 @@ class NLQResponse(BaseModel):
     sql: Optional[str] = None
     data: Optional[Any] = None
     thought_process: Optional[str] = None
+
+
+class NLQStreamEvent(BaseModel):
+    type: str       # "thought_step"|"sql_ready"|"result_ready"|"final"|"error"|"done"
+    node: Optional[str] = None
+    data: Optional[Any] = None
+    answer: Optional[str] = None
+    sql: Optional[str] = None
+    chart_spec: Optional[dict] = None
+    row_count: Optional[int] = None
+    message: Optional[str] = None
+
+
+class HITLResumeRequest(BaseModel):
+    session_id: str = Field(..., pattern=r"^[a-zA-Z0-9_\-]{1,64}$")
+    decision: Literal["approve", "reject"]
+    message: Optional[str] = Field(None, max_length=500)
