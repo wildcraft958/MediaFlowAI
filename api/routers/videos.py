@@ -100,6 +100,7 @@ def export_videos(
         params,
     )
     buf = io.StringIO()
+    df = df.fillna("")
     df.to_csv(buf, index=False)
     buf.seek(0)
     return StreamingResponse(

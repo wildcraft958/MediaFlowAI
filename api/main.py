@@ -15,7 +15,7 @@ from api.routers import health, dimensions, dashboard, kpis, trends, crosstab, v
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Warm up DB connection
+    # Warm up DB connection (pre-built at Docker image build time)
     get_db()
     yield
     # Nothing to close — singleton connection lives for the process lifetime
@@ -29,7 +29,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000", "*"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

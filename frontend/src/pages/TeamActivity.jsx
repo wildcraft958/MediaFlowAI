@@ -7,7 +7,7 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Users, TrendingUp, TrendingDown, Globe, BarChart2,
-  Minus, ChevronDown,
+  Minus, ChevronDown, AlertTriangle, X,
 } from 'lucide-react'
 import ReactECharts from 'echarts-for-react'
 import KPICard from '../components/charts/KPICard'
@@ -18,6 +18,7 @@ import Badge from '../components/common/Badge'
 import RoleGate from '../components/common/RoleGate'
 import useStore from '../store/useStore'
 import { getCrosstab, getKPI, getExecutiveSummary, getUserActivity } from '../api/client'
+import { humanize, stripWs } from '../utils/format'
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
 
@@ -285,8 +286,8 @@ function CrossTabHeatmap({ d1, d2, loading, apiData, metric }) {
 
   if (apiData && apiData.length > 0) {
     const colKeys = Object.keys(apiData[0]).filter((k) => k !== 'd1_val')
-    yLabels = apiData.map((r) => String(r.d1_val).replace('WS-', '').replace(/_/g, ' '))
-    xLabels = colKeys.map((c) => String(c).replace(/_/g, ' '))
+    yLabels = apiData.map((r) => humanize(stripWs(String(r.d1_val ?? ''))))
+    xLabels = colKeys.map((c) => humanize(String(c)))
     heatData = []
     apiData.forEach((row, yi) => {
       colKeys.forEach((col, xi) => {
@@ -404,6 +405,7 @@ const DIM2_OPTIONS = [
 export default function TeamActivity() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [userPage, setUserPage] = useState(1)
   const [dim1, setDim1] = useState('workspace')
   const [dim2, setDim2] = useState('input_type')
@@ -428,15 +430,15 @@ export default function TeamActivity() {
           opi: opi.data?.data,
         })
       })
-      .catch(() => {})
+      .catch(() => { setError('Failed to load data') })
       .finally(() => setLoading(false))
   }, [filters])
 
   useEffect(() => {
     setCrossTabLoading(true)
     getCrosstab({ d1: dim1, d2: dim2, metric, ...filters })
-      .then((res) => setCrossTabData(res.data ?? res))
-      .catch(() => setCrossTabData(null))
+      .then((res) => { setCrossTabData(res.data ?? res); setError(null) })
+      .catch(() => { setCrossTabData(null) })
       .finally(() => setCrossTabLoading(false))
   }, [dim1, dim2, filters, metric])
 
@@ -508,7 +510,7 @@ export default function TeamActivity() {
   ]
 
   const treemapData = data?.workspacePcr?.map((ws) => ({
-    name: `${ws.workspace}\n${ws.workspace.replace('WS-', '').replace(/-/g, ' ')} · ${ws.pcr}% PCR`,
+    name: `${ws.workspace}\n${stripWs(ws.workspace).replace(/-/g, ' ')} · ${ws.pcr}% PCR`,
     value: ws.total,
     pcr: ws.pcr,
   })) ?? TREEMAP_DATA
@@ -553,6 +555,15 @@ export default function TeamActivity() {
 
       {/* FilterBar */}
       <FilterBar />
+
+      {/* Error banner */}
+      {error && (
+        <div className="flex items-center gap-2 p-3 rounded-xl border border-[#e63946]/30 bg-[#e63946]/10 text-xs text-[#e63946]">
+          <AlertTriangle size={13} className="shrink-0" />
+          <span className="flex-1">{error}</span>
+          <button onClick={() => setError(null)} className="text-[#e63946]/60 hover:text-[#e63946]"><X size={13}/></button>
+        </div>
+      )}
 
       {/* KPI summary */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -695,7 +706,7 @@ export default function TeamActivity() {
               { ws: 'WS-SPORTS-LIVE',    orphaned: 261, hours: 117.4, color: '#e63946' },
             ]).map((ws) => (
               <div key={ws.ws} className="p-3 rounded-xl border text-center" style={{ background: `${ws.color}08`, borderColor: `${ws.color}25` }}>
-                <p className="text-[9px] text-[#555] uppercase tracking-wide mb-2 truncate">{ws.ws.replace('WS-', '')}</p>
+                <p className="text-[9px] text-[#555] uppercase tracking-wide mb-2 truncate">{stripWs(ws.ws)}</p>
                 <p className="text-xl font-black tabular-nums" style={{ color: ws.color }}>{ws.orphaned}</p>
                 <p className="text-[10px] text-[#555] mt-0.5">{ws.hours}h backlog</p>
               </div>

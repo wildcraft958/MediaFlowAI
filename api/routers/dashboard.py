@@ -157,8 +157,12 @@ def data_quality(f: FilterParams = Depends()):
         COUNT(output_type) AS output_type_nn,
         COUNT(published_platform) AS platform_nn
     FROM media_dataset {where}""", params)
+    if len(df) == 0:
+        return {"total_rows": 0, "fields": [], "overall_health_pct": 0, "duplicate_pct": 0}
     row = df.iloc[0]
     total = int(row['total'])
+    if total == 0:
+        return {"total_rows": 0, "fields": [], "overall_health_pct": 0, "duplicate_pct": 0}
     fields = [
         {"field": "upload_date", "filled": int(row['upload_date_nn']),
          "null": total - int(row['upload_date_nn']),

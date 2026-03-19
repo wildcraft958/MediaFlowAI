@@ -352,7 +352,7 @@ function KPIConfigurator() {
 
   const handleDelete = (id) => {
     if (!window.confirm('Delete this KPI?')) return
-    deleteKPI(kpis.find((k) => k.id === id)?.acronym).catch(() => {})
+    deleteKPI(kpis.find((k) => k.id === id)?.acronym).catch(() => { console.warn('Failed to delete KPI') })
     setKpis((prev) => prev.filter((k) => k.id !== id))
   }
 
@@ -550,7 +550,7 @@ function ClientSettings() {
           if (data.enabled_kpis) setEnabledKpis(new Set(data.enabled_kpis))
         }
       })
-      .catch(() => {})
+      .catch(() => { console.warn('Failed to load admin config') })
   }, [])
 
   const handleSave = async () => {

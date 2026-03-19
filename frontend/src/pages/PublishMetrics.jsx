@@ -7,7 +7,7 @@ import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import {
   TrendingDown, AlertTriangle, Target, Zap, BarChart2, Clock,
-  ChevronDown,
+  ChevronDown, X,
 } from 'lucide-react'
 import ReactECharts from 'echarts-for-react'
 import KPICard from '../components/charts/KPICard'
@@ -18,6 +18,7 @@ import Badge from '../components/common/Badge'
 import RoleGate from '../components/common/RoleGate'
 import useStore from '../store/useStore'
 import { getPublishFunnel, getExecutiveSummary, getCategoryTrends, getOutputTypeTrends, getKPI, getPeriodComparison } from '../api/client'
+import { humanize, stripWs } from '../utils/format'
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
 
@@ -103,7 +104,7 @@ function OutputTypePCRBar({ loading, data = OUTPUT_PCR }) {
     },
     yAxis: {
       type: 'category',
-      data: data.map((o) => o.type.replace(/_/g, ' ')).reverse(),
+      data: data.map((o) => humanize(o.type)).reverse(),
       axisLabel: { color: '#a0a0a0', fontSize: 11 },
       axisLine: { lineStyle: { color: '#1f1f1f' } },
     },
@@ -225,6 +226,7 @@ function CPDGScatter({ loading, data = SCATTER_DATA }) {
 export default function PublishMetrics() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [hthrPage, setHthrPage] = useState(1)
   const [fscPage, setFscPage] = useState(1)
   const filters = useStore((s) => s.filters)
@@ -251,7 +253,7 @@ export default function PublishMetrics() {
           comparison: comparison.data,
         })
       })
-      .catch(() => {})
+      .catch(() => { setError('Failed to load data') })
       .finally(() => setLoading(false))
   }, [filters, comparePeriod])
 
@@ -273,7 +275,7 @@ export default function PublishMetrics() {
       label: 'Content Type',
       sortable: true,
       render: (v) => (
-        <span className="font-medium text-white capitalize">{v.replace(/_/g, ' ')}</span>
+        <span className="font-medium text-white capitalize">{humanize(v)}</span>
       ),
     },
     {
@@ -421,6 +423,15 @@ export default function PublishMetrics() {
       {/* FilterBar */}
       <FilterBar />
 
+      {/* Error banner */}
+      {error && (
+        <div className="flex items-center gap-2 p-3 rounded-xl border border-[#e63946]/30 bg-[#e63946]/10 text-xs text-[#e63946]">
+          <AlertTriangle size={13} className="shrink-0" />
+          <span className="flex-1">{error}</span>
+          <button onClick={() => setError(null)} className="text-[#e63946]/60 hover:text-[#e63946]"><X size={13}/></button>
+        </div>
+      )}
+
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
@@ -510,7 +521,7 @@ export default function PublishMetrics() {
           {[...fscData].sort((a, b) => b.processToPublish - a.processToPublish).map((ws, i) => {
             const pcr   = ws.processToPublish
             const color = pcr >= 80 ? '#4caf50' : pcr >= 60 ? '#ff9800' : '#e63946'
-            const short = ws.ws.replace('WS-', '')
+            const short = stripWs(ws.ws)
             return (
               <motion.div
                 key={ws.ws}

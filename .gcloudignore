@@ -1,6 +1,9 @@
 # .gcloudignore — controls what gets uploaded to Cloud Build
 # Unlike .gitignore this file is NOT automatically inherited.
-# Intentionally includes: frontend/dist/, *.json (SA key), data/frammer_dataset.csv
+# Intentionally includes: frontend/dist/, *.json (SA key), data/dataset.csv
+
+# Git history — not needed for build
+.git/
 
 # Heavy dev artifacts
 .venv/
@@ -12,13 +15,13 @@ __pycache__/
 *.egg-info/
 .eggs/
 
-# DuckDB — rebuilt at container startup from frammer_dataset.csv
-frammer.duckdb
+# DuckDB — rebuilt at Docker build time from dataset.csv
+analytics.duckdb
 *.db
 *.sqlite
 *.sqlite3
 
-# Raw dataset — not needed (data/frammer_dataset.csv is the enriched version)
+# Raw dataset — not needed (data/dataset.csv is the enriched version)
 Corrected_dataset.csv
 
 # Dev/editor noise

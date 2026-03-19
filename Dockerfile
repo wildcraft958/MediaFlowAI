@@ -32,15 +32,14 @@ from chronos import BaseChronosPipeline; \
 BaseChronosPipeline.from_pretrained('amazon/chronos-bolt-tiny', device_map='cpu', dtype=torch.float32); \
 print('Chronos model cached.')"
 
-# Build DuckDB at image build time so startup is just uvicorn
-# shift_dates still runs at container start to keep dates rolling-window fresh
-RUN uv run python data/schema.py && echo "DuckDB pre-built."
+# Build DuckDB fully at image build time: shift dates + star schema + KPI views.
+# Nothing runs at container start — uvicorn boots instantly.
+RUN uv run python data/shift_dates.py \
+ && uv run python data/schema.py \
+ && echo "analytics.duckdb pre-built."
 
 # Cloud Run always uses 8080
 EXPOSE 8080
 
-# Startup: refresh dates → rebuild schema → serve (schema.py takes ~5s; model already loaded)
-CMD ["sh", "-c", \
-  "uv run python data/shift_dates.py && \
-   uv run python data/schema.py && \
-   uv run uvicorn api.main:app --host 0.0.0.0 --port 8080 --workers 1"]
+# Instant startup — DB and Chronos model are already baked into the image
+CMD ["uv", "run", "uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "1"]

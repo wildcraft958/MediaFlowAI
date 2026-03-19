@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Clock, TrendingUp, Database, Youtube, Instagram } from 'lucide-react'
+import { Clock, TrendingUp, Database, Youtube, Instagram, AlertTriangle, X } from 'lucide-react'
 import ReactECharts from 'echarts-for-react'
 import KPICard from '../components/charts/KPICard'
 import TrendChart from '../components/charts/TrendChart'
@@ -16,6 +16,7 @@ import CountHoursToggle from '../components/common/CountHoursToggle'
 import DataTable from '../components/common/DataTable'
 import useStore from '../store/useStore'
 import { getDailyTrends, getCategoryTrends, getOutputTypeTrends, getExecutiveSummary, getPeriodComparison, getForecast, getCrosstab } from '../api/client'
+import { humanize } from '../utils/format'
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
 
@@ -197,7 +198,7 @@ function TimeAnalysis({ dailyData, categoryData, forecastData, loading, metric, 
           </h2>
           <HorizontalBarChart
             data={categoryData.map((c) => ({
-              label: c.type.replace(/_/g, ' '),
+              label: humanize(c.type),
               value: metric === 'count' ? c.count : c.hours,
             }))}
             loading={loading}
@@ -499,7 +500,7 @@ function HorizontalBarChart({ data, loading, height = 240 }) {
 }
 
 function OutputTypeGroupedBar({ metric, loading, data = MOCK_OUTPUT_TYPES }) {
-  const types = data.map((o) => o.type.replace(/_/g, ' '))
+  const types = data.map((o) => humanize(o.type))
   const totalVals = data.map((o) => o.total)
   const pubVals = data.map((o) => o.published)
   const lowestIdx = pubVals.indexOf(Math.min(...pubVals))
@@ -657,6 +658,7 @@ export default function UsageTrends() {
   const [activeSubTab, setActiveSubTab] = useState('time')
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const filters = useStore((s) => s.filters)
   const metric = useStore((s) => s.metric)
   const comparePeriod = useStore((s) => s.comparePeriod)
@@ -688,6 +690,7 @@ export default function UsageTrends() {
       })
       .catch(() => {
         setData({ daily: MOCK_DAILY, category: MOCK_CATEGORY, outputType: null, workspacePcr: null, comparison: null, forecast: null, langCrosstab: null, platformCrosstab: null })
+        setError('Failed to load data')
         setLoading(false)
       })
   }, [filters, comparePeriod])
@@ -758,6 +761,15 @@ export default function UsageTrends() {
 
       {/* FilterBar */}
       <FilterBar />
+
+      {/* Error banner */}
+      {error && (
+        <div className="flex items-center gap-2 p-3 rounded-xl border border-[#e63946]/30 bg-[#e63946]/10 text-xs text-[#e63946]">
+          <AlertTriangle size={13} className="shrink-0" />
+          <span className="flex-1">{error}</span>
+          <button onClick={() => setError(null)} className="text-[#e63946]/60 hover:text-[#e63946]"><X size={13}/></button>
+        </div>
+      )}
 
       {/* Sub-tab navigation */}
       <div className="flex items-center gap-2 p-1 bg-[#111111] border border-[#1f1f1f] rounded-2xl w-fit">

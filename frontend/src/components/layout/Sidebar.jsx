@@ -2,7 +2,7 @@
  * Sidebar.jsx - Collapsible left sidebar navigation
  *
  * - Flex item (not fixed) — eliminates the gap issue
- * - Logo area: when collapsed, hover over "F" shows a ChevronRight expand button
+ * - Logo area: when collapsed, hover over "M" shows a ChevronRight expand button
  * - Logo area: when expanded, shows "MediaFlow AI" text + ChevronLeft collapse button
  * - NavLinks with lucide icons, active red styling
  * - RBAC: Admin item only shown for admin role
@@ -170,11 +170,11 @@ export default function Sidebar() {
         style={{ height: 64 }}
       >
         {collapsed ? (
-          /* Collapsed: "F" logo, hover shows expand arrow */
+          /* Collapsed: "M" logo, hover shows expand arrow */
           <div className="group relative w-full flex items-center justify-center">
             {/* Logo mark */}
             <div className="w-8 h-8 rounded-xl bg-accent flex items-center justify-center shadow-[0_0_16px_rgba(230,57,70,0.35)]">
-              <span className="text-white text-sm font-black leading-none select-none">F</span>
+              <span className="text-white text-sm font-black leading-none select-none">M</span>
             </div>
 
             {/* Hover overlay — expand button */}
@@ -194,7 +194,7 @@ export default function Sidebar() {
           /* Expanded: logo + brand text + collapse button */
           <div className="flex items-center gap-3 px-3 w-full">
             <div className="flex-shrink-0 w-8 h-8 rounded-xl bg-accent flex items-center justify-center shadow-[0_0_16px_rgba(230,57,70,0.35)]">
-              <span className="text-white text-sm font-black leading-none select-none">F</span>
+              <span className="text-white text-sm font-black leading-none select-none">M</span>
             </div>
 
             <AnimatePresence>

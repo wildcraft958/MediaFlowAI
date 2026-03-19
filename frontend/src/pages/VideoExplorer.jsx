@@ -6,12 +6,13 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import {
-  Search, Download, Youtube, Instagram, AlertTriangle, ChevronDown,
+  Search, Download, Youtube, Instagram, AlertTriangle, ChevronDown, X,
 } from 'lucide-react'
 import DataTable from '../components/common/DataTable'
 import Badge from '../components/common/Badge'
 import useStore from '../store/useStore'
 import { getVideos, exportVideos } from '../api/client'
+import { humanize } from '../utils/format'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -88,6 +89,7 @@ export default function VideoExplorer() {
   const [exporting, setExporting] = useState(false)
   const [apiData, setApiData] = useState(null)
   const [exportError, setExportError] = useState(null)
+  const [error, setError] = useState(null)
   const filters = useStore((s) => s.filters)
 
   useEffect(() => {
@@ -114,8 +116,8 @@ export default function VideoExplorer() {
       team: filterTeam || undefined,
       ...dateParams,
     })
-      .then((res) => setApiData(res.data))
-      .catch(() => setApiData(null))
+      .then((res) => { setApiData(res.data); setError(null) })
+      .catch(() => { setApiData(null); setError('Failed to load data') })
       .finally(() => setLoading(false))
   }, [filters, page, search, filterWs, filterInput, filterOutput, filterTeam, filterDate])
 
@@ -165,7 +167,7 @@ export default function VideoExplorer() {
       render: (v, row) => (
         <div className="max-w-[260px]">
           <p className="text-xs font-medium text-white truncate" title={v}>
-            {v.length > 44 ? v.slice(0, 41) + '…' : v}
+            {(v || '').length > 44 ? (v || '').slice(0, 41) + '…' : v}
           </p>
           <p className="text-[10px] text-[#555] mt-0.5 font-mono">{row.id}</p>
         </div>
@@ -181,15 +183,15 @@ export default function VideoExplorer() {
       key: 'inputType',
       label: 'Input Type',
       sortable: true,
-      render: (v) => <Badge variant="neutral">{v.replace(/_/g, ' ')}</Badge>,
+      render: (v) => <Badge variant="neutral">{humanize(v)}</Badge>,
     },
     {
       key: 'outputType',
       label: 'Output Type',
       sortable: true,
       render: (v) => (
-        <Badge variant={['key_moments', 'full_package'].includes(v) ? 'enhanced' : 'neutral'}>
-          {v.replace(/_/g, ' ')}
+        <Badge variant={['key_moments', 'full_package'].includes(v || '') ? 'enhanced' : 'neutral'}>
+          {humanize(v)}
         </Badge>
       ),
     },
@@ -331,6 +333,15 @@ export default function VideoExplorer() {
           {exporting ? 'Exporting…' : 'Export CSV'}
         </button>
       </div>
+
+      {/* Error banner */}
+      {error && (
+        <div className="flex items-center gap-2 p-3 rounded-xl border border-[#e63946]/30 bg-[#e63946]/10 text-xs text-[#e63946]">
+          <AlertTriangle size={13} className="shrink-0" />
+          <span className="flex-1">{error}</span>
+          <button onClick={() => setError(null)} className="text-[#e63946]/60 hover:text-[#e63946]"><X size={13}/></button>
+        </div>
+      )}
 
       {/* Stats row */}
       <div className="flex items-center gap-4 text-xs text-[#555]">

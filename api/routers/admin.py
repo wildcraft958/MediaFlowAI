@@ -1,5 +1,4 @@
 import pathlib
-import yaml
 from fastapi import APIRouter, HTTPException
 from api.config import METRIC_REGISTRY, CLIENT_CONFIG
 from api.models import KPIChatRequest, KPIChatResponse

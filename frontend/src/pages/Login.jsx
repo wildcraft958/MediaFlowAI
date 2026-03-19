@@ -149,7 +149,7 @@ export default function Login() {
               }}
               transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
             >
-              <span className="text-white text-2xl font-black leading-none">F</span>
+              <span className="text-white text-2xl font-black leading-none">M</span>
             </motion.div>
             <h1 className="text-2xl font-black text-white mb-0.5 tracking-tight">MediaFlow AI</h1>
             <p className="text-sm text-[#555]">Analytics Dashboard</p>

@@ -44,7 +44,7 @@ function PageLoader() {
         />
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="w-7 h-7 rounded-full bg-[#e63946] flex items-center justify-center">
-            <span className="text-white text-xs font-black">F</span>
+            <span className="text-white text-xs font-black">M</span>
           </div>
         </div>
       </div>

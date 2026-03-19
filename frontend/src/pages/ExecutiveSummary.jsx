@@ -17,6 +17,7 @@ import FilterBar from '../components/common/FilterBar'
 import RoleGate from '../components/common/RoleGate'
 import useStore from '../store/useStore'
 import { getExecutiveSummary, getPublishFunnel, getPeriodComparison, getDataQuality, getBillableSplit } from '../api/client'
+import { humanize, stripWs } from '../utils/format'
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
 
@@ -210,7 +211,7 @@ function TrendMiniChart({ data, metric }) {
 
 function WorkspacePCRBar({ name, pcr, published, total, delay }) {
   const color = pcr >= 80 ? '#4caf50' : pcr >= 60 ? '#ff9800' : '#e63946'
-  const shortName = name.replace('WS-', '')
+  const shortName = stripWs(name)
   return (
     <motion.div
       className="mb-3 last:mb-0"
@@ -386,7 +387,7 @@ function DataQualityBars({ fields, health, loading }) {
       {fields.map((f) => (
         <div key={f.field} className="space-y-1">
           <div className="flex justify-between text-xs">
-            <span className="text-[#a0a0a0]">{f.field.replace(/_/g, ' ')}</span>
+            <span className="text-[#a0a0a0]">{humanize(f.field)}</span>
             <span className="text-[#555]">{f.filled.toLocaleString()} / {(f.filled + f.null).toLocaleString()} ({f.pct}%)</span>
           </div>
           <div className="w-full h-2 bg-[#1a1a1a] rounded-full overflow-hidden">
@@ -428,7 +429,7 @@ function BillablePanel({ billable, loading }) {
         {by_workspace.map((ws) => (
           <div key={ws.workspace} className="space-y-1">
             <div className="flex justify-between text-xs">
-              <span className="text-[#a0a0a0]">{ws.workspace.replace('WS-', '')}</span>
+              <span className="text-[#a0a0a0]">{stripWs(ws.workspace)}</span>
               <span className="tabular-nums text-[#555]">{ws.billable.toLocaleString()} / {ws.total.toLocaleString()} · {ws.billable_pct}%</span>
             </div>
             <div className="w-full h-1.5 bg-[#1a1a1a] rounded-full overflow-hidden">
@@ -454,6 +455,7 @@ export default function ExecutiveSummary() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [alertVisible, setAlertVisible] = useState(true)
+  const [error, setError] = useState(null)
   const filters = useStore((s) => s.filters)
   const metric = useStore((s) => s.metric)
   const comparePeriod = useStore((s) => s.comparePeriod)
@@ -479,6 +481,7 @@ export default function ExecutiveSummary() {
       })
       .catch(() => {
         setData({ summary: null, funnel: MOCK_FUNNEL, comparison: null, quality: null, billable: null })
+        setError('Failed to load data')
         setLoading(false)
       })
   }, [filters, comparePeriod])
@@ -571,6 +574,15 @@ export default function ExecutiveSummary() {
 
       {/* FilterBar */}
       <FilterBar />
+
+      {/* Error banner */}
+      {error && (
+        <div className="flex items-center gap-2 p-3 rounded-xl border border-[#e63946]/30 bg-[#e63946]/10 text-xs text-[#e63946]">
+          <AlertTriangle size={13} className="shrink-0" />
+          <span className="flex-1">{error}</span>
+          <button onClick={() => setError(null)} className="text-[#e63946]/60 hover:text-[#e63946]"><X size={13}/></button>
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

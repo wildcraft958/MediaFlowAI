@@ -100,14 +100,26 @@ const kpiCards = [
 const suiteCards = [
   {
     label: 'Operations Dashboard',
+    desc: '5 purpose-built tabs tracking the full Upload → Process → Publish funnel across 5 workspaces.',
+    stat: '19 KPIs · 4,569 videos',
+    icon: BarChart2,
+    accent: '#e63946',
     gradient: 'linear-gradient(135deg, rgba(230,57,70,0.15) 0%, rgba(10,10,10,0) 100%)',
   },
   {
     label: 'Natural Language Interface',
+    desc: 'Ask questions in plain English — the SQL-of-Thought agent translates, executes, and narrates results.',
+    stat: 'Gemini 2.0 Flash · multi-turn',
+    icon: MessageSquare,
+    accent: '#6366f1',
     gradient: 'linear-gradient(135deg, rgba(99,102,241,0.15) 0%, rgba(10,10,10,0) 100%)',
   },
   {
     label: 'Performance Analytics',
+    desc: 'Workspace PCR variance (38–92%), Chronos forecasting, and cross-dimension heatmaps.',
+    stat: '30-day forecast · D1×D2 drill-down',
+    icon: TrendingUp,
+    accent: '#10b981',
     gradient: 'linear-gradient(135deg, rgba(16,185,129,0.12) 0%, rgba(10,10,10,0) 100%)',
   },
 ]
@@ -178,7 +190,7 @@ export default function LandingPage() {
               flexShrink: 0,
             }}
           >
-            F
+            M
           </div>
           <span style={{ fontWeight: 700, fontSize: 15, letterSpacing: '-0.01em' }}>
             MediaFlow AI
@@ -629,47 +641,77 @@ export default function LandingPage() {
             gap: '1.25rem',
           }}
         >
-          {suiteCards.map((card, i) => (
-            <motion.div
-              key={card.label}
-              {...fadeUp}
-              transition={{ duration: 0.45, delay: i * 0.08 }}
-              style={{
-                borderRadius: 16,
-                border: '1px solid #1a1a1a',
-                background: card.gradient,
-                minHeight: 180,
-                display: 'flex',
-                alignItems: 'flex-end',
-                padding: '1.25rem',
-                position: 'relative',
-                overflow: 'hidden',
-              }}
-              whileHover={{ y: -3 }}
-            >
-              {/* subtle grid texture */}
-              <div
+          {suiteCards.map((card, i) => {
+            const Icon = card.icon
+            return (
+              <motion.div
+                key={card.label}
+                {...fadeUp}
+                transition={{ duration: 0.45, delay: i * 0.08 }}
                 style={{
-                  position: 'absolute',
-                  inset: 0,
-                  backgroundImage:
-                    'repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(255,255,255,0.015) 39px, rgba(255,255,255,0.015) 40px), repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(255,255,255,0.015) 39px, rgba(255,255,255,0.015) 40px)',
-                  pointerEvents: 'none',
-                }}
-              />
-              <span
-                style={{
-                  fontWeight: 700,
-                  fontSize: 14,
-                  color: '#ccc',
+                  borderRadius: 16,
+                  border: '1px solid #1a1a1a',
+                  background: card.gradient,
+                  minHeight: 200,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  padding: '1.5rem',
                   position: 'relative',
-                  zIndex: 1,
+                  overflow: 'hidden',
                 }}
+                whileHover={{ y: -3 }}
               >
-                {card.label}
-              </span>
-            </motion.div>
-          ))}
+                {/* subtle grid texture */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    backgroundImage:
+                      'repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(255,255,255,0.015) 39px, rgba(255,255,255,0.015) 40px), repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(255,255,255,0.015) 39px, rgba(255,255,255,0.015) 40px)',
+                    pointerEvents: 'none',
+                  }}
+                />
+                <div style={{ position: 'relative', zIndex: 1 }}>
+                  <div
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 10,
+                      background: `${card.accent}18`,
+                      border: `1px solid ${card.accent}30`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginBottom: '1rem',
+                      color: card.accent,
+                    }}
+                  >
+                    <Icon size={18} />
+                  </div>
+                  <span style={{ fontWeight: 700, fontSize: 15, color: '#e8e8e8', display: 'block', marginBottom: '0.4rem' }}>
+                    {card.label}
+                  </span>
+                  <p style={{ color: '#666', fontSize: 13, lineHeight: 1.6, margin: 0 }}>
+                    {card.desc}
+                  </p>
+                </div>
+                <span
+                  style={{
+                    position: 'relative',
+                    zIndex: 1,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: card.accent,
+                    opacity: 0.8,
+                    marginTop: '1rem',
+                  }}
+                >
+                  {card.stat}
+                </span>
+              </motion.div>
+            )
+          })}
         </div>
       </section>
 
@@ -786,7 +828,7 @@ export default function LandingPage() {
                   color: '#fff',
                 }}
               >
-                F
+                M
               </div>
               <span style={{ fontWeight: 700, fontSize: 14 }}>MediaFlow AI</span>
             </div>
