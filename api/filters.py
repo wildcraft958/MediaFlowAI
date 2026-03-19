@@ -15,7 +15,7 @@ class FilterParams:
         team: Optional[List[str]] = Query(None),
         language: Optional[str] = Query(None),
         input_type: Optional[List[str]] = Query(None),
-        frammer_output_type: Optional[List[str]] = Query(None),
+        ai_output_type: Optional[List[str]] = Query(None),
         uploaded_by: Optional[str] = Query(None),
         date_from: Optional[date] = Query(None),
         date_to: Optional[date] = Query(None),
@@ -26,7 +26,7 @@ class FilterParams:
         self.team = team
         self.language = language
         self.input_type = input_type
-        self.frammer_output_type = frammer_output_type
+        self.ai_output_type = ai_output_type
         self.uploaded_by = uploaded_by
         self.date_from = date_from
         self.date_to = date_to
@@ -45,7 +45,7 @@ def build_where_clause(f: FilterParams, alias: str = "fd") -> tuple[str, list]:
 
     if f.workspace:
         placeholders = ", ".join(["?"] * len(f.workspace))
-        clauses.append(f"{col}frammer_workspace IN ({placeholders})")
+        clauses.append(f"{col}workspace IN ({placeholders})")
         params.extend(f.workspace)
 
     if f.team:
@@ -62,10 +62,10 @@ def build_where_clause(f: FilterParams, alias: str = "fd") -> tuple[str, list]:
         clauses.append(f"{col}input_type IN ({placeholders})")
         params.extend(f.input_type)
 
-    if f.frammer_output_type:
-        placeholders = ", ".join(["?"] * len(f.frammer_output_type))
-        clauses.append(f"{col}frammer_output_type IN ({placeholders})")
-        params.extend(f.frammer_output_type)
+    if f.ai_output_type:
+        placeholders = ", ".join(["?"] * len(f.ai_output_type))
+        clauses.append(f"{col}ai_output_type IN ({placeholders})")
+        params.extend(f.ai_output_type)
 
     if f.uploaded_by:
         clauses.append(f"{col}uploaded_by = ?")

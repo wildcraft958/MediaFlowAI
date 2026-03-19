@@ -9,7 +9,7 @@ import yaml
 import duckdb
 from fastmcp import FastMCP
 
-DB_PATH = str(pathlib.Path(__file__).parents[2] / "frammer.duckdb")
+DB_PATH = str(pathlib.Path(__file__).parents[2] / "analytics.duckdb")
 CLIENT_YAML = pathlib.Path(__file__).parents[2] / "config" / "clients" / "CLIENT_1.yaml"
 
 mcp = FastMCP("alert_server")
@@ -43,9 +43,9 @@ def check_thresholds(client_id: str = "CLIENT_1") -> list[dict]:
     # PCR threshold
     min_pcr = thresholds.get("publish_rate_min_pct", 0.5) * 100
     rows = _db().execute("""
-        SELECT frammer_workspace,
+        SELECT workspace,
                ROUND(SUM(CASE WHEN published_flag=true THEN 1 ELSE 0 END)*100.0/COUNT(*),1) AS pcr
-        FROM frammer_dataset GROUP BY frammer_workspace
+        FROM media_dataset GROUP BY workspace
     """).fetchall()
     for ws, pcr in rows:
         if pcr is not None and pcr < min_pcr:
@@ -58,12 +58,12 @@ def check_thresholds(client_id: str = "CLIENT_1") -> list[dict]:
     # OPI threshold
     max_opi_hours = thresholds.get("OPI_hours", 48)
     opi_rows = _db().execute("""
-        SELECT frammer_workspace, ROUND(SUM(video_duration_sec/3600.0),2) AS orphaned_hours
-        FROM frammer_dataset
+        SELECT workspace, ROUND(SUM(video_duration_sec/3600.0),2) AS orphaned_hours
+        FROM media_dataset
         WHERE published_flag = false
           AND TRY_CAST(upload_date AS TIMESTAMP) IS NOT NULL
           AND TRY_CAST(upload_date AS TIMESTAMP) < NOW() - INTERVAL '30 days'
-        GROUP BY frammer_workspace
+        GROUP BY workspace
     """).fetchall()
     for ws, hours in opi_rows:
         if hours is not None and hours > max_opi_hours:
@@ -99,7 +99,7 @@ def fire_alert(alert: dict) -> dict:
     if slack:
         try:
             import urllib.request, json
-            payload = json.dumps({"text": f"[Frammer Alert] {msg}"}).encode()
+            payload = json.dumps({"text": f"[MediaFlow Alert] {msg}"}).encode()
             req = urllib.request.Request(slack, data=payload,
                                           headers={"Content-Type": "application/json"})
             urllib.request.urlopen(req, timeout=5)

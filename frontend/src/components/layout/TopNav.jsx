@@ -207,7 +207,7 @@ export default function TopNav() {
     >
       {/* ─── Left: Breadcrumb ────────────────────────────────────────────── */}
       <div className="flex items-center gap-2 flex-shrink-0">
-        <span className="text-text-muted text-xs">Frammer AI</span>
+        <span className="text-text-muted text-xs">MediaFlow AI</span>
         <ChevronRight size={12} className="text-text-muted" />
         <span className="text-white text-sm font-semibold">{pageName}</span>
       </div>

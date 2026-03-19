@@ -148,4 +148,56 @@ export function openNLQStream(params, onEvent) {
   return source
 }
 
+/**
+ * postNLQStream — POST to /api/nlq/stream with JSON body (supports context).
+ * Uses fetch + ReadableStream to parse SSE events.
+ *
+ * @param {object} body  { question, session_id, persona, page_context?, chart_context? }
+ * @param {function} onEvent  called with each parsed event object
+ * @returns {{ abort: () => void }}  call abort() to cancel
+ */
+export function postNLQStream(body, onEvent) {
+  const base = import.meta.env.VITE_API_URL || '/api'
+  const controller = new AbortController()
+
+  fetch(`${base}/nlq/stream`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal: controller.signal,
+  })
+    .then(async (res) => {
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+
+        // Parse SSE lines from buffer
+        const lines = buffer.split('\n')
+        buffer = lines.pop() // keep incomplete line in buffer
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const event = JSON.parse(line.slice(6))
+              onEvent(event)
+            } catch {
+              // ignore malformed events
+            }
+          }
+        }
+      }
+    })
+    .catch((err) => {
+      if (err.name !== 'AbortError') {
+        onEvent({ type: 'error', message: 'SSE connection failed' })
+      }
+    })
+
+  return { abort: () => controller.abort() }
+}
+
 export default api

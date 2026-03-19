@@ -1,11 +1,11 @@
-# Frammer AI — Analytics QnA Agent
+# MediaFlow AI — Analytics QnA Agent
 
 > **Status:** Implemented and tested. 43/43 agent tests pass.
 > Full architecture + build order → `agents/PLAN.md`
 
 ## 1. What We Built
 
-An intelligent analytics dashboard for Frammer AI that goes beyond static charts. The core
+An intelligent analytics dashboard for MediaFlow AI that goes beyond static charts. The core
 differentiator is a **conversational QnA Agent** that lets non-technical stakeholders query
 video operations data in plain English — while the underlying system handles SQL generation,
 result narration, and proactive alerting automatically.
@@ -220,7 +220,7 @@ Exposes DuckDB directly — no custom wiring needed.
 
 ### Tab 4: Publish Metrics + Funnel
 - Output type distribution + publish rate per type
-- Input type performance breakdown by frammer_output_type publish conversion
+- Input type performance breakdown by ai_output_type publish conversion
 - My Key Moments highlight (64.6% PCR vs 70.9% summary — lowest converter, investigation hook)
 - CPDG, SAC, AHY, EDR, HTHR, TSQI, PIG per content type
 
@@ -327,7 +327,7 @@ Activated via config flag `enable_predictive: true` in metric_registry.yaml.
 
 ## 10. Assumptions
 
-1. **Dataset is pre-enriched.** `data/frammer_dataset.csv` is the source of truth (4,569 rows, seed=42).
+1. **Dataset is pre-enriched.** `data/dataset.csv` is the source of truth (4,569 rows, seed=42).
 2. **DuckDB is the query engine.** All SQL is DuckDB-compatible. No PostgreSQL-specific syntax.
 3. **plotly.js for all charts.** Direct JSON spec → render, no sandbox verification loop.
 4. **Drag-and-drop layout is cut.** Static tab layout with sensible defaults.

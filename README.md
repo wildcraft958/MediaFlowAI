@@ -1,13 +1,13 @@
-# Frammer AI — Analytics Dashboard
+# MediaFlow AI — Analytics Dashboard
 
 **IIT General Championship · Data Analytics 2026**
-Industry Partner: Frammer AI | Competition Track: Data Analytics
+Industry Partner: MediaFlow AI | Competition Track: Data Analytics
 
 ---
 
 ## What This Is
 
-A full-stack, AI-powered analytics dashboard for Frammer AI's B2B media operations platform. Frammer AI ingests raw video uploads (interviews, debates, news bulletins, etc.) and uses AI to generate structured outputs (key moments, chapters, summaries, full packages) published to YouTube Shorts and Instagram Reels.
+A full-stack, AI-powered analytics dashboard for MediaFlow AI's B2B media operations platform. MediaFlow AI ingests raw video uploads (interviews, debates, news bulletins, etc.) and uses AI to generate structured outputs (key moments, chapters, summaries, full packages) published to YouTube Shorts and Instagram Reels.
 
 The dashboard answers: *Which workspaces publish efficiently? Where is video getting stuck? What does the AI produce that actually reaches audiences?*
 
@@ -37,7 +37,7 @@ The dashboard answers: *Which workspaces publish efficiently? Where is video get
 ```
 GCAgent/
 ├── data/
-│   ├── frammer_dataset.csv      ← Source of truth (4,569 rows, seed=42)
+│   ├── dataset.csv              ← Source of truth (4,569 rows, seed=42)
 │   ├── enrich.py                ← Reproducible 8-transform enrichment pipeline
 │   ├── shift_dates.py           ← Shifts dates so max(upload_date)=today
 │   ├── schema.py                ← DuckDB star schema + 16 KPI views
@@ -139,7 +139,7 @@ GCAgent/
 | `GET /api/trends/daily` | 90-day daily upload/publish |
 | `GET /api/trends/forecast` | 30-day Chronos forecast (history + p10/p50/p90 quantiles) |
 | `GET /api/trends/category` | By input type |
-| `GET /api/trends/output-type` | By Frammer output type |
+| `GET /api/trends/output-type` | By MediaFlow output type |
 | `GET /api/crosstab` | D1×D2 heatmap (`metric=count\|hours\|pcr_pct`) |
 | `GET /api/videos` | Paginated video list |
 | `GET /api/videos/export` | CSV download |
@@ -154,7 +154,7 @@ GCAgent/
 | Layer | Technology |
 |-------|-----------|
 | Data pipeline | Python + pandas + numpy (seed=42) |
-| Storage | DuckDB (`frammer.duckdb`) |
+| Storage | DuckDB (`analytics.duckdb`) |
 | DB MCP | mcp-server-motherduck |
 | Custom MCP | FastMCP (kpi\_server, alert\_server, report\_server) |
 | Backend | FastAPI (Python) |
@@ -163,8 +163,8 @@ GCAgent/
 | NLQ pipeline | SQL-of-Thought (arXiv:2509.00581) |
 | LLM | Gemini 2.0 Flash — Vertex AI (`langchain-google-vertexai`) |
 | Embeddings | Vertex AI `text-embedding-005` |
-| Vector store | BigQuery Vector Search (`agrowise-192e3.frammer_vectors`) |
-| GCP project | `agrowise-192e3`, region `us-central1` |
+| Vector store | BigQuery Vector Search (`analytics-prod-123.analytics_vectors`) |
+| GCP project | `analytics-prod-123`, region `us-central1` |
 | Frontend | React (Vite) + Tailwind CSS |
 | Charts | Apache ECharts (`echarts-for-react`) |
 | State | Zustand |

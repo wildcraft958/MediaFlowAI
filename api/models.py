@@ -91,6 +91,8 @@ class NLQRequest(BaseModel):
     context: Optional[str] = Field(None, max_length=500)
     session_id: str = Field("default", pattern=r"^[a-zA-Z0-9_\-]{1,64}$")
     persona: Literal["leadership", "creator"] = "leadership"
+    page_context: Optional[dict] = None      # {page, filters, kpis, chart_titles}
+    chart_context: Optional[dict] = None     # {title, data, image_base64}
 
 
 class NLQResponse(BaseModel):

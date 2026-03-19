@@ -10,7 +10,7 @@ import yaml
 import duckdb
 from fastmcp import FastMCP
 
-DB_PATH = str(pathlib.Path(__file__).parents[2] / "frammer.duckdb")
+DB_PATH = str(pathlib.Path(__file__).parents[2] / "analytics.duckdb")
 CONFIG_PATH = pathlib.Path(__file__).parents[2] / "config" / "metric_registry.yaml"
 
 mcp = FastMCP("kpi_server")

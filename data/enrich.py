@@ -1,11 +1,11 @@
 """
-Data enrichment pipeline for Frammer AI dataset.
+Data enrichment pipeline for MediaFlow AI dataset.
 
-Transforms Corrected_dataset.csv into frammer_dataset.csv with:
+Transforms Corrected_dataset.csv into dataset.csv with:
   - PS-aligned input_type vocabulary
-  - frammer_output_type (what Frammer AI created)
+  - ai_output_type (what MediaFlow AI created)
   - processed_date (upload → AI processing lag)
-  - frammer_workspace (client workspace identifier)
+  - workspace (client workspace identifier)
 
 All random operations use numpy.random.default_rng(seed) for full reproducibility.
 Run: python enrich.py
@@ -19,7 +19,7 @@ from pathlib import Path
 # ── Vocabulary maps ────────────────────────────────────────────────────────────
 
 # Team → input_type weights (PS vocabulary: interview, speech, debate, etc.)
-# Distributions derived from original Frammer data proportions,
+# Distributions derived from original MediaFlow data proportions,
 # stratified per team to reflect realistic content mix.
 TEAM_INPUT_WEIGHTS: dict[str, dict[str, float]] = {
     "Reacts": {
@@ -55,7 +55,7 @@ TEAM_INPUT_WEIGHTS: dict[str, dict[str, float]] = {
     },
 }
 
-# Default fallback — mirrors overall original Frammer data distribution
+# Default fallback — mirrors overall original MediaFlow data distribution
 _DEFAULT_INPUT_WEIGHTS: dict[str, float] = {
     "interview":       0.28,
     "news_bulletin":   0.23,
@@ -66,8 +66,8 @@ _DEFAULT_INPUT_WEIGHTS: dict[str, float] = {
     "discussion_show": 0.03,
 }
 
-# input_type → frammer_output_type weights
-# Captures Frammer AI output behaviour: interviews → key moments,
+# input_type → ai_output_type weights
+# Captures MediaFlow AI output behaviour: interviews → key moments,
 # speeches → summaries, reports → chapters, etc.
 INPUT_OUTPUT_WEIGHTS: dict[str, dict[str, float]] = {
     "interview": {
@@ -141,7 +141,7 @@ WORKSPACE_TARGET_RATES: dict[str, float] = {
     "WS-SPORTS-LIVE":   0.38,  # lowest — live clips go stale before approval
 }
 
-# (company, team) → Frammer workspace identifier
+# (company, team) → MediaFlow workspace identifier
 # Uses original team names from Corrected_dataset.csv (before rename step)
 TEAM_WORKSPACE: dict[tuple[str, str], str] = {
     ("Company_B", "Reacts"):  "WS-DIGITAL-NEWS",
@@ -184,8 +184,8 @@ def assign_input_type(team_name: str, rng: np.random.Generator) -> str:
     return str(rng.choice(types, p=probs))
 
 
-def assign_frammer_output_type(input_type: str, rng: np.random.Generator) -> str:
-    """Return a Frammer output type correlated with the input content type."""
+def assign_ai_output_type(input_type: str, rng: np.random.Generator) -> str:
+    """Return a MediaFlow AI output type correlated with the input content type."""
     weights = INPUT_OUTPUT_WEIGHTS.get(input_type, INPUT_OUTPUT_WEIGHTS["interview"])
     types = list(weights.keys())
     probs = list(weights.values())
@@ -196,15 +196,15 @@ def compute_processed_date(upload_date: pd.Timestamp, rng: np.random.Generator) 
     """
     Return processed_date = upload_date + processing lag.
     Lag drawn from log-normal (μ=ln(4), σ=0.8) in hours, capped at 72h.
-    Reflects Frammer AI: most jobs finish in <8h, occasional long tail.
+    Reflects MediaFlow AI: most jobs finish in <8h, occasional long tail.
     """
     hours = float(rng.lognormal(mean=np.log(4), sigma=0.8))
     hours = min(hours, 72.0)
     return upload_date + timedelta(hours=hours)
 
 
-def assign_frammer_workspace(company: str, team_name: str) -> str:
-    """Return Frammer workspace ID for a (company, team) pair."""
+def assign_workspace(company: str, team_name: str) -> str:
+    """Return MediaFlow workspace ID for a (company, team) pair."""
     key = (company, team_name)
     if key in TEAM_WORKSPACE:
         return TEAM_WORKSPACE[key]
@@ -216,7 +216,7 @@ def assign_frammer_workspace(company: str, team_name: str) -> str:
 def rename_labels(df: pd.DataFrame) -> pd.DataFrame:
     """
     Rename team names, user names, and fix company casing for B2B alignment.
-    Must be called AFTER frammer_workspace is assigned (workspace keys use
+    Must be called AFTER workspace is assigned (workspace keys use
     original source names).
     """
     out = df.copy()
@@ -247,7 +247,7 @@ def adjust_publish_rates(df: pd.DataFrame, rng: np.random.Generator) -> pd.DataF
 
     # published_flag is always boolean at this point (normalised in enrich_dataset)
     for ws, target_rate in WORKSPACE_TARGET_RATES.items():
-        ws_mask  = out["frammer_workspace"] == ws
+        ws_mask  = out["workspace"] == ws
         pub_mask = ws_mask & out["published_flag"]
         n_ws     = int(ws_mask.sum())
         n_target = round(n_ws * target_rate)
@@ -286,9 +286,9 @@ def enrich_dataset(df: pd.DataFrame, seed: int = 42) -> pd.DataFrame:
         assign_input_type(t, rng) for t in out["team_name"]
     ]
 
-    # 2. Add frammer_output_type — what Frammer AI generated
-    out["frammer_output_type"] = [
-        assign_frammer_output_type(it, rng) for it in out["input_type"]
+    # 2. Add ai_output_type — what MediaFlow AI generated
+    out["ai_output_type"] = [
+        assign_ai_output_type(it, rng) for it in out["input_type"]
     ]
 
     # 3. Add processed_date — upload + AI processing lag
@@ -297,10 +297,10 @@ def enrich_dataset(df: pd.DataFrame, seed: int = 42) -> pd.DataFrame:
         compute_processed_date(d, rng) for d in out["upload_date"]
     ]
 
-    # 4. Add frammer_workspace — replaces the misused 'channel' column
+    # 4. Add workspace — replaces the misused 'channel' column
     #    (must happen before rename_labels so workspace keys resolve correctly)
-    out["frammer_workspace"] = [
-        assign_frammer_workspace(c, t)
+    out["workspace"] = [
+        assign_workspace(c, t)
         for c, t in zip(out["company"], out["team_name"])
     ]
 
@@ -323,7 +323,7 @@ def enrich_dataset(df: pd.DataFrame, seed: int = 42) -> pd.DataFrame:
 
 if __name__ == "__main__":
     src = Path(__file__).parent.parent / "Corrected_dataset.csv"
-    dst = Path(__file__).parent / "frammer_dataset.csv"
+    dst = Path(__file__).parent / "dataset.csv"
 
     print(f"Loading: {src}")
     df = pd.read_csv(src)
@@ -337,8 +337,8 @@ if __name__ == "__main__":
     print(f"\nColumns: {list(enriched.columns)}")
 
     print(f"\ninput_type distribution:\n{enriched['input_type'].value_counts().to_string()}")
-    print(f"\nframmer_output_type distribution:\n{enriched['frammer_output_type'].value_counts().to_string()}")
-    print(f"\nframmer_workspace distribution:\n{enriched['frammer_workspace'].value_counts().to_string()}")
+    print(f"\nai_output_type distribution:\n{enriched['ai_output_type'].value_counts().to_string()}")
+    print(f"\nworkspace distribution:\n{enriched['workspace'].value_counts().to_string()}")
 
     pub_rate = enriched["published_flag"].value_counts(normalize=True)
     print(f"\npublished_flag rate:\n{pub_rate.to_string()}")

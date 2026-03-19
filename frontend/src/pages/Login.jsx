@@ -11,9 +11,9 @@ import useStore from '../store/useStore'
 
 // Test users for competition demo
 const TEST_USERS = [
-  { email: 'admin@frammer.ai',  password: 'Admin@123',   name: 'Admin',        role: 'admin',      persona: 'leadership', defaultPage: '/admin' },
-  { email: 'ceo@frammer.ai',    password: 'Leader@123',  name: 'Alex Morgan',  role: 'leadership', persona: 'leadership', defaultPage: '/executive' },
-  { email: 'editor@frammer.ai', password: 'Creator@123', name: 'Jordan Smith', role: 'creator',    persona: 'creator',    defaultPage: '/explorer' },
+  { email: 'admin@mediaflow.ai',  password: 'Admin@123',   name: 'Admin',       role: 'admin',      persona: 'leadership', defaultPage: '/admin' },
+  { email: 'ceo@mediaflow.ai',    password: 'Leader@123',  name: 'Sam Wilson',  role: 'leadership', persona: 'leadership', defaultPage: '/executive' },
+  { email: 'editor@mediaflow.ai', password: 'Creator@123', name: 'Alex Taylor', role: 'creator',    persona: 'creator',    defaultPage: '/explorer' },
 ]
 
 const ROLE_COLORS = {
@@ -151,7 +151,7 @@ export default function Login() {
             >
               <span className="text-white text-2xl font-black leading-none">F</span>
             </motion.div>
-            <h1 className="text-2xl font-black text-white mb-0.5 tracking-tight">Frammer AI</h1>
+            <h1 className="text-2xl font-black text-white mb-0.5 tracking-tight">MediaFlow AI</h1>
             <p className="text-sm text-[#555]">Analytics Dashboard</p>
           </div>
 
@@ -170,7 +170,7 @@ export default function Login() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@frammer.ai"
+                placeholder="you@mediaflow.ai"
                 autoComplete="email"
                 required
                 className="w-full px-4 py-2.5 rounded-xl text-sm text-white placeholder-[#444] focus:outline-none focus:ring-0"
@@ -327,7 +327,7 @@ export default function Login() {
                     ))}
                   </div>
                   <p className="text-[10px] text-[#333] text-center mt-2">
-                    Demo dashboard - mock data from enriched Frammer dataset (4,569 rows, seed=42)
+                    Demo dashboard - mock data from enriched MediaFlow dataset (4,569 rows, seed=42)
                   </p>
                 </motion.div>
               )}

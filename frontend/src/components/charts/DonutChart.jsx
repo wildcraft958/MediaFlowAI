@@ -155,7 +155,7 @@ export default function DonutChart({
       <div className="flex-1 w-full">
         <ReactECharts
           option={option}
-          theme="frammer-dark"
+          theme="dashboard-dark"
           style={chartStyle}
           opts={opts}
           notMerge

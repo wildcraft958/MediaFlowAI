@@ -20,7 +20,9 @@ RUN uv sync --frozen
 COPY . .
 
 # GCP credentials — service account key baked in for demo
-ENV GOOGLE_APPLICATION_CREDENTIALS=/app/agrowise-192e3-feea2cfd6558.json
+ENV GOOGLE_APPLICATION_CREDENTIALS=/app/service-account-key.json
+
+# Web search uses Vertex AI Google Search grounding — no extra API key needed
 
 # Pre-download Chronos-Bolt-Tiny model at build time so cold starts are instant.
 # (~150 MB, cached in /root/.cache/huggingface inside the image layer)

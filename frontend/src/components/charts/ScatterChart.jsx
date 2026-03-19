@@ -202,7 +202,7 @@ export default function ScatterChart({ data = [], loading = false }) {
     <div className="w-full h-full">
       <ReactECharts
         option={option}
-        theme="frammer-dark"
+        theme="dashboard-dark"
         style={chartStyle}
         opts={opts}
         notMerge

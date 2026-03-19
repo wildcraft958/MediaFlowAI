@@ -81,12 +81,12 @@ Wrong SQL:
 Error: {error}
 Prior attempts: {scratchpad}
 
-Available tables: frammer_dataset, fact_video_events, kpi_zsp, kpi_cpdg, kpi_lpi, v_pcr, v_fsc
-Available columns in frammer_dataset: video_id, headline, source, published_flag, billable_flag,
+Available tables: media_dataset, fact_video_events, kpi_zsp, kpi_cpdg, kpi_lpi, v_pcr, v_fsc
+Available columns in media_dataset: video_id, headline, source, published_flag, billable_flag,
 upload_date, processed_date, video_duration_sec, avg_view_duration_sec, avg_view_percentage,
 subscribers_gained, ctr_percentage, impressions, likes, comments, shares, total_watch_time_hours,
-traffic_source, published_url, frammer_workspace, uploaded_by, team_name, language,
-input_type, output_type, frammer_output_type, published_platform, company
+traffic_source, published_url, workspace, uploaded_by, team_name, language,
+input_type, output_type, ai_output_type, published_platform, company
 
 Produce a CorrectionPlan identifying the missing/wrong column or table and how to fix it.""",
 
@@ -119,7 +119,7 @@ Error: {error}
 Prior attempts: {scratchpad}
 
 Valid dimension values:
-- frammer_workspace: WS-DIGITAL-NEWS, WS-ENTERTAINMENT, WS-TECH-ANALYSIS, WS-LIFESTYLE, WS-SPORTS-LIVE
+- workspace: WS-DIGITAL-NEWS, WS-ENTERTAINMENT, WS-TECH-ANALYSIS, WS-LIFESTYLE, WS-SPORTS-LIVE
 - language: English, Hindi
 - input_type: interview, speech, debate, news_bulletin, special_report, press_conference, discussion_show
 - published_platform: Youtube, Instagram

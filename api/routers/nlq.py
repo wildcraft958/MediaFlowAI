@@ -1,10 +1,20 @@
 import json
-from typing import Literal
+from typing import Literal, Optional
 from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 from api.models import NLQRequest, NLQResponse, HITLResumeRequest
 
 router = APIRouter()
+
+
+class NLQStreamRequest(BaseModel):
+    """POST body for /nlq/stream — supports page_context and chart_context."""
+    question: str = Field(..., min_length=1, max_length=2000)
+    session_id: str = Field("default", pattern=r"^[a-zA-Z0-9_\-]{1,64}$")
+    persona: Literal["leadership", "creator"] = "leadership"
+    page_context: Optional[dict] = None
+    chart_context: Optional[dict] = None
 
 
 @router.post("/nlq", response_model=NLQResponse)
@@ -17,6 +27,8 @@ async def nlq(body: NLQRequest):
             session_id=body.session_id,
             persona=body.persona,
             filters=body.filters,
+            page_context=body.page_context,
+            chart_context=body.chart_context,
         )
         return NLQResponse(
             answer=result.get("narrative", ""),
@@ -54,6 +66,41 @@ async def nlq_stream(
                 query=question,
                 session_id=session_id,
                 persona=persona,
+            ):
+                yield f"data: {json.dumps(event)}\n\n"
+        except ImportError:
+            yield f'data: {json.dumps({"type": "error", "message": "Agent layer unavailable"})}\n\n'
+        except Exception as e:
+            yield f'data: {json.dumps({"type": "error", "message": str(e)})}\n\n'
+        finally:
+            yield 'data: {"type":"done"}\n\n'
+
+    return StreamingResponse(
+        generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
+
+
+@router.post("/nlq/stream")
+async def nlq_stream_post(body: NLQStreamRequest):
+    """
+    POST SSE streaming NLQ endpoint — supports page_context and chart_context.
+    Use this when sending context that doesn't fit in GET query params.
+    """
+    async def generator():
+        try:
+            from agents.qna_agent import stream_qna_agent
+            async for event in stream_qna_agent(
+                query=body.question,
+                session_id=body.session_id,
+                persona=body.persona,
+                page_context=body.page_context,
+                chart_context=body.chart_context,
             ):
                 yield f"data: {json.dumps(event)}\n\n"
         except ImportError:

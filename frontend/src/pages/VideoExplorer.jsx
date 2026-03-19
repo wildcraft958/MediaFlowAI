@@ -20,85 +20,6 @@ const INPUT_TYPES = ['interview', 'speech', 'debate', 'news_bulletin', 'special_
 const OUTPUT_TYPES = ['key_moments', 'chapters', 'full_package', 'summary', 'my_key_moments']
 const TEAMS = ['Digital_News', 'Entertainment', 'Tech_Analysis', 'Sports_Live', 'Lifestyle']
 
-const HEADLINES = [
-  'Breaking: Tech Giants Face New Regulations Amid Privacy Concerns',
-  'Exclusive Interview: CEO on Market Expansion Strategy',
-  'Sports Analysis: Championship Preview - Key Players to Watch',
-  'Special Report: Climate Policy Update from the Summit',
-  'Press Conference: Minister Addresses Economic Policy Changes',
-  'Debate Recap: Opposition vs Government on Healthcare Bill',
-  'News Bulletin: Stock Market Hits Record High After Fed Meeting',
-  'Discussion: Future of AI in Indian Media Landscape',
-  'Interview: Award-Winning Director on Latest Documentary',
-  'Speech: President Addresses National Assembly on Defense',
-  'Breaking: Election Results Live Coverage and Analysis',
-  'Special Feature: Inside the World of Investigative Journalism',
-  'Sports Live: Match Commentary - Final Quarter Highlights',
-  'Tech Analysis: 5G Rollout Progress Across 10 Major Cities',
-  'Lifestyle: Wellness Trends Shaping Urban India in 2025',
-  'Press Briefing: Central Bank Announces New Monetary Policy',
-  'Exclusive: Whistleblower Exposes Corporate Fraud Scandal',
-  'Interview: Oscar Nominee on the Art of Screenwriting',
-  'News Update: Flooding Crisis - Rescue Operations Underway',
-  'Panel Discussion: Women in Leadership Across Industries',
-]
-
-// ── Mock Data Generator ────────────────────────────────────────────────────────
-
-const wsTeamMap = {
-  'WS-DIGITAL-NEWS':  { team: 'Digital_News',  users: ['content_editor_01', 'content_editor_02'] },
-  'WS-ENTERTAINMENT': { team: 'Entertainment', users: ['content_editor_02'] },
-  'WS-TECH-ANALYSIS': { team: 'Tech_Analysis', users: ['content_editor_03'] },
-  'WS-LIFESTYLE':     { team: 'Lifestyle',     users: ['content_editor_03'] },
-  'WS-SPORTS-LIVE':   { team: 'Sports_Live',   users: ['content_editor_04'] },
-}
-const wsPublishRate = {
-  'WS-DIGITAL-NEWS': 0.92, 'WS-ENTERTAINMENT': 0.82, 'WS-TECH-ANALYSIS': 0.68,
-  'WS-LIFESTYLE': 0.52, 'WS-SPORTS-LIVE': 0.38,
-}
-
-function generateMockVideos(count = 4569) {
-  const videos = []
-  for (let i = 0; i < count; i++) {
-    const ws = WORKSPACES[i % WORKSPACES.length]
-    const wsInfo = wsTeamMap[ws]
-    const inputType = INPUT_TYPES[Math.floor((i * 3 + 7) % INPUT_TYPES.length)]
-    const outputType = OUTPUT_TYPES[Math.floor((i * 2 + 3) % OUTPUT_TYPES.length)]
-    const user = wsInfo.users[i % wsInfo.users.length]
-    const isPublished = ((i * 17 + 5) % 100) < wsPublishRate[ws] * 100
-    const platform = isPublished ? (i % 2 === 0 ? 'Youtube' : 'Instagram') : null
-    const durationMin = 3 + ((i * 13) % 42)
-    const durationSec = (i * 7) % 60
-    const durationH = Math.floor(durationMin / 60)
-    const durationM = durationMin % 60
-    const zsp = +(((i * 1.618 + 0.5) % 6) - 3).toFixed(2)
-    const baseDate = new Date('2025-09-01')
-    baseDate.setDate(baseDate.getDate() + Math.floor(i / 50))
-    const uploadDate = isPublished || i % 12 !== 0 ? baseDate.toISOString().slice(0, 10) : null
-
-    videos.push({
-      id: `V${String(i + 1).padStart(5, '0')}`,
-      headline: HEADLINES[i % HEADLINES.length],
-      workspace: ws,
-      inputType,
-      outputType,
-      durationMin,
-      durationSec,
-      durationH,
-      durationM,
-      published: isPublished,
-      platform,
-      uploadedBy: user,
-      uploadDate,
-      zsp,
-      team: wsInfo.team,
-      language: i % 4 === 0 ? 'Hindi' : 'English',
-    })
-  }
-  return videos
-}
-
-// Mock videos kept only as export fallback; server-side data is primary source
 
 // ── Helper components ─────────────────────────────────────────────────────────
 
@@ -166,10 +87,22 @@ export default function VideoExplorer() {
   const [loading, setLoading] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [apiData, setApiData] = useState(null)
+  const [exportError, setExportError] = useState(null)
   const filters = useStore((s) => s.filters)
 
   useEffect(() => {
     setLoading(true)
+    const days =
+      filterDate === 'Last 7 days' ? 7
+      : filterDate === 'Last 30 days' ? 30
+      : filterDate === 'Last 90 days' ? 90
+      : null
+    const dateParams = days != null ? (() => {
+      const to = new Date()
+      const from = new Date()
+      from.setDate(from.getDate() - days)
+      return { date_from: from.toISOString().slice(0, 10), date_to: to.toISOString().slice(0, 10) }
+    })() : {}
     getVideos({
       ...filters,
       page,
@@ -179,11 +112,12 @@ export default function VideoExplorer() {
       input_type: filterInput || undefined,
       output_type: filterOutput || undefined,
       team: filterTeam || undefined,
+      ...dateParams,
     })
       .then((res) => setApiData(res.data))
       .catch(() => setApiData(null))
       .finally(() => setLoading(false))
-  }, [filters, page, search, filterWs, filterInput, filterOutput, filterTeam])
+  }, [filters, page, search, filterWs, filterInput, filterOutput, filterTeam, filterDate])
 
   const pageData = apiData?.data ?? []
   const totalCount = apiData?.total ?? 0
@@ -192,10 +126,17 @@ export default function VideoExplorer() {
 
   const handleExport = async () => {
     setExporting(true)
+    setExportError(null)
     try {
-      await exportVideos({ workspace: filterWs, input_type: filterInput })
+      const res = await exportVideos({ workspace: filterWs, input_type: filterInput })
+      const url = URL.createObjectURL(res.data)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'mediaflow_videos.csv'
+      a.click()
+      URL.revokeObjectURL(url)
     } catch {
-      // Fallback: generate CSV from filtered data
+      // Fallback: generate CSV from current page data
       const headers = ['ID', 'Headline', 'Workspace', 'Input Type', 'Output Type', 'Published', 'Platform', 'Uploaded By', 'Upload Date', 'ZSP Score']
       const rows = pageData.map((v) =>
         [v.id, `"${v.headline}"`, v.workspace, v.inputType, v.outputType,
@@ -206,9 +147,10 @@ export default function VideoExplorer() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = 'frammer_videos.csv'
+      a.download = 'mediaflow_videos.csv'
       a.click()
       URL.revokeObjectURL(url)
+      setExportError('Full export unavailable — downloaded current page data instead.')
     } finally {
       setExporting(false)
     }
@@ -319,20 +261,26 @@ export default function VideoExplorer() {
 
       {/* Sub-tabs */}
       <div className="flex items-center gap-1 p-1 bg-[#111111] border border-[#1f1f1f] rounded-xl w-fit">
-        {SUB_TABS.map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveSubTab(tab)}
-            className={[
-              'px-4 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 select-none',
-              activeSubTab === tab
-                ? 'bg-[#e63946] text-white'
-                : 'text-[#555] hover:text-[#a0a0a0] hover:bg-[#1a1a1a]',
-            ].join(' ')}
-          >
-            {tab}
-          </button>
-        ))}
+        {SUB_TABS.map((tab) => {
+          const isDisabled = tab !== 'All Media'
+          return (
+            <button
+              key={tab}
+              onClick={!isDisabled ? () => setActiveSubTab(tab) : undefined}
+              disabled={isDisabled}
+              className={[
+                'px-4 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 select-none',
+                activeSubTab === tab && !isDisabled
+                  ? 'bg-[#e63946] text-white'
+                  : isDisabled
+                  ? 'text-[#333] cursor-not-allowed'
+                  : 'text-[#555] hover:text-[#a0a0a0] hover:bg-[#1a1a1a]',
+              ].join(' ')}
+            >
+              {isDisabled ? `${tab} (coming soon)` : tab}
+            </button>
+          )
+        })}
       </div>
 
       {/* Filter + Search row */}
@@ -409,6 +357,14 @@ export default function VideoExplorer() {
           </>
         )}
       </div>
+
+      {/* Export error banner */}
+      {exportError && (
+        <div className="flex items-center gap-2 p-3 rounded-xl border border-[#ff9800]/30 bg-[#ff9800]/08 text-xs text-[#ff9800]">
+          <AlertTriangle size={13} className="flex-shrink-0" />
+          {exportError}
+        </div>
+      )}
 
       {/* Data Table */}
       <DataTable

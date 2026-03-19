@@ -21,7 +21,7 @@ const MOCK_KPIS = [
   { id: 3, acronym: 'GR',   name: 'Growth Rate',                   type: 'sql',    page: 'trends',     enabled: true,  description: 'WoW / MoM upload growth' },
   { id: 4, acronym: 'OPI',  name: 'Orphaned Post Index',           type: 'sql',    page: 'executive',  enabled: true,  description: 'Uploaded but never published' },
   { id: 5, acronym: 'TEU',  name: 'Time-per-Edit Unit',            type: 'sql',    page: 'team',       enabled: true,  description: 'Avg hours from upload to publish' },
-  { id: 6, acronym: 'AIL',  name: 'AI-Latency',                    type: 'sql',    page: 'trends',     enabled: true,  description: 'Frammer AI processing latency' },
+  { id: 6, acronym: 'AIL',  name: 'AI-Latency',                    type: 'sql',    page: 'trends',     enabled: true,  description: 'MediaFlow AI processing latency' },
   { id: 7, acronym: 'SAC',  name: 'Schedule Adherence Coefficient',type: 'sql',    page: 'publish',    enabled: true,  description: 'On-time processing rate' },
   { id: 8, acronym: 'AHY',  name: 'Avg Hours per Yield',           type: 'sql',    page: 'publish',    enabled: true,  description: 'Processing hours per published video' },
   { id: 9, acronym: 'EDR',  name: 'Edit-to-Deploy Ratio',          type: 'sql',    page: 'publish',    enabled: true,  description: 'Edits per successful deployment' },
@@ -40,16 +40,16 @@ const MOCK_KPIS = [
 const MOCK_ACCESS_REQUESTS = [
   {
     id: 1,
-    name: 'Priya Sharma',
-    email: 'priya.sharma@company-a.com',
+    name: 'John Doe',
+    email: 'john.doe@company-a.com',
     role: 'Analytics Viewer',
     date: '2025-11-14',
     status: 'pending',
   },
   {
     id: 2,
-    name: 'Arjun Mehta',
-    email: 'arjun.mehta@company-b.com',
+    name: 'Jane Smith',
+    email: 'jane.smith@company-b.com',
     role: 'Content Creator',
     date: '2025-11-13',
     status: 'pending',
@@ -68,15 +68,22 @@ const MOCK_CONFIG = {
   agv_drop_pct: 15,
   zscore_anomaly_level: 2.5,
   pcr_minimum_pct: 50,
-  alert_email: 'ops@frammer.ai',
+  alert_email: 'ops@mediaflow.ai',
   slack_webhook: 'https://hooks.slack.com/services/...',
   enabled_kpis: MOCK_KPIS.map((k) => k.acronym),
 }
 
 // ── KPI Configurator ───────────────────────────────────────────────────────────
 
-function ChatBubble({ msg }) {
+function ChatBubble({ msg, onAddKpi }) {
   const isBot = msg.role === 'bot'
+  const [showDetails, setShowDetails] = useState(false)
+
+  // Extract KPI name/acronym from yaml for a friendly summary card
+  const kpiAcronym = msg.yaml ? (msg.yaml.match(/acronym:\s*(\S+)/)?.[1] || '') : null
+  const kpiName    = msg.yaml ? (msg.yaml.match(/name:\s*(.+)/)?.[1]?.trim() || 'Custom KPI') : null
+  const kpiDesc    = msg.yaml ? (msg.yaml.match(/description:\s*(.+)/)?.[1]?.trim() || '') : null
+
   return (
     <div className={`flex gap-3 ${isBot ? '' : 'flex-row-reverse'}`}>
       <div
@@ -99,19 +106,47 @@ function ChatBubble({ msg }) {
       >
         {msg.yaml ? (
           <div>
-            <p className="text-[#a0a0a0] mb-2">{msg.text}</p>
-            <pre className="font-mono text-[#4caf50] text-[10px] bg-[#0a0a0a] border border-[#1f1f1f] rounded-xl p-3 overflow-x-auto whitespace-pre-wrap">
-              {msg.yaml}
-            </pre>
+            <p className="text-[#a0a0a0] mb-3 whitespace-pre-wrap">{msg.text}</p>
+            {/* Friendly summary card — no raw code */}
+            <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-xl p-3 mb-2">
+              <div className="flex items-center gap-2 mb-1.5">
+                {kpiAcronym && (
+                  <span className="text-[10px] font-bold text-[#e63946] border border-[#e63946]/30 bg-[#e63946]/10 px-2 py-0.5 rounded-md font-mono">
+                    {kpiAcronym}
+                  </span>
+                )}
+                <span className="text-xs font-semibold text-white">{kpiName}</span>
+              </div>
+              {kpiDesc && <p className="text-[11px] text-[#555]">{kpiDesc}</p>}
+              <p className="text-[10px] text-[#4caf50] mt-1.5">
+                Ready to add · will appear on the dashboard once activated
+              </p>
+            </div>
+            {/* Collapsible technical details — for power users only */}
+            <button
+              onClick={() => setShowDetails((p) => !p)}
+              className="text-[10px] text-[#444] hover:text-[#a0a0a0] transition-colors flex items-center gap-1 mb-1"
+            >
+              <span>{showDetails ? '▾' : '▸'}</span>
+              {showDetails ? 'Hide' : 'Show'} technical config
+            </button>
+            {showDetails && (
+              <pre className="font-mono text-[#4caf50] text-[10px] bg-[#0a0a0a] border border-[#1f1f1f] rounded-xl p-3 overflow-x-auto whitespace-pre-wrap mb-2">
+                {msg.yaml}
+              </pre>
+            )}
             {msg.showAddButton && (
-              <button className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#e63946] text-white text-[11px] font-semibold rounded-lg hover:bg-[#c62828] transition-colors">
+              <button
+                onClick={() => onAddKpi?.(msg.yaml)}
+                className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#e63946] text-white text-[11px] font-semibold rounded-lg hover:bg-[#c62828] transition-colors"
+              >
                 <Plus size={11} />
                 Add to Registry
               </button>
             )}
           </div>
         ) : (
-          <span>{msg.text}</span>
+          <span className="whitespace-pre-wrap">{msg.text}</span>
         )}
       </div>
     </div>
@@ -122,9 +157,10 @@ const INITIAL_MESSAGES = [
   {
     id: 0,
     role: 'bot',
-    text: "Hi! I can help you configure KPIs for the Frammer dashboard. Describe a metric you want to track, and I'll generate the YAML config and DuckDB SQL view. Try: \"Add a KPI that measures % of videos published within 24h of processing\"",
+    text: "Hi! I'm your KPI setup assistant. Tell me about a metric you'd like to track and I'll configure it for you.\n\nFor example:\n• \"Track videos published within 24 hours of processing\"\n• \"Show the ratio of Hindi vs English content per workspace\"\n• \"Alert when Sports Live workspace drops below 40% publish rate\"",
   },
 ]
+
 
 function KPIChat() {
   const [messages, setMessages] = useState(INITIAL_MESSAGES)
@@ -142,6 +178,7 @@ function KPIChat() {
     setInput('')
     const userMsg = { id: Date.now(), role: 'user', text }
     setMessages((m) => [...m, userMsg])
+
     setTyping(true)
 
     try {
@@ -152,44 +189,18 @@ function KPIChat() {
         {
           id: Date.now() + 1,
           role: 'bot',
-          text: data.explanation || 'Here is the generated KPI config:',
+          text: data.explanation || "I've prepared a KPI configuration based on your description. Click \"Add to Registry\" to activate it.",
           yaml: data.yaml,
           showAddButton: !!data.yaml,
         },
       ])
     } catch {
-      // Mock response
-      const mockYaml = `kpi:
-  acronym: TPPD
-  name: Time-to-Publish Post-Processing Delta
-  type: sql
-  page: publish
-  persona: [leadership, creator]
-  description: >
-    Percentage of videos published within 24h of Frammer AI processing.
-  formula: |
-    SELECT
-      frammer_workspace,
-      ROUND(100.0 * SUM(
-        CASE WHEN EPOCH(processed_date - upload_date) / 3600 <= 24
-             AND published_flag = TRUE THEN 1 ELSE 0 END
-      ) / COUNT(*), 1) AS tppd_pct
-    FROM fact_video_events
-    WHERE upload_date IS NOT NULL
-    GROUP BY 1
-    ORDER BY 2 DESC;
-  thresholds:
-    warning: 60
-    critical: 40`
-
       setMessages((m) => [
         ...m,
         {
           id: Date.now() + 1,
           role: 'bot',
-          text: 'I generated the following KPI config for your metric. You can review the SQL and click "Add to Registry" to activate it:',
-          yaml: mockYaml,
-          showAddButton: true,
+          text: "Sorry, I couldn't connect. Please try again.",
         },
       ])
     } finally {
@@ -209,7 +220,7 @@ function KPIChat() {
       {/* Messages */}
       <div className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1 pb-2">
         {messages.map((msg) => (
-          <ChatBubble key={msg.id} msg={msg} />
+          <ChatBubble key={msg.id} msg={msg} onAddKpi={() => {}} />
         ))}
         {typing && (
           <div className="flex gap-3">
@@ -701,7 +712,7 @@ function ClientSettings() {
                 type="email"
                 value={config.alert_email || ''}
                 onChange={(e) => setConfig((p) => ({ ...p, alert_email: e.target.value }))}
-                placeholder="ops@frammer.ai"
+                placeholder="ops@mediaflow.ai"
                 className="w-full bg-[#1a1a1a] border border-[#2a2a2a] text-sm text-white rounded-xl px-3 py-2 focus:outline-none focus:border-[#e63946]/50 hover:border-[#333] transition-colors"
               />
             </div>

@@ -24,7 +24,7 @@ import {
   TrendingUp,
 } from 'lucide-react'
 import useStore from '../../store/useStore'
-import { postNLQ, openNLQStream } from '../../api/client'
+import { postNLQ, openNLQStream, postNLQStream } from '../../api/client'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -35,6 +35,15 @@ const QUICK_PROMPTS = [
   'WS-SPORTS-LIVE deep dive',
   'Upload vs publish trend',
 ]
+
+const CONTEXT_PROMPTS = {
+  executive:       ['Why is Sports-Live PCR low?', 'Explain the funnel drop', 'Summarize this page'],
+  trends:          ["What's trending this week?", 'Compare output types', 'Upload forecast'],
+  team:            ['Who are the top performers?', 'Team activity breakdown', 'Compare teams'],
+  publish:         ['Workspace conversion analysis', 'Output mix insights', 'CPDG patterns'],
+  videos:          ['Filter insights', 'ZSP anomalies', 'Export summary'],
+  chart_dropped:   ['What patterns do you see?', 'Summarize this data', 'Any anomalies?'],
+}
 
 const THOUGHT_STEPS = ['Router', 'Interpret', 'Execute', 'Narrate']
 
@@ -147,6 +156,98 @@ function FilterChip({ label }) {
 }
 
 // ---------------------------------------------------------------------------
+// Page context extraction
+// ---------------------------------------------------------------------------
+function extractVisibleText() {
+  const headings = [...document.querySelectorAll('h1,h2,h3')].map((el) => el.innerText).slice(0, 10)
+  const kpiCards = [...document.querySelectorAll('[data-kpi]')].map((el) => ({
+    label: el.dataset.kpi,
+    value: el.innerText.trim(),
+  }))
+  return { headings, kpiCards }
+}
+
+// ---------------------------------------------------------------------------
+// Context banner
+// ---------------------------------------------------------------------------
+function ContextBanner({ pageContext, chartContext, onClearChart }) {
+  if (!pageContext && !chartContext) return null
+  const page = pageContext?.page || 'dashboard'
+  const filterCount = Object.values(pageContext?.filters || {}).filter(
+    (v) => v && (Array.isArray(v) ? v.length > 0 : true)
+  ).length
+  return (
+    <div className="px-4 py-2 bg-[#0d130d] border-b border-[#1a2a1a] flex items-center gap-2 text-[11px]">
+      <span className="text-[#4caf50]">&#x1f4cd;</span>
+      <span className="text-[#a0a0a0]">
+        Viewing: <span className="text-white font-medium capitalize">{page.replace(/_/g, ' ')}</span>
+        {filterCount > 0 && <span className="text-[#666]"> &middot; {filterCount} filter{filterCount > 1 ? 's' : ''} active</span>}
+      </span>
+      {chartContext && (
+        <span className="ml-auto flex items-center gap-1">
+          <span className="text-[#64b5f6]">&#x1f4ca; Chart attached</span>
+          <button onClick={onClearChart} className="text-[#555] hover:text-[#aaa] ml-1">&times;</button>
+        </span>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Chart drop zone overlay
+// ---------------------------------------------------------------------------
+function ChartDropZone({ onDrop }) {
+  const [dragging, setDragging] = useState(false)
+
+  const handleDragOver = (e) => { e.preventDefault(); setDragging(true) }
+  const handleDragLeave = () => setDragging(false)
+
+  const handleDrop = (e) => {
+    e.preventDefault()
+    setDragging(false)
+    const file = e.dataTransfer.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    if (file.type.startsWith('image/')) {
+      reader.onload = () => onDrop({ image_base64: reader.result, title: file.name })
+      reader.readAsDataURL(file)
+    } else if (file.name.endsWith('.csv')) {
+      reader.onload = () => {
+        const lines = reader.result.split('\n').filter(Boolean)
+        const headers = lines[0].split(',').map((h) => h.trim())
+        const data = lines.slice(1, 21).map((line) => {
+          const vals = line.split(',')
+          const row = {}
+          headers.forEach((h, i) => { row[h] = vals[i]?.trim() ?? '' })
+          return row
+        })
+        onDrop({ data, title: file.name })
+      }
+      reader.readAsText(file)
+    }
+  }
+
+  return (
+    <div
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      className={[
+        'mx-4 my-2 rounded-xl border-2 border-dashed transition-all text-center py-3',
+        dragging
+          ? 'border-[#e63946] bg-[#e63946]/5 text-[#e63946]'
+          : 'border-[#2a2a2a] text-[#444] hover:border-[#555]',
+      ].join(' ')}
+    >
+      <p className="text-[11px] font-medium">
+        {dragging ? 'Drop chart image or CSV here' : 'Drag & drop a chart image or CSV for AI analysis'}
+      </p>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Message bubble
 // ---------------------------------------------------------------------------
 function MessageBubble({ msg }) {
@@ -191,67 +292,187 @@ function MessageBubble({ msg }) {
 }
 
 // ---------------------------------------------------------------------------
-// Chart preview area (expanded mode only)
+// Chart preview area (expanded mode only) — dynamic from agent response
 // ---------------------------------------------------------------------------
-function ChartPreviewArea() {
+
+// Render a dynamic bar chart from chart_spec.type === 'bar'
+function DynamicBarChart({ spec }) {
+  const { x, y, data } = spec
+  const xKey = x
+  const yKey = y[0]
+  const maxVal = Math.max(...data.map((r) => Number(r[yKey] ?? 0)))
+  if (maxVal === 0) return null
+  return (
+    <div className="space-y-2 mt-1">
+      {data.slice(0, 12).map((row, i) => {
+        const val = Number(row[yKey] ?? 0)
+        const pct = maxVal > 0 ? (val / maxVal) * 100 : 0
+        const color = pct >= 70 ? '#4caf50' : pct >= 40 ? '#ff9800' : '#e63946'
+        const label = String(row[xKey] ?? '').replace('WS-', '').replace(/_/g, ' ')
+        const displayVal = Number.isInteger(val)
+          ? val.toLocaleString()
+          : val.toFixed(2)
+        return (
+          <div key={i} className="space-y-1">
+            <div className="flex justify-between text-[11px]">
+              <span className="text-[#a0a0a0] font-medium truncate max-w-[60%]">{label}</span>
+              <span className="font-bold tabular-nums" style={{ color }}>{displayVal}</span>
+            </div>
+            <div className="h-1.5 bg-[#0a0a0a] rounded-full overflow-hidden">
+              <motion.div
+                className="h-full rounded-full"
+                style={{ background: color, opacity: 0.85 }}
+                initial={{ width: 0 }}
+                animate={{ width: `${pct}%` }}
+                transition={{ duration: 0.6, ease: 'easeOut', delay: i * 0.03 }}
+              />
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// Render a compact table for chart_spec.type === 'table'
+function DynamicTable({ spec }) {
+  const { data } = spec
+  if (!data || data.length === 0) return <p className="text-xs text-[#555]">No data returned.</p>
+  const cols = Object.keys(data[0]).slice(0, 5)
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-[11px]">
+        <thead>
+          <tr className="border-b border-[#1f1f1f]">
+            {cols.map((c) => (
+              <th key={c} className="text-left pb-2 pr-3 text-[#555] uppercase tracking-wide font-semibold">
+                {c.replace(/_/g, ' ')}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {data.slice(0, 10).map((row, i) => (
+            <tr key={i} className="border-b border-[#111] hover:bg-[#111]">
+              {cols.map((c) => (
+                <td key={c} className="py-2 pr-3 text-[#a0a0a0] tabular-nums">
+                  {String(row[c] ?? '—')}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+// Static fallback — shown before any query is made
+function StaticFallback() {
+  return (
+    <div className="flex-1 flex flex-col gap-3 min-h-0">
+      <div className="bg-[#111] border border-[#222] rounded-xl p-4 flex-1">
+        <p className="text-xs font-semibold text-[#888] mb-4 uppercase tracking-wider">PCR by Workspace</p>
+        {[
+          { name: 'WS-DIGITAL-NEWS',  pcr: 92, color: '#4caf50' },
+          { name: 'WS-ENTERTAINMENT', pcr: 82, color: '#4caf50' },
+          { name: 'WS-TECH-ANALYSIS', pcr: 68, color: '#ff9800' },
+          { name: 'WS-LIFESTYLE',     pcr: 52, color: '#ff9800' },
+          { name: 'WS-SPORTS-LIVE',   pcr: 38, color: '#e63946' },
+        ].map((ws) => (
+          <div key={ws.name} className="mb-3 last:mb-0">
+            <div className="flex justify-between mb-1.5">
+              <span className="text-[11px] text-[#a0a0a0] font-medium">{ws.name.replace('WS-', '')}</span>
+              <span className="text-[11px] font-bold tabular-nums" style={{ color: ws.color }}>{ws.pcr}%</span>
+            </div>
+            <div className="h-2 bg-[#0a0a0a] rounded-full overflow-hidden">
+              <motion.div
+                className="h-full rounded-full"
+                style={{ background: ws.color, opacity: 0.85 }}
+                initial={{ width: 0 }}
+                animate={{ width: `${ws.pcr}%` }}
+                transition={{ duration: 0.8, ease: 'easeOut' }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="bg-[#111] border border-[#222] rounded-xl p-4">
+        <p className="text-xs font-semibold text-[#888] mb-3 uppercase tracking-wider">Pipeline Summary</p>
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { label: 'Uploaded',  value: '4,179', color: '#64b5f6' },
+            { label: 'Processed', value: '4,179', color: '#81c784' },
+            { label: 'Published', value: '3,188', color: '#ce93d8' },
+          ].map((s) => (
+            <div key={s.label} className="text-center p-3 rounded-xl bg-[#0d0d0d] border border-[#1f1f1f]">
+              <p className="text-base font-black tabular-nums" style={{ color: s.color }}>{s.value}</p>
+              <p className="text-[9px] text-[#555] uppercase tracking-wider mt-0.5">{s.label}</p>
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 flex items-center gap-1.5">
+          <TrendingUp size={11} className="text-[#4caf50]" />
+          <p className="text-[10px] text-[#a0a0a0]">Overall PCR: <span className="text-white font-bold">69.8%</span></p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ChartPreviewArea({ chartData }) {
+  const hasData = chartData?.chart_spec && chartData.chart_spec.type !== 'none'
   return (
     <div className="flex flex-col gap-4 h-full">
       <div className="flex items-center gap-2">
         <BarChart2 size={15} className="text-[#e63946]" />
         <span className="text-sm font-semibold text-white">Visual Analysis</span>
-        <span className="text-[10px] text-[#555] ml-auto uppercase tracking-wider">Step 5 — Agent wiring pending</span>
+        {hasData && chartData.sql && (
+          <span className="text-[9px] text-[#333] ml-auto font-mono truncate max-w-[160px]" title={chartData.sql}>
+            {chartData.sql.trim().slice(0, 60)}…
+          </span>
+        )}
+        {!hasData && (
+          <span className="text-[10px] text-[#333] ml-auto uppercase tracking-wider">Ask a question to see results</span>
+        )}
       </div>
 
-      <div className="flex-1 flex flex-col gap-3 min-h-0">
-        {/* PCR by workspace */}
-        <div className="bg-[#111] border border-[#222] rounded-xl p-4 flex-1">
-          <p className="text-xs font-semibold text-[#888] mb-4 uppercase tracking-wider">PCR by Workspace</p>
-          {[
-            { name: 'WS-DIGITAL-NEWS',  pcr: 92, color: '#4caf50' },
-            { name: 'WS-ENTERTAINMENT', pcr: 82, color: '#4caf50' },
-            { name: 'WS-TECH-ANALYSIS', pcr: 68, color: '#ff9800' },
-            { name: 'WS-LIFESTYLE',     pcr: 52, color: '#ff9800' },
-            { name: 'WS-SPORTS-LIVE',   pcr: 38, color: '#e63946' },
-          ].map((ws) => (
-            <div key={ws.name} className="mb-3 last:mb-0">
-              <div className="flex justify-between mb-1.5">
-                <span className="text-[11px] text-[#a0a0a0] font-medium">{ws.name.replace('WS-', '')}</span>
-                <span className="text-[11px] font-bold tabular-nums" style={{ color: ws.color }}>{ws.pcr}%</span>
-              </div>
-              <div className="h-2 bg-[#0a0a0a] rounded-full overflow-hidden">
-                <motion.div
-                  className="h-full rounded-full"
-                  style={{ background: ws.color, opacity: 0.85 }}
-                  initial={{ width: 0 }}
-                  animate={{ width: `${ws.pcr}%` }}
-                  transition={{ duration: 0.8, ease: 'easeOut' }}
-                />
-              </div>
+      {hasData ? (
+        <div className="flex-1 flex flex-col gap-3 min-h-0 overflow-y-auto">
+          {/* Answer summary */}
+          {chartData.answer && (
+            <div className="bg-[#111] border border-[#1e2a1e] rounded-xl p-4">
+              <p className="text-[10px] font-semibold text-[#4caf50] mb-1.5 uppercase tracking-wider">AI Insight</p>
+              <p className="text-xs text-[#a0a0a0] leading-relaxed">{chartData.answer.slice(0, 200)}</p>
             </div>
-          ))}
-        </div>
+          )}
 
-        {/* Funnel summary */}
-        <div className="bg-[#111] border border-[#222] rounded-xl p-4">
-          <p className="text-xs font-semibold text-[#888] mb-3 uppercase tracking-wider">Pipeline Summary</p>
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { label: 'Uploaded',  value: '4,179', color: '#64b5f6' },
-              { label: 'Processed', value: '4,179', color: '#81c784' },
-              { label: 'Published', value: '3,188', color: '#ce93d8' },
-            ].map((s) => (
-              <div key={s.label} className="text-center p-3 rounded-xl bg-[#0d0d0d] border border-[#1f1f1f]">
-                <p className="text-base font-black tabular-nums" style={{ color: s.color }}>{s.value}</p>
-                <p className="text-[9px] text-[#555] uppercase tracking-wider mt-0.5">{s.label}</p>
-              </div>
-            ))}
-          </div>
-          <div className="mt-3 flex items-center gap-1.5">
-            <TrendingUp size={11} className="text-[#4caf50]" />
-            <p className="text-[10px] text-[#a0a0a0]">Overall PCR: <span className="text-white font-bold">69.8%</span></p>
+          {/* Chart */}
+          <div className="bg-[#111] border border-[#222] rounded-xl p-4 flex-1">
+            {chartData.chart_spec.type === 'bar' && (
+              <>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-semibold text-[#888] uppercase tracking-wider">
+                    {String(chartData.chart_spec.y?.[0] ?? '').replace(/_/g, ' ')} by {String(chartData.chart_spec.x ?? '').replace(/_/g, ' ')}
+                  </p>
+                  <span className="text-[9px] text-[#333]">{chartData.chart_spec.data?.length ?? 0} rows</span>
+                </div>
+                <DynamicBarChart spec={chartData.chart_spec} />
+              </>
+            )}
+            {chartData.chart_spec.type === 'table' && (
+              <>
+                <p className="text-xs font-semibold text-[#888] mb-3 uppercase tracking-wider">
+                  Query Results ({chartData.chart_spec.data?.length ?? 0} rows)
+                </p>
+                <DynamicTable spec={chartData.chart_spec} />
+              </>
+            )}
           </div>
         </div>
-      </div>
+      ) : (
+        <StaticFallback />
+      )}
     </div>
   )
 }
@@ -264,7 +485,7 @@ function ChartPreviewArea() {
 const ANALYTICS_SIGNALS = [
   'pcr', 'fsc', 'lpi', 'teu', 'opi', 'mci', 'zsp', 'hthr', 'tsqi', 'pig', 'agv', 'pmi',
   'kpi', 'metric', 'trend', 'upload', 'publish', 'process', 'workspace', 'team', 'user',
-  'video', 'frammer', 'funnel', 'channel', 'platform', 'youtube', 'instagram', 'shorts', 'reels',
+  'video', 'mediaflow', 'funnel', 'channel', 'platform', 'youtube', 'instagram', 'shorts', 'reels',
   'interview', 'news', 'speech', 'debate', 'special', 'report', 'discussion',
   'digital', 'entertainment', 'sports', 'lifestyle', 'analysis', 'analytics',
   'dashboard', 'data', 'count', 'hour', 'rate', 'score', 'index', 'performance',
@@ -274,8 +495,8 @@ const ANALYTICS_SIGNALS = [
 
 // Topics clearly outside the analytics domain — graceful block
 const OFF_TOPIC_SIGNALS = [
-  'recipe', 'cook', 'weather', 'forecast', 'poem', 'song', 'story', 'joke', 'travel',
-  'history', 'geography', 'capital of', 'translate', 'language', 'math problem',
+  'recipe', 'cook', 'weather', 'poem', 'song', 'story', 'joke', 'travel',
+  'history', 'geography', 'capital of', 'translate', 'math problem',
   'calculate 2', 'who is', 'what is the meaning', 'define ', 'synonym', 'antonym',
   'movie review', 'game', 'sport score', 'stock price', 'crypto', 'bitcoin',
   'politics', 'election', 'news headline', 'hello world', 'hi there', 'how are you',
@@ -283,19 +504,19 @@ const OFF_TOPIC_SIGNALS = [
 
 const OFF_TOPIC_REPLY = {
   role: 'bot',
-  text: "I can only answer questions about the Frammer AI analytics dashboard — KPIs, workspace performance, publish funnels, video trends, and team activity.\n\nTry asking:\n• \"Which workspace has the lowest PCR?\"\n• \"Show upload vs publish trend for WS-SPORTS-LIVE\"\n• \"What is the LPI score for Hindi content?\"",
+  text: "I can only answer questions about the MediaFlow AI analytics dashboard — KPIs, workspace performance, publish funnels, video trends, and team activity.\n\nTry asking:\n• \"Which workspace has the lowest PCR?\"\n• \"Show upload vs publish trend for WS-SPORTS-LIVE\"\n• \"What is the LPI score for Hindi content?\"",
   thoughts: ['Query scoped outside analytics domain', 'Guardrail triggered — off-topic request', 'Returning scoped guidance without API call'],
   filters: [],
 }
 
 function isOffTopic(query) {
   const lower = query.toLowerCase()
+  // Allow if any analytics signal is present — check FIRST so 'language performance' is not blocked
+  if (ANALYTICS_SIGNALS.some((s) => lower.includes(s))) return false
   // Block if any off-topic signal matches
   if (OFF_TOPIC_SIGNALS.some((s) => lower.includes(s))) return true
-  // Block if query is very short and has no analytics signal
+  // Block if query is very short
   if (lower.length < 8) return true
-  // Allow if any analytics signal is present
-  if (ANALYTICS_SIGNALS.some((s) => lower.includes(s))) return false
   // For ambiguous queries (no clear signal either way), let them through to the agent
   return false
 }
@@ -312,7 +533,7 @@ function sanitizeAnswer(text) {
 const PLACEHOLDER_RESPONSE = {
   role: 'bot',
   text:
-    "I'm the Frammer AI analytics agent. The full LangGraph pipeline (Router > Interpret > Execute > Narrate) integrates in Step 5.\n\nOnce wired I can:\n• Query live KPIs from DuckDB\n• Break down PCR by workspace, team, or time\n• Detect anomalies in the publish pipeline\n• Run SQL-of-Thought with chain-of-thought reasoning",
+    "I'm the MediaFlow AI analytics agent. The full LangGraph pipeline (Router > Interpret > Execute > Narrate) integrates in Step 5.\n\nOnce wired I can:\n• Query live KPIs from DuckDB\n• Break down PCR by workspace, team, or time\n• Detect anomalies in the publish pipeline\n• Run SQL-of-Thought with chain-of-thought reasoning",
   thoughts: [
     'Query classified as analytics intent',
     'Schema linked to fact_video_events + v_pcr view',
@@ -383,9 +604,17 @@ function getSessionId() {
 export default function NLQPanel({ className = '' }) {
   const nlqOpen    = useStore((s) => s.nlqOpen ?? false)
   const setNlqOpen = useStore((s) => s.setNlqOpen)
+  const activeTab  = useStore((s) => s.activeTab)
+  const filters    = useStore((s) => s.filters)
+  const metric     = useStore((s) => s.metric)
+  const persona    = useStore((s) => s.persona)
+  const setPageContext = useStore((s) => s.setPageContext)
 
   // Stable session ID — wires multi-turn history in the backend agent
   const sessionId = useRef(getSessionId())
+
+  // Sync session ID into store on mount for HITL wiring
+  useEffect(() => { useStore.getState().setNlqSessionId(sessionId.current) }, [])
 
   // expanded = large centered modal; compact = floating panel (no backdrop, no page block)
   const [expanded, setExpanded] = useState(false)
@@ -393,16 +622,34 @@ export default function NLQPanel({ className = '' }) {
   const [messages, setMessages] = useState([
     {
       role: 'bot',
-      text: "Hi! I'm Frammer AI. Ask me anything about your content analytics.",
+      text: "Hi! I'm MediaFlow AI. Ask me anything about your content analytics.",
       ts: formatTime(new Date()),
     },
   ])
   const [input, setInput]         = useState('')
   const [loading, setLoading]     = useState(false)
   const [liveThoughts, setLiveThoughts] = useState([])  // SSE thought steps (live)
+  const [chartData, setChartData] = useState(null)       // latest chart_spec from agent
+  const [chartCtx, setChartCtx]   = useState(null)       // dropped chart image/CSV context
   const messagesEndRef             = useRef(null)
   const inputRef                   = useRef(null)
-  const activeSourceRef            = useRef(null)  // current EventSource
+  const activeSourceRef            = useRef(null)  // current EventSource / abort handle
+
+  // ── Auto page context capture on panel open ──────────────────────────────
+  const [currentPageCtx, setCurrentPageCtx] = useState(null)
+  useEffect(() => {
+    if (nlqOpen) {
+      const ctx = {
+        page: activeTab,
+        filters,
+        metric,
+        persona,
+        visible_elements: extractVisibleText(),
+      }
+      setCurrentPageCtx(ctx)
+      setPageContext(ctx)
+    }
+  }, [nlqOpen, activeTab])
 
   function formatTime(d) {
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -436,7 +683,8 @@ export default function NLQPanel({ className = '' }) {
 
       // Close any existing SSE connection
       if (activeSourceRef.current) {
-        activeSourceRef.current.close()
+        if (activeSourceRef.current.close) activeSourceRef.current.close()
+        if (activeSourceRef.current.abort) activeSourceRef.current.abort()
         activeSourceRef.current = null
       }
 
@@ -446,43 +694,66 @@ export default function NLQPanel({ className = '' }) {
       // Sync session ID into store for HITL wiring
       useStore.getState().setNlqSessionId(sessionId.current)
 
-      // Try SSE streaming first; fall back to blocking postNLQ if EventSource unavailable
-      if (typeof EventSource !== 'undefined') {
+      // Common SSE event handler
+      const handleSSEEvent = (event) => {
+        if (event.type === 'thought_step') {
+          setLiveThoughts((prev) => [...prev, event.data])
+        } else if (event.type === 'sql_ready') {
+          setLiveThoughts((prev) => [...prev, { node: 'SQL', action: 'Generated SQL', detail: event.data?.slice(0, 120) }])
+        } else if (event.type === 'final') {
+          const answerText = sanitizeAnswer(event.answer)
+          const thoughts = (event.thought_steps ?? []).map(
+            (s) => `[${s.node}] ${s.action} — ${s.detail ?? ''}`
+          )
+          setMessages((prev) => [
+            ...prev,
+            { role: 'bot', text: answerText, thoughts, filters: [], ts: formatTime(new Date()) },
+          ])
+          if (event.chart_spec && event.chart_spec.type !== 'none') {
+            setChartData({ chart_spec: event.chart_spec, sql: event.sql, answer: answerText })
+          }
+          setLiveThoughts([])
+          setLoading(false)
+          activeSourceRef.current = null
+        } else if (event.type === 'error') {
+          setMessages((prev) => [
+            ...prev,
+            { ...PLACEHOLDER_RESPONSE, ts: formatTime(new Date()) },
+          ])
+          setLiveThoughts([])
+          setLoading(false)
+          activeSourceRef.current = null
+        } else if (event.type === 'done') {
+          setLiveThoughts([])
+          setLoading(false)
+          activeSourceRef.current = null
+        }
+      }
+
+      // Use POST stream when page/chart context is available; else GET EventSource
+      const hasContext = currentPageCtx || chartCtx
+      if (hasContext) {
+        const handle = postNLQStream(
+          {
+            question: query,
+            session_id: sessionId.current,
+            persona: useStore.getState().persona ?? 'leadership',
+            page_context: currentPageCtx || undefined,
+            chart_context: chartCtx || undefined,
+          },
+          handleSSEEvent,
+        )
+        activeSourceRef.current = handle
+        // Clear chart context after sending
+        if (chartCtx) setChartCtx(null)
+      } else if (typeof EventSource !== 'undefined') {
         const source = openNLQStream(
           {
             question: query,
             session_id: sessionId.current,
             persona: useStore.getState().persona ?? 'leadership',
           },
-          (event) => {
-            if (event.type === 'thought_step') {
-              setLiveThoughts((prev) => [...prev, event.data])
-            } else if (event.type === 'final') {
-              const answerText = sanitizeAnswer(event.answer)
-              const thoughts = (event.thought_steps ?? []).map(
-                (s) => `[${s.node}] ${s.action} — ${s.detail ?? ''}`
-              )
-              setMessages((prev) => [
-                ...prev,
-                { role: 'bot', text: answerText, thoughts, filters: [], ts: formatTime(new Date()) },
-              ])
-              setLiveThoughts([])
-              setLoading(false)
-              activeSourceRef.current = null
-            } else if (event.type === 'error') {
-              setMessages((prev) => [
-                ...prev,
-                { ...PLACEHOLDER_RESPONSE, ts: formatTime(new Date()) },
-              ])
-              setLiveThoughts([])
-              setLoading(false)
-              activeSourceRef.current = null
-            } else if (event.type === 'done') {
-              setLiveThoughts([])
-              setLoading(false)
-              activeSourceRef.current = null
-            }
-          }
+          handleSSEEvent,
         )
         activeSourceRef.current = source
       } else {
@@ -503,6 +774,18 @@ export default function NLQPanel({ className = '' }) {
               ...prev,
               { role: 'bot', text: answerText, thoughts, filters: [], ts: formatTime(new Date()) },
             ])
+            // Update chart from blocking response data
+            if (d.data && Array.isArray(d.data) && d.data.length > 0) {
+              const keys = Object.keys(d.data[0])
+              const yKeys = keys.slice(1).filter((k) => typeof d.data[0][k] === 'number')
+              setChartData({
+                chart_spec: yKeys.length > 0
+                  ? { type: 'bar', x: keys[0], y: yKeys, data: d.data.slice(0, 50) }
+                  : { type: 'table', data: d.data.slice(0, 50) },
+                sql: d.sql,
+                answer: answerText,
+              })
+            }
           })
           .catch(() => {
             setMessages((prev) => [
@@ -548,7 +831,7 @@ export default function NLQPanel({ className = '' }) {
             <Sparkles size={14} className="text-[#e63946]" />
           </div>
           <div>
-            <p className="text-sm font-bold text-white leading-none">Ask Frammer AI</p>
+            <p className="text-sm font-bold text-white leading-none">Ask MediaFlow AI</p>
             <p className="text-[10px] text-[#555] mt-0.5 leading-none">Powered by Claude · Analytics</p>
           </div>
         </div>
@@ -569,10 +852,16 @@ export default function NLQPanel({ className = '' }) {
         </div>
       </div>
 
-      {/* Quick prompts */}
+      {/* Context banner */}
+      <ContextBanner pageContext={currentPageCtx} chartContext={chartCtx} onClearChart={() => setChartCtx(null)} />
+
+      {/* Quick prompts — context-aware */}
       <div className="flex-shrink-0 px-4 py-2.5 border-b border-[#1a1a1a] bg-[#0d0d0d]">
         <div className="flex flex-wrap gap-1.5">
-          {QUICK_PROMPTS.slice(0, 2).map((p) => (
+          {(chartCtx
+            ? CONTEXT_PROMPTS.chart_dropped
+            : CONTEXT_PROMPTS[activeTab] || QUICK_PROMPTS
+          ).slice(0, 2).map((p) => (
             <button
               key={p}
               onClick={() => sendMessage(p)}
@@ -591,6 +880,9 @@ export default function NLQPanel({ className = '' }) {
           </button>
         </div>
       </div>
+
+      {/* Chart drop zone */}
+      <ChartDropZone onDrop={(ctx) => { setChartCtx(ctx); setInput('Analyze this chart') }} />
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
@@ -658,7 +950,7 @@ export default function NLQPanel({ className = '' }) {
                 <Sparkles size={17} className="text-[#e63946]" />
               </div>
               <div>
-                <h2 className="text-base font-bold text-white">Ask Frammer AI</h2>
+                <h2 className="text-base font-bold text-white">Ask MediaFlow AI</h2>
                 <p className="text-[10px] text-[#555] uppercase tracking-wider">Full analytics view · Claude Sonnet</p>
               </div>
             </div>
@@ -680,10 +972,13 @@ export default function NLQPanel({ className = '' }) {
             </div>
           </div>
 
-          {/* Quick prompts */}
+          {/* Context banner (expanded) */}
+          <ContextBanner pageContext={currentPageCtx} chartContext={chartCtx} onClearChart={() => setChartCtx(null)} />
+
+          {/* Quick prompts — context-aware */}
           <div className="flex-shrink-0 flex items-center gap-2 px-6 py-3 border-b border-[#1a1a1a] bg-[#0a0a0a]">
             <span className="text-[10px] text-[#555] uppercase tracking-wider flex-shrink-0">Try:</span>
-            {QUICK_PROMPTS.map((p) => (
+            {(chartCtx ? CONTEXT_PROMPTS.chart_dropped : CONTEXT_PROMPTS[activeTab] || QUICK_PROMPTS).map((p) => (
               <button
                 key={p}
                 onClick={() => sendMessage(p)}
@@ -727,7 +1022,13 @@ export default function NLQPanel({ className = '' }) {
 
             {/* Charts / visual column */}
             <div className="flex-1 overflow-y-auto px-6 py-5 bg-[#090909]">
-              <ChartPreviewArea />
+              <ChartDropZone onDrop={(ctx) => { setChartCtx(ctx); setInput('Analyze this chart') }} />
+              {chartCtx?.image_base64 && (
+                <div className="mb-3 rounded-xl overflow-hidden border border-[#222]">
+                  <img src={chartCtx.image_base64} alt="Dropped chart" className="max-h-40 w-full object-contain bg-[#111]" />
+                </div>
+              )}
+              <ChartPreviewArea chartData={chartData} />
             </div>
           </div>
         </div>

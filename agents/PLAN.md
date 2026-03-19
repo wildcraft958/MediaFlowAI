@@ -1,4 +1,4 @@
-# Frammer AI — Agent Architecture Plan
+# MediaFlow AI — Agent Architecture Plan
 
 > Last updated: 2026-03-19
 > Reference implementations:
@@ -104,7 +104,7 @@
 │  Agg tables:     agg_daily_summary, agg_channel_funnel,                      │
 │                  agg_output_type_summary, agg_user_activity                  │
 │                                                                               │
-│  Source: data/frammer_dataset.csv (4,569 rows, 29 cols, seed=42)             │
+│  Source: data/dataset.csv (4,569 rows, 29 cols, seed=42)               │
 └──────────────────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────────────────────┐
@@ -306,7 +306,7 @@ metrics:
 ```yaml
 # config/clients/CLIENT_1.yaml
 client_id: CLIENT_1
-display_name: Frammer Workspace A
+display_name: MediaFlow Workspace A
 thresholds:
   OPI_hours: 48
   AGV_drop_pct: 15
@@ -333,7 +333,7 @@ The agent produces an ECharts `option` object; the frontend passes it directly t
 ```json
 {
   "chart_type": "bar",
-  "x": "frammer_workspace",
+  "x": "workspace",
   "y": "pcr_pct",
   "color": "input_type",
   "toggle": "count_or_hours",
@@ -380,7 +380,7 @@ def run_ambient_check(client_id: str):
 
 ## 8. Text2SQL Engine Detail
 
-Implements SQL-of-Thought (arXiv:2509.00581), adapted for DuckDB + Frammer schema.
+Implements SQL-of-Thought (arXiv:2509.00581), adapted for DuckDB + MediaFlow schema.
 
 ```
 User NL query
@@ -388,7 +388,7 @@ User NL query
       ▼
 [1] Schema Linking Agent
     Input:  NL query + schema description (from describe_schema() MCP tool)
-    Output: {entities: ["channel", "input_type"], columns: ["frammer_workspace", "input_type"], filters: [...]}
+    Output: {entities: ["channel", "input_type"], columns: ["workspace", "input_type"], filters: [...]}
     Temp:   0.3
 
 [2] Query Plan Agent (CoT)
@@ -476,7 +476,7 @@ Phase 3 — Intelligence
 ```
 GCAgent/
 ├── data/
-│   ├── frammer_dataset.csv     ← source of truth
+│   ├── media_dataset.csv       ← source of truth
 │   ├── enrich.py               ← enrichment pipeline
 │   ├── schema.py               ← DuckDB star schema + KPI view creation
 │   └── ASSUMPTIONS.md

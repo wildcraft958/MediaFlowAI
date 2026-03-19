@@ -2,9 +2,9 @@
  * theme/echarts.js — ECharts theme registration + shared chart color palette
  *
  * Usage:
- *   import { registerFrammerTheme, CHART_COLORS } from '../theme/echarts'
- *   registerFrammerTheme()   // call once in App.jsx before any chart renders
- *   // then use theme="frammer-dark" on every ReactECharts component
+ *   import { registerDashboardTheme, CHART_COLORS } from '../theme/echarts'
+ *   registerDashboardTheme()   // call once in App.jsx before any chart renders
+ *   // then use theme="dashboard-dark" on every ReactECharts component
  */
 
 import * as echarts from 'echarts/core'
@@ -38,7 +38,7 @@ export const PALETTE = [
   '#ff9800',   // warning orange (extra)
 ]
 
-const frammerDark = {
+const dashboardDark = {
   color: PALETTE,
   backgroundColor: 'transparent',
   textStyle: {},
@@ -194,10 +194,10 @@ const frammerDark = {
 
 // ─── Public registration function (call once in App.jsx) ─────────────────────
 let _registered = false
-export function registerFrammerTheme() {
+export function registerDashboardTheme() {
   if (_registered) return
   try {
-    echarts.registerTheme('frammer-dark', frammerDark)
+    echarts.registerTheme('dashboard-dark', dashboardDark)
     _registered = true
   } catch {
     // already registered — safe to ignore
@@ -205,6 +205,6 @@ export function registerFrammerTheme() {
 }
 
 // Also register immediately for convenience when imported
-registerFrammerTheme()
+registerDashboardTheme()
 
-export default frammerDark
+export default dashboardDark

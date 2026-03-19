@@ -10,10 +10,40 @@ const EMPTY_FILTERS = {
   team:                 [],    // string[]
   language:             null,  // string | null
   input_type:           [],    // string[]
-  frammer_output_type:  [],    // string[]
+  ai_output_type:       [],    // string[]
   date_from:            null,  // string | null (ISO date)
   date_to:              null,  // string | null
 }
+
+const DEFAULT_AGENT_MESSAGES = [
+  {
+    id: 1,
+    type: 'alert',
+    severity: 'warning',
+    title: 'Low PCR Alert',
+    body: 'WS-SPORTS-LIVE PCR dropped to 38% - 557 videos unresolved.',
+    time: '2 min ago',
+    read: false,
+  },
+  {
+    id: 2,
+    type: 'insight',
+    severity: 'info',
+    title: 'Publish Spike Detected',
+    body: 'WS-DIGITAL-NEWS published 142 videos in the last 6h - 2.3x above average.',
+    time: '18 min ago',
+    read: false,
+  },
+  {
+    id: 3,
+    type: 'question',
+    severity: 'neutral',
+    title: 'Review Request',
+    body: 'content_editor_04 requested review for 12 my_key_moments drafts.',
+    time: '1h ago',
+    read: true,
+  },
+]
 
 const useStore = create((set, get) => ({
   // ─── Auth ──────────────────────────────────────────────────────────────────
@@ -24,7 +54,18 @@ const useStore = create((set, get) => ({
     persona: user?.persona || 'leadership',
     isLoggedIn: !!user,
   }),
-  logout: () => set({ isLoggedIn: false, user: null, persona: 'leadership' }),
+  logout: () => set({
+    isLoggedIn: false,
+    user: null,
+    persona: 'leadership',
+    filters: { ...EMPTY_FILTERS },
+    nlqOpen: false,
+    nlqSessionId: 'default',
+    agentInboxCount: 2,
+    agentMessages: [...DEFAULT_AGENT_MESSAGES],
+    metric: 'count',
+    comparePeriod: 30,
+  }),
 
   // ─── Persona ──────────────────────────────────────────────────────────────
   persona: 'leadership',       // 'leadership' | 'creator'
@@ -56,39 +97,15 @@ const useStore = create((set, get) => ({
   nlqOpen: false,
   setNlqOpen: (nlqOpen) => set({ nlqOpen }),
 
+  // ─── NLQ page context (copilot) ─────────────────────────────────────────
+  pageContext: null,
+  setPageContext: (ctx) => set({ pageContext: ctx }),
+
   // ─── Agent Inbox ──────────────────────────────────────────────────────────
   agentInboxCount: 2,
   setAgentInboxCount: (agentInboxCount) => set({ agentInboxCount }),
 
-  agentMessages: [
-    {
-      id: 1,
-      type: 'alert',
-      severity: 'warning',
-      title: 'Low PCR Alert',
-      body: 'WS-SPORTS-LIVE PCR dropped to 38% - 557 videos unresolved.',
-      time: '2 min ago',
-      read: false,
-    },
-    {
-      id: 2,
-      type: 'insight',
-      severity: 'info',
-      title: 'Publish Spike Detected',
-      body: 'WS-DIGITAL-NEWS published 142 videos in the last 6h - 2.3x above average.',
-      time: '18 min ago',
-      read: false,
-    },
-    {
-      id: 3,
-      type: 'question',
-      severity: 'neutral',
-      title: 'Review Request',
-      body: 'content_editor_04 requested review for 12 my_key_moments drafts.',
-      time: '1h ago',
-      read: true,
-    },
-  ],
+  agentMessages: [...DEFAULT_AGENT_MESSAGES],
   markMessageRead: (id) =>
     set((state) => ({
       agentMessages: state.agentMessages.map((m) =>

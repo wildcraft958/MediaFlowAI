@@ -5,7 +5,7 @@ Admin endpoints that need DDL open a separate short-lived RW connection.
 import pathlib
 import duckdb
 
-DB_PATH = pathlib.Path(__file__).parents[1] / "frammer.duckdb"
+DB_PATH = pathlib.Path(__file__).parents[1] / "analytics.duckdb"
 
 _conn: duckdb.DuckDBPyConnection | None = None
 

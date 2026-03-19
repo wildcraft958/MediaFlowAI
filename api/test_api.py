@@ -236,12 +236,66 @@ def test_admin_config_update():
     client.put("/api/admin/config", json={"opi_threshold_hours": 48})
 
 
+# ── Slice 9b: Admin KPI chatbot hardening ────────────────────────────────────
+
+def test_admin_chat_returns_explanation(monkeypatch):
+    import api.routers.admin as admin_mod
+    monkeypatch.setattr(admin_mod, "llm_chat", lambda *a, **kw: "PCR tracks publish rate.")
+    resp = client.post(
+        "/api/admin/kpi-chat",
+        json={"message": "What KPIs track publish rate?", "history": []},
+    )
+    assert resp.status_code == 200
+    assert "explanation" in resp.json()
+
+
+def test_admin_chat_error_generic_message(monkeypatch):
+    import api.routers.admin as admin_mod
+    def _raise(*args, **kwargs):
+        raise RuntimeError("internal LLM error with secret details")
+    monkeypatch.setattr(admin_mod, "llm_chat", _raise)
+    resp = client.post(
+        "/api/admin/kpi-chat",
+        json={"message": "test", "history": []},
+    )
+    assert resp.status_code == 500
+    assert resp.json()["detail"] == "Chat service temporarily unavailable"
+    assert "secret" not in resp.json()["detail"]
+
+
 # ── Slice 10: NLQ stub ────────────────────────────────────────────────────────
 
 def test_nlq_stub_returns_answer():
     resp = client.post("/api/nlq", json={"question": "Which workspace has lowest PCR?"})
     assert resp.status_code == 200
     assert "answer" in resp.json()
+
+
+def test_nlq_accepts_page_context():
+    resp = client.post("/api/nlq", json={
+        "question": "What does this page show?",
+        "page_context": {"page": "executive", "filters": {}, "kpis": ["PCR"]},
+    })
+    assert resp.status_code == 200
+    assert "answer" in resp.json()
+
+
+def test_nlq_stream_post_returns_sse():
+    resp = client.post(
+        "/api/nlq/stream",
+        json={"question": "PCR by workspace", "session_id": "test_post_stream"},
+    )
+    assert resp.status_code == 200
+    assert "text/event-stream" in resp.headers["content-type"]
+
+
+def test_nlq_rejects_oversized_context():
+    # page_context itself is a dict (no max_length), but question has max_length=2000
+    resp = client.post("/api/nlq/stream", json={
+        "question": "x" * 2001,
+        "session_id": "test",
+    })
+    assert resp.status_code == 422  # validation error
 
 
 # ── Slice 11: Chronos Forecast ────────────────────────────────────────────────

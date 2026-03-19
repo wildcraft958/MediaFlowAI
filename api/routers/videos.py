@@ -9,7 +9,7 @@ router = APIRouter()
 _VIDEO_COLS = """
     fd.video_id         AS id,
     fd.headline,
-    fd.frammer_workspace AS workspace,
+    fd.workspace AS workspace,
     fd.input_type        AS inputType,
     fd.output_type       AS outputType,
     ROUND(fd.video_duration_sec / 60.0, 2)  AS durationMin,
@@ -26,7 +26,7 @@ _VIDEO_COLS = """
 """
 
 _BASE_QUERY = """
-    FROM frammer_dataset fd
+    FROM media_dataset fd
     LEFT JOIN kpi_zsp kz ON fd.video_id = kz.video_id
 """
 
@@ -51,7 +51,7 @@ def videos(
     offset = (page - 1) * limit
 
     total = query_one(
-        f"SELECT COUNT(*) FROM frammer_dataset fd {where}",
+        f"SELECT COUNT(*) FROM media_dataset fd {where}",
         params,
     )[0]
 
@@ -105,5 +105,5 @@ def export_videos(
     return StreamingResponse(
         iter([buf.getvalue()]),
         media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=frammer_videos.csv"},
+        headers={"Content-Disposition": "attachment; filename=mediaflow_videos.csv"},
     )

@@ -1,6 +1,6 @@
 dimensions:
   workspace:
-    source_column: frammer_workspace
+    source_column: workspace
     dim_table: dim_workspace
     description: "Client workspace / channel identifier"
     cardinality: 5
@@ -53,13 +53,13 @@ dimensions:
     values: [interview, speech, debate, news_bulletin, special_report, press_conference, discussion_show]
     filter_api_param: input_type
 
-  frammer_output_type:
-    source_column: frammer_output_type
-    dim_table: dim_frammer_output_type
-    description: "AI-generated content package type from Frammer (what Frammer created)"
+  ai_output_type:
+    source_column: ai_output_type
+    dim_table: dim_ai_output_type
+    description: "AI-generated content package type from MediaFlow (what MediaFlow created)"
     cardinality: 5
     values: [key_moments, chapters, full_package, summary, my_key_moments]
-    filter_api_param: frammer_output_type
+    filter_api_param: ai_output_type
 
   output_type:
     source_column: output_type

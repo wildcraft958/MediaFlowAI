@@ -1,4 +1,4 @@
-# Deployment Guide — Frammer AI Analytics Dashboard
+# Deployment Guide — MediaFlow AI Analytics Dashboard
 
 ## Prerequisites
 
@@ -39,7 +39,7 @@ The credentials file is gitignored via `*.json`. Never commit it.
 ## 2. Data Pipeline (run once, or daily via cron)
 
 ```bash
-# Step 1 — Enrich raw dataset → frammer_dataset.csv
+# Step 1 — Enrich raw dataset → dataset.csv
 uv run python data/enrich.py
 
 # Step 2 — Shift dates so max(upload_date) = today (rolling window alignment)
@@ -143,11 +143,11 @@ curl -X POST http://localhost:8000/api/nlq \
 
 | Resource | Details |
 |----------|---------|
-| Project | `agrowise-192e3` |
+| Project | `analytics-prod-123` |
 | Region | `us-central1` |
 | LLM | Vertex AI — Gemini 2.0 Flash (`gemini-2.0-flash`) |
 | Embeddings | Vertex AI — `text-embedding-005` |
-| Vector store | BigQuery — `agrowise-192e3.frammer_vectors` |
+| Vector store | BigQuery — `analytics-prod-123.analytics_vectors` |
 | Tables | `kpi_embeddings`, `dimension_embeddings` |
 
 ---
@@ -168,12 +168,12 @@ This re-embeds all KPI definitions and dimension values using Vertex AI `text-em
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| `db_rows: 0` at `/api/health` | `frammer.duckdb` not built | Run `data/schema.py` |
+| `db_rows: 0` at `/api/health` | `analytics.duckdb` not built | Run `data/schema.py` |
 | 500 on `/api/nlq` | GCP credentials not set | Set `GOOGLE_APPLICATION_CREDENTIALS` |
 | Frontend shows mock data | Backend not running | Start `uvicorn api.main:app --port 8000` |
 | `Corrected_dataset.csv` missing | Raw data not present | Obtain from team lead; place in project root |
 | Vector search slow | Cold start, BQ initialization | Normal — first query takes ~5s; subsequent queries are fast |
-| `frammer.duckdb` read error | Stale DB from different schema version | Delete `frammer.duckdb` and re-run `data/schema.py` |
+| `analytics.duckdb` read error | Stale DB from different schema version | Delete `analytics.duckdb` and re-run `data/schema.py` |
 | Chronos first-run is slow (~30s) | Model download from HuggingFace Hub | Downloads once, cached in `~/.cache/huggingface/`. Subsequent calls use the cached `lru_cache` pipeline. |
 
 ---
@@ -225,9 +225,9 @@ CMD ["sh", "-c", "uv run python data/enrich.py && uv run python data/shift_dates
 cd frontend && npm run build && cd ..
 
 # 2. Set your GCP project
-export PROJECT_ID=agrowise-192e3
+export PROJECT_ID=analytics-prod-123
 export REGION=us-central1
-export IMAGE=gcr.io/$PROJECT_ID/frammer-dashboard:latest
+export IMAGE=gcr.io/$PROJECT_ID/mediaflow-dashboard:latest
 
 # 3. Build Docker image
 docker build -t $IMAGE .
@@ -240,7 +240,7 @@ docker push $IMAGE
 ### 11.3 Deploy to Cloud Run
 
 ```bash
-gcloud run deploy frammer-dashboard \
+gcloud run deploy mediaflow-dashboard \
   --image $IMAGE \
   --region $REGION \
   --platform managed \
@@ -248,16 +248,16 @@ gcloud run deploy frammer-dashboard \
   --memory 4Gi \
   --cpu 2 \
   --timeout 300 \
-  --set-secrets GOOGLE_APPLICATION_CREDENTIALS_JSON=frammer-sa-key:latest
+  --set-secrets GOOGLE_APPLICATION_CREDENTIALS_JSON=mediaflow-sa-key:latest
 ```
 
-> **Secret setup:** Store the service account JSON as a GCP Secret Manager secret named `frammer-sa-key`. The app reads it via the `GOOGLE_APPLICATION_CREDENTIALS` env var. Cloud Run auto-injects it to the filesystem.
+> **Secret setup:** Store the service account JSON as a GCP Secret Manager secret named `mediaflow-sa-key`. The app reads it via the `GOOGLE_APPLICATION_CREDENTIALS` env var. Cloud Run auto-injects it to the filesystem.
 
 Alternatively, attach a service account to the Cloud Run service directly:
 
 ```bash
-gcloud run services update frammer-dashboard \
-  --service-account frammer-sa@agrowise-192e3.iam.gserviceaccount.com \
+gcloud run services update mediaflow-dashboard \
+  --service-account mediaflow-sa@analytics-prod-123.iam.gserviceaccount.com \
   --region $REGION
 ```
 
@@ -270,7 +270,7 @@ Cloud Run instances are **ephemeral** — the DuckDB file is rebuilt on every co
 | Option | How |
 |--------|-----|
 | **Cloud Storage** | Mount GCS bucket as FUSE filesystem, point DuckDB at it |
-| **MotherDuck** | Replace `frammer.duckdb` local path with `md:frammer` connection string |
+| **MotherDuck** | Replace `analytics.duckdb` local path with `md:mediaflow` connection string |
 | **Cloud SQL (PG)** | Replace DuckDB queries with SQLAlchemy + Postgres (larger effort) |
 
 MotherDuck is the lowest-friction path — DuckDB-compatible, zero schema change, cloud-native.

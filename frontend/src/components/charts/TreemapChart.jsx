@@ -157,7 +157,7 @@ export default function TreemapChart({ data = [], metric = 'count', loading = fa
     <div className="w-full h-full">
       <ReactECharts
         option={option}
-        theme="frammer-dark"
+        theme="dashboard-dark"
         style={chartStyle}
         opts={opts}
         notMerge

@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Upload, Cpu, CheckCircle, AlertTriangle, TrendingUp, TrendingDown,
@@ -13,6 +14,7 @@ import ReactECharts from 'echarts-for-react'
 import KPICard from '../components/charts/KPICard'
 import FunnelViz from '../components/charts/FunnelViz'
 import FilterBar from '../components/common/FilterBar'
+import RoleGate from '../components/common/RoleGate'
 import useStore from '../store/useStore'
 import { getExecutiveSummary, getPublishFunnel, getPeriodComparison, getDataQuality, getBillableSplit } from '../api/client'
 
@@ -198,7 +200,7 @@ function TrendMiniChart({ data, metric }) {
   return (
     <ReactECharts
       option={option}
-      theme="frammer-dark"
+      theme="dashboard-dark"
       style={{ height: 240, width: '100%' }}
       opts={{ renderer: 'canvas' }}
       notMerge
@@ -331,7 +333,7 @@ function AgentInboxWidget() {
   )
 }
 
-function AlertBanner({ onDismiss }) {
+function AlertBanner({ onDismiss, navigate }) {
   return (
     <motion.div
       className="flex items-start gap-3 p-4 rounded-2xl border border-[#ff9800]/30 bg-[#ff9800]/08"
@@ -350,7 +352,10 @@ function AlertBanner({ onDismiss }) {
         <p className="text-xs text-[#a0a0a0] mt-0.5">
           Current PCR 38% is below the 50% minimum threshold configured in CLIENT_1 settings.
           556 videos remain unpublished.
-          <button className="ml-2 text-[#ff9800] hover:underline inline-flex items-center gap-1">
+          <button
+            className="ml-2 text-[#ff9800] hover:underline inline-flex items-center gap-1"
+            onClick={() => navigate('/explorer?workspace=WS-SPORTS-LIVE')}
+          >
             Investigate <ChevronRight size={11} />
           </button>
         </p>
@@ -445,6 +450,7 @@ function BillablePanel({ billable, loading }) {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function ExecutiveSummary() {
+  const navigate = useNavigate()
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [alertVisible, setAlertVisible] = useState(true)
@@ -528,7 +534,7 @@ export default function ExecutiveSummary() {
       trendValue: d?.avg_processing_pct != null ? Math.abs(d.avg_processing_pct) : null,
       trendLabel: 'vs prev 30d',
       icon: Clock,
-      subtitle: 'Upload → Frammer AI processed',
+      subtitle: 'Upload → MediaFlow AI processed',
       loading,
     },
   ]
@@ -543,7 +549,7 @@ export default function ExecutiveSummary() {
       {/* Alert Banner */}
       <AnimatePresence>
         {alertVisible && (
-          <AlertBanner onDismiss={() => setAlertVisible(false)} />
+          <AlertBanner onDismiss={() => setAlertVisible(false)} navigate={navigate} />
         )}
       </AnimatePresence>
 
@@ -558,7 +564,7 @@ export default function ExecutiveSummary() {
             </span>
           </div>
           <p className="text-sm text-[#a0a0a0]">
-            Frammer AI media operations - 4,569 total videos across 5 workspaces
+            MediaFlow AI media operations - 4,569 total videos across 5 workspaces
           </p>
         </div>
       </div>
@@ -627,7 +633,7 @@ export default function ExecutiveSummary() {
               {data?.quality ? (data.quality.fields.find(f => f.field === 'upload_date')?.null ?? 390) : 390} videos
             </span> have no upload_date
             - data quality gap visible in MCI / OPI KPIs.
-            100% of uploaded videos are processed by Frammer AI.
+            100% of uploaded videos are processed by MediaFlow AI.
           </p>
         </div>
       </motion.div>
@@ -666,21 +672,28 @@ export default function ExecutiveSummary() {
         )}
       </motion.div>
 
-      {/* Billable Analytics */}
-      <motion.div
-        className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-6"
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.53, duration: 0.35 }}
-      >
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-white">Billable Analytics</h2>
-          <span className="text-xs font-bold border px-2 py-1 rounded-md text-[#4caf50] border-[#4caf50]/40 bg-[#4caf50]/10">
-            PS §8C
-          </span>
-        </div>
-        <BillablePanel billable={data?.billable} loading={loading} />
-      </motion.div>
+      {/* Billable Analytics — Leadership/Admin only (CXO financial KPI per catalog) */}
+      <RoleGate allowed={['admin', 'leadership']}>
+        <motion.div
+          className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-6"
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.53, duration: 0.35 }}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-white">Billable Analytics</h2>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#2196f3]/10 border border-[#2196f3]/30 text-[#64b5f6]">
+                Leadership
+              </span>
+              <span className="text-xs font-bold border px-2 py-1 rounded-md text-[#4caf50] border-[#4caf50]/40 bg-[#4caf50]/10">
+                PS §8C
+              </span>
+            </div>
+          </div>
+          <BillablePanel billable={data?.billable} loading={loading} />
+        </motion.div>
+      </RoleGate>
 
       {/* Workspace PCR + Agent Inbox */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

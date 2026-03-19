@@ -2,25 +2,27 @@
  * App.jsx — Root router + auth guard + page-level code splitting
  *
  * Flow:
- *   Not logged in  → /login (role selection)
- *   Leadership     → /executive (default)
- *   Creator        → /explorer (default)
+ *   /           → LandingPage (public — always visible)
+ *   /login      → Login (public — role selection)
+ *   Leadership  → /executive (default after login)
+ *   Creator     → /explorer (default after login)
  *
  * All dashboard pages are wrapped in Layout.
- * ECharts 'frammer-dark' theme is registered once here.
+ * ECharts 'dashboard-dark' theme is registered once here.
  */
 
 import React, { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import Layout from './components/layout/Layout'
-import { registerFrammerTheme } from './theme/echarts'
+import { registerDashboardTheme } from './theme/echarts'
 import useStore from './store/useStore'
 
 // Register ECharts theme before any chart renders
-registerFrammerTheme()
+registerDashboardTheme()
 
 // ─── Lazy-loaded pages ────────────────────────────────────────────────────────
+const LandingPage    = lazy(() => import('./pages/LandingPage'))
 const Login          = lazy(() => import('./pages/Login'))
 const ExecutiveSummary = lazy(() => import('./pages/ExecutiveSummary'))
 const UsageTrends    = lazy(() => import('./pages/UsageTrends'))
@@ -62,6 +64,16 @@ function RequireAuth({ children }) {
   return children
 }
 
+// ─── Admin guard — redirects non-admin users to /executive ───────────────────
+function RequireAdmin({ children }) {
+  const user = useStore((s) => s.user)
+
+  if (user?.role !== 'admin') {
+    return <Navigate to="/executive" replace />
+  }
+  return children
+}
+
 // ─── Dashboard page wrapper (Layout + auth) ───────────────────────────────────
 function Page({ children }) {
   return (
@@ -71,23 +83,14 @@ function Page({ children }) {
   )
 }
 
-// ─── Root redirect — send to persona-appropriate default page ─────────────────
-function RootRedirect() {
-  const isLoggedIn = useStore((s) => s.isLoggedIn)
-  const persona    = useStore((s) => s.persona)
-
-  if (!isLoggedIn) return <Navigate to="/login" replace />
-  return <Navigate to={persona === 'creator' ? '/explorer' : '/executive'} replace />
-}
-
 // ─── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
   return (
     <BrowserRouter>
       <Suspense fallback={<PageLoader />}>
         <Routes>
-          {/* Root */}
-          <Route path="/" element={<RootRedirect />} />
+          {/* Public landing page — always accessible */}
+          <Route path="/" element={<LandingPage />} />
 
           {/* Public — login / role selection */}
           <Route path="/login" element={<Login />} />
@@ -98,9 +101,9 @@ export default function App() {
           <Route path="/team"      element={<Page><TeamActivity /></Page>} />
           <Route path="/publish"   element={<Page><PublishMetrics /></Page>} />
           <Route path="/explorer"  element={<Page><VideoExplorer /></Page>} />
-          <Route path="/admin"     element={<Page><Admin /></Page>} />
+          <Route path="/admin"     element={<Page><RequireAdmin><Admin /></RequireAdmin></Page>} />
 
-          {/* 404 */}
+          {/* 404 — back to landing */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>

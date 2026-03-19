@@ -1,6 +1,6 @@
 """
 Vector store backed by Google BigQuery Vector Search.
-- Dataset:  agrowise-192e3.frammer_vectors
+- Dataset:  analytics-prod-123.analytics_vectors
 - Tables:   kpi_embeddings, dimension_embeddings
 - Embeddings: Vertex AI text-embedding-005
 
@@ -14,7 +14,7 @@ from api.llm import GCP_PROJECT, GCP_REGION
 
 _ROOT = pathlib.Path(__file__).parents[1]
 
-BQ_DATASET  = "frammer_vectors"
+BQ_DATASET  = "analytics_vectors"
 BQ_LOCATION = "US"
 EMBED_MODEL = "text-embedding-005"
 

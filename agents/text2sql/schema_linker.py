@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from api.llm import complete
 
 _SCHEMA_CONTEXT = """
-DuckDB table: frammer_dataset
+DuckDB table: media_dataset
 Columns:
   video_id (VARCHAR), headline (VARCHAR), source (VARCHAR),
   published_flag (BOOLEAN), billable_flag (BOOLEAN),
@@ -23,10 +23,10 @@ Columns:
   ctr_percentage (DOUBLE), impressions (VARCHAR — cast to DOUBLE),
   likes (DOUBLE), comments (DOUBLE), shares (DOUBLE),
   total_watch_time_hours (DOUBLE), traffic_source (VARCHAR),
-  published_url (VARCHAR), frammer_workspace (VARCHAR),
+  published_url (VARCHAR), workspace (VARCHAR),
   uploaded_by (VARCHAR), team_name (VARCHAR), language (VARCHAR),
   input_type (VARCHAR), output_type (VARCHAR),
-  frammer_output_type (VARCHAR), published_platform (VARCHAR),
+  ai_output_type (VARCHAR), published_platform (VARCHAR),
   company (VARCHAR)
 
 DuckDB rules:
@@ -35,9 +35,9 @@ DuckDB rules:
 - CAST(impressions AS DOUBLE) for numeric ops
 
 Dimension values:
-- frammer_workspace: WS-DIGITAL-NEWS, WS-ENTERTAINMENT, WS-TECH-ANALYSIS, WS-LIFESTYLE, WS-SPORTS-LIVE
+- workspace: WS-DIGITAL-NEWS, WS-ENTERTAINMENT, WS-TECH-ANALYSIS, WS-LIFESTYLE, WS-SPORTS-LIVE
 - input_type: interview, speech, debate, news_bulletin, special_report, press_conference, discussion_show
-- frammer_output_type: key_moments, chapters, full_package, summary, my_key_moments
+- ai_output_type: key_moments, chapters, full_package, summary, my_key_moments
 - language: English, Hindi
 - company: Company_A, Company_B
 - output_type: shorts, reels
@@ -51,7 +51,7 @@ Schema:
 
 Question: {question}
 
-Identify which columns from frammer_dataset are relevant to answer this question.
+Identify which columns from media_dataset are relevant to answer this question.
 List ONLY the column names needed, one per line, in the format:
 column_name: reason it is needed
 
@@ -82,9 +82,9 @@ def link_schema(question: str) -> SchemaLink:
                 f"You are a schema linking agent for a DuckDB analytics database.\n\n"
                 f"Schema:\n{_SCHEMA_CONTEXT}\n\n"
                 f"Question: {question}\n\n"
-                "Identify which columns from frammer_dataset are relevant. "
+                "Identify which columns from media_dataset are relevant. "
                 "For filter_values, extract any specific dimension values mentioned "
-                "(e.g. 'WS-SPORTS-LIVE' for frammer_workspace). "
+                "(e.g. 'WS-SPORTS-LIVE' for workspace). "
                 "Set requires_date_filter=true if the question involves time/dates. "
                 "Set time_window_hint to any time period mentioned."
             )

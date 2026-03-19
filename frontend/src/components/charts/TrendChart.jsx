@@ -228,7 +228,7 @@ export default function TrendChart({ data = [], forecastData = null, metric = 'c
     <div className="w-full h-full">
       <ReactECharts
         option={option}
-        theme="frammer-dark"
+        theme="dashboard-dark"
         style={chartStyle}
         opts={opts}
         notMerge

@@ -190,7 +190,7 @@ export default function CrossTabChart({
     <div className="w-full h-full">
       <ReactECharts
         option={option}
-        theme="frammer-dark"
+        theme="dashboard-dark"
         style={chartStyle}
         opts={opts}
         onEvents={onEvents}

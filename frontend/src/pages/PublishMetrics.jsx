@@ -15,8 +15,9 @@ import DonutChart from '../components/charts/DonutChart'
 import DataTable from '../components/common/DataTable'
 import FilterBar from '../components/common/FilterBar'
 import Badge from '../components/common/Badge'
+import RoleGate from '../components/common/RoleGate'
 import useStore from '../store/useStore'
-import { getPublishFunnel, getExecutiveSummary, getCategoryTrends, getCrosstab, getKPI, getPeriodComparison } from '../api/client'
+import { getPublishFunnel, getExecutiveSummary, getCategoryTrends, getOutputTypeTrends, getKPI, getPeriodComparison } from '../api/client'
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
 
@@ -136,7 +137,7 @@ function OutputTypePCRBar({ loading, data = OUTPUT_PCR }) {
   return (
     <ReactECharts
       option={option}
-      theme="frammer-dark"
+      theme="dashboard-dark"
       style={{ height: 200, width: '100%' }}
       opts={{ renderer: 'canvas' }}
       notMerge
@@ -211,7 +212,7 @@ function CPDGScatter({ loading, data = SCATTER_DATA }) {
   return (
     <ReactECharts
       option={option}
-      theme="frammer-dark"
+      theme="dashboard-dark"
       style={{ height: 260, width: '100%' }}
       opts={{ renderer: 'canvas' }}
       notMerge
@@ -228,6 +229,7 @@ export default function PublishMetrics() {
   const [fscPage, setFscPage] = useState(1)
   const filters = useStore((s) => s.filters)
   const comparePeriod = useStore((s) => s.comparePeriod)
+  const metric = useStore((s) => s.metric)
 
   useEffect(() => {
     setLoading(true)
@@ -235,16 +237,16 @@ export default function PublishMetrics() {
       getPublishFunnel(filters),
       getExecutiveSummary(filters),
       getCategoryTrends(filters),
-      getCrosstab({ d1: 'frammer_output_type', d2: 'published_flag', ...filters }),
+      getOutputTypeTrends(filters),
       getKPI('HTHR', filters),
       getPeriodComparison({ period_days: comparePeriod, ...filters }),
     ])
-      .then(([funnel, exec, category, xtab, hthr, comparison]) => {
+      .then(([funnel, exec, category, outputType, hthr, comparison]) => {
         setData({
           funnel: funnel.data,
           workspacePcr: exec.data?.workspace_pcr,
           category: category.data,
-          outputPcr: xtab.data,
+          outputPcr: outputType.data,
           hthr: hthr.data?.data,
           comparison: comparison.data,
         })
@@ -378,12 +380,12 @@ export default function PublishMetrics() {
     color: COLORS[i % COLORS.length],
   })) ?? SCATTER_DATA
 
-  const outputPcrData = data?.outputPcr?.map((row) => {
-    const pub = row['True'] ?? row['true'] ?? 0
-    const notPub = row['False'] ?? row['false'] ?? 0
-    const total = pub + notPub
-    return { type: row.d1_val, total, published: pub, pcr: total > 0 ? +((pub / total * 100).toFixed(1)) : 0 }
-  }).sort((a, b) => b.pcr - a.pcr) ?? OUTPUT_PCR
+  const outputPcrData = data?.outputPcr?.map((row) => ({
+    type: row.type,
+    total: row.total,
+    published: row.published,
+    pcr: row.pcr,
+  })).sort((a, b) => b.pcr - a.pcr) ?? OUTPUT_PCR
 
   // HTHR table: from KPI API or fallback to mock
   const hthrTableData = data?.hthr?.map((row, i) => ({
@@ -436,7 +438,7 @@ export default function PublishMetrics() {
           },
           {
             title: 'Avg Drop-off',
-            value: 30.2,
+            value: +(100 - overallPcr).toFixed(1),
             unit: '%',
             trend: 'down',
             trendValue: null,
@@ -453,7 +455,7 @@ export default function PublishMetrics() {
             trendValue: pd?.avg_processing_pct != null ? Math.abs(pd.avg_processing_pct) : null,
             trendLabel: 'vs prev 30d',
             icon: Clock,
-            subtitle: 'Frammer AI processing time',
+            subtitle: 'MediaFlow AI processing time',
             loading,
           },
           {
@@ -608,31 +610,43 @@ export default function PublishMetrics() {
         </motion.div>
       </div>
 
-      {/* CPDG Scatter */}
-      <motion.div
-        className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-6"
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.5 }}
-      >
-        <div className="mb-4">
-          <h2 className="text-lg font-semibold text-white">Content Promise vs Delivery (CPDG)</h2>
-          <p className="text-xs text-[#555] mt-0.5">
-            CTR (click-through) vs Avg View % - bubble size = video count per type
-          </p>
-        </div>
-        <CPDGScatter loading={loading} data={scatterData} />
-      </motion.div>
+      {/* CPDG Scatter — Leadership/Admin only (CXO/Founder per KPI catalog) */}
+      <RoleGate allowed={['admin', 'leadership']}>
+        <motion.div
+          className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-6"
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+        >
+          <div className="mb-4">
+            <div className="flex items-center gap-2 mb-1">
+              <h2 className="text-lg font-semibold text-white">Content Promise vs Delivery (CPDG)</h2>
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#2196f3]/10 border border-[#2196f3]/30 text-[#64b5f6]">
+                Leadership
+              </span>
+            </div>
+            <p className="text-xs text-[#555]">
+              CTR (click-through) vs Avg View % - bubble size = video count per type
+            </p>
+          </div>
+          <CPDGScatter loading={loading} data={scatterData} />
+        </motion.div>
+      </RoleGate>
 
-      {/* HTHR Leaderboard */}
+      {/* HTHR Leaderboard — Operations-focused (all roles, Creator badge) */}
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.55 }}
       >
-        <h2 className="text-lg font-semibold text-white mb-4">
-          Top Performers - HTHR Leaderboard
-        </h2>
+        <div className="flex items-center gap-2 mb-4">
+          <h2 className="text-lg font-semibold text-white">
+            Top Performers - HTHR Leaderboard
+          </h2>
+          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#4caf50]/10 border border-[#4caf50]/30 text-[#81c784]">
+            Operations
+          </span>
+        </div>
         <DataTable
           columns={hthrColumns}
           data={hthrTableData}

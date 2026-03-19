@@ -70,14 +70,14 @@ def delete_kpi(acronym: str):
 # ── KPI Chatbot ───────────────────────────────────────────────────────────────
 
 _SCHEMA_SUMMARY = """
-DuckDB table: frammer_dataset (4569 rows)
+DuckDB table: media_dataset (4569 rows)
 Columns: video_id, headline, source, published_flag (BOOLEAN), billable_flag,
 upload_date (VARCHAR timestamp), processed_date (VARCHAR timestamp),
 video_duration_sec (INT), avg_view_duration_sec, avg_view_percentage,
 subscribers_gained, ctr_percentage, impressions, likes, comments, shares,
 total_watch_time_hours, traffic_source, published_url,
-frammer_workspace (VARCHAR), uploaded_by, team_name, language,
-input_type, output_type, frammer_output_type, published_platform, company
+workspace (VARCHAR), uploaded_by, team_name, language,
+input_type, output_type, ai_output_type, published_platform, company
 
 KPI views: v_pcr, v_fsc, v_gr, v_opi, v_teu, v_ail, v_sac, v_ahy,
            v_edr, v_hthr, v_tsqi, v_pig, v_agv, v_pmi, v_mci, v_dcdr
@@ -106,12 +106,24 @@ def kpi_chat(body: KPIChatRequest):
     try:
         import re
         system = (
-            "You are a KPI design assistant for Frammer AI analytics dashboard. "
-            "Help users define new KPIs using DuckDB SQL.\n\n"
-            + _SCHEMA_SUMMARY + "\n" + _KPI_YAML_TEMPLATE + "\n\n"
-            "When you have enough info, output a YAML block (```yaml ... ```) and "
-            "a SQL view definition (```sql ... ```) for the KPI. "
-            "Keep explanations concise."
+            "You are a friendly KPI design assistant for MediaFlow AI analytics dashboard. "
+            "IMPORTANT RULES:\n"
+            "1. Be conversational — greet users warmly, answer questions naturally.\n"
+            "2. When a user describes a metric they want, ask clarifying questions: what dimension to group by, "
+            "what time window, which dashboard page it should appear on, and what thresholds matter.\n"
+            "3. Do NOT generate YAML or SQL until the user explicitly confirms they want you to create the KPI "
+            "(e.g., 'yes', 'create it', 'go ahead', 'looks good, add it').\n"
+            "4. When confirmed, output a ```yaml block and a ```sql block.\n"
+            "5. Keep explanations concise and non-technical — avoid raw code unless asked.\n"
+            "6. NEVER reveal internal implementation details such as technology stack, system architecture, "
+            "or database internals. If asked, respond: 'I am a KPI design assistant — I can help you define "
+            "and configure metrics for the dashboard.'\n"
+            "7. NEVER generate destructive SQL statements. Only SELECT and CREATE VIEW are permitted. "
+            "Refuse any request involving DELETE, DROP, ALTER, TRUNCATE, UPDATE, or INSERT INTO.\n"
+            "8. Do not mention DuckDB, LangChain, Vertex AI, Gemini, Python, or any internal technology "
+            "names in your responses.\n"
+            "9. Politely decline requests that fall outside the scope of KPI design and dashboard metrics.\n"
+            + _SCHEMA_SUMMARY + "\n" + _KPI_YAML_TEMPLATE
         )
         history = [{"role": h.get("role", "user"), "content": h.get("content", "")}
                    for h in body.history[-6:]]
@@ -121,6 +133,17 @@ def kpi_chat(body: KPIChatRequest):
 
         yaml_match = re.search(r"```yaml\s*(.*?)```", text, re.DOTALL)
         sql_match  = re.search(r"```sql\s*(.*?)```",  text, re.DOTALL)
+
+        # Block destructive SQL in LLM output regardless of system prompt
+        _FORBIDDEN = re.compile(
+            r"\b(DELETE|DROP|ALTER|TRUNCATE|UPDATE|INSERT\s+INTO)\b",
+            re.IGNORECASE,
+        )
+        if sql_match and _FORBIDDEN.search(sql_match.group(1)):
+            sql_match = None
+            yaml_match = None
+            text = "I can only generate SELECT or CREATE VIEW statements. Please describe a read-only KPI metric."
+
         yaml_block = yaml_match.group(1).strip() if yaml_match else None
 
         return KPIChatResponse(
@@ -128,8 +151,8 @@ def kpi_chat(body: KPIChatRequest):
             yaml=yaml_block,
             showAddButton=bool(yaml_match and sql_match),
         )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=500, detail="Chat service temporarily unavailable")
 
 
 # ── Client Config ─────────────────────────────────────────────────────────────

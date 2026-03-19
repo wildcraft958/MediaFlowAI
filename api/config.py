@@ -22,4 +22,4 @@ CROSSTAB_ALLOWED_COLUMNS: dict[str, str] = {
     for dim_name, dim_data in DIMENSIONS.items()
     if dim_data.get("cardinality") != "continuous"
 }
-# e.g. {"workspace": "frammer_workspace", "team": "team_name", ...}
+# e.g. {"workspace": "workspace", "team": "team_name", ...}

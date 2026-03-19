@@ -3,7 +3,7 @@
  * Treemap · Output by Team · User Activity table · CrossTab drill-down · LPI card
  */
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Users, TrendingUp, TrendingDown, Globe, BarChart2,
@@ -14,8 +14,8 @@ import KPICard from '../components/charts/KPICard'
 import DonutChart from '../components/charts/DonutChart'
 import DataTable from '../components/common/DataTable'
 import FilterBar from '../components/common/FilterBar'
-import CountHoursToggle from '../components/common/CountHoursToggle'
 import Badge from '../components/common/Badge'
+import RoleGate from '../components/common/RoleGate'
 import useStore from '../store/useStore'
 import { getCrosstab, getKPI, getExecutiveSummary, getUserActivity } from '../api/client'
 
@@ -85,7 +85,7 @@ function generateCrossTabData(d1, d2) {
   }
   const dim2Values = {
     input_type: ['interview', 'speech', 'debate', 'news_bulletin', 'special_report', 'press_conference', 'discussion_show'],
-    frammer_output_type: ['key_moments', 'chapters', 'full_package', 'summary', 'my_key_moments'],
+    ai_output_type: ['key_moments', 'chapters', 'full_package', 'summary', 'my_key_moments'],
     language: ['English', 'Hindi'],
   }
 
@@ -190,7 +190,7 @@ function TreemapViz({ data, loading, metric }) {
   return (
     <ReactECharts
       option={option}
-      theme="frammer-dark"
+      theme="dashboard-dark"
       style={{ height: 280, width: '100%' }}
       opts={{ renderer: 'canvas' }}
       notMerge
@@ -203,17 +203,18 @@ function OutputTypeByTeamChart({ loading }) {
   const outputTypes = ['key_moments', 'chapters', 'full_package', 'summary', 'my_key_moments']
   const colors = ['#e63946', '#666666', '#ff8fa3', '#444444', '#ff9800']
 
-  const series = outputTypes.map((type, idx) => ({
+  // Deterministic static data — stable across re-renders
+  const series = useMemo(() => outputTypes.map((type, idx) => ({
     name: type.replace(/_/g, ' '),
     type: 'bar',
     stack: 'total',
-    data: teams.map(() => Math.round(40 + Math.random() * 120)),
+    data: teams.map((_, ti) => 40 + ((idx * 37 + ti * 19) % 80) + 10),
     barMaxWidth: 40,
     itemStyle: {
       color: colors[idx],
       borderRadius: idx === outputTypes.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0],
     },
-  }))
+  })), [])
 
   const option = {
     backgroundColor: 'transparent',
@@ -258,7 +259,7 @@ function OutputTypeByTeamChart({ loading }) {
   return (
     <ReactECharts
       option={option}
-      theme="frammer-dark"
+      theme="dashboard-dark"
       style={{ height: 280, width: '100%' }}
       opts={{ renderer: 'canvas' }}
       notMerge
@@ -275,7 +276,7 @@ function CrossTabHeatmap({ d1, d2, loading, apiData, metric }) {
   }
   const cols = {
     input_type: ['interview', 'speech', 'debate', 'news_bulletin', 'special_report', 'press_conference', 'discussion_show'],
-    frammer_output_type: ['key_moments', 'chapters', 'full_package', 'summary', 'my_key_moments'],
+    ai_output_type: ['key_moments', 'chapters', 'full_package', 'summary', 'my_key_moments'],
     language: ['English', 'Hindi'],
     workspace: ['WS-DIGITAL-NEWS', 'WS-ENTERTAINMENT', 'WS-TECH-ANALYSIS', 'WS-LIFESTYLE', 'WS-SPORTS-LIVE'],
   }
@@ -293,14 +294,9 @@ function CrossTabHeatmap({ d1, d2, loading, apiData, metric }) {
       })
     })
   } else {
-    yLabels = (rows[d1] || rows.workspace).map((r) => r.replace('WS-', '').replace(/_/g, ' '))
-    xLabels = (cols[d2] || cols.input_type).map((c) => c.replace(/_/g, ' '))
+    yLabels = []
+    xLabels = []
     heatData = []
-    yLabels.forEach((_, yi) => {
-      xLabels.forEach((_, xi) => {
-        heatData.push([xi, yi, Math.round(20 + Math.random() * 350)])
-      })
-    })
   }
 
   const maxVal = Math.max(...heatData.map((d) => d[2]), 1)
@@ -370,10 +366,18 @@ function CrossTabHeatmap({ d1, d2, loading, apiData, metric }) {
     return <div className="animate-pulse h-52 bg-[#1f1f1f] rounded-xl" />
   }
 
+  if (!apiData || apiData.length === 0) {
+    return (
+      <div className="h-52 flex items-center justify-center text-sm text-[#555]">
+        No cross-tab data available
+      </div>
+    )
+  }
+
   return (
     <ReactECharts
       option={option}
-      theme="frammer-dark"
+      theme="dashboard-dark"
       style={{ height: 300, width: '100%' }}
       opts={{ renderer: 'canvas' }}
       notMerge
@@ -386,13 +390,13 @@ function CrossTabHeatmap({ d1, d2, loading, apiData, metric }) {
 const DIM1_OPTIONS = [
   { value: 'workspace', label: 'Workspace' },
   { value: 'team', label: 'Team' },
-  { value: 'uploaded_by', label: 'User' },
+  { value: 'user', label: 'User' },
   { value: 'language', label: 'Language' },
 ]
 
 const DIM2_OPTIONS = [
   { value: 'input_type', label: 'Input Type' },
-  { value: 'frammer_output_type', label: 'Output Type' },
+  { value: 'ai_output_type', label: 'Output Type' },
   { value: 'language', label: 'Language' },
   { value: 'workspace', label: 'Workspace' },
 ]
@@ -414,12 +418,14 @@ export default function TeamActivity() {
       getExecutiveSummary(filters),
       getKPI('LPI', filters),
       getUserActivity(filters),
+      getKPI('OPI', filters),
     ])
-      .then(([exec, lpi, users]) => {
+      .then(([exec, lpi, users, opi]) => {
         setData({
           workspacePcr: exec.data?.workspace_pcr,
           lpi: lpi.data?.data,
           users: users.data,
+          opi: opi.data?.data,
         })
       })
       .catch(() => {})
@@ -566,7 +572,7 @@ export default function TeamActivity() {
             value: avgTeu,
             unit: 'h',
             trend: 'up',
-            trendValue: 3.2,
+            trendValue: null,
             trendLabel: 'vs target',
             icon: TrendingUp,
             subtitle: 'Time-per-edit unit (lower = faster)',
@@ -654,6 +660,49 @@ export default function TeamActivity() {
           showExport
         />
       </motion.div>
+
+      {/* OPI Spotlight — Creator/Admin only (Orphaned Processing Index, Operations per KPI catalog) */}
+      <RoleGate allowed={['admin', 'creator']}>
+        <motion.div
+          className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-6"
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.45 }}
+        >
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-semibold text-white">Orphaned Processing Index (OPI)</h2>
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#4caf50]/10 border border-[#4caf50]/30 text-[#81c784]">
+                  Operations
+                </span>
+              </div>
+              <p className="text-xs text-[#555] mt-0.5">
+                Videos processed but unpublished &gt;30 days — potential backlog for your team
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-5 gap-3">
+            {(data?.opi?.map((r) => {
+              const orphaned = r.orphaned_count ?? r.orphaned ?? 0
+              const color = orphaned <= 10 ? '#4caf50' : orphaned <= 60 ? '#ff9800' : '#e63946'
+              return { ws: r.workspace, orphaned, hours: +(r.orphaned_hours ?? 0).toFixed(1), color }
+            }) ?? [
+              { ws: 'WS-DIGITAL-NEWS',   orphaned: 5,   hours: 2.1,  color: '#4caf50' },
+              { ws: 'WS-ENTERTAINMENT',  orphaned: 12,  hours: 5.4,  color: '#4caf50' },
+              { ws: 'WS-TECH-ANALYSIS',  orphaned: 48,  hours: 21.6, color: '#ff9800' },
+              { ws: 'WS-LIFESTYLE',      orphaned: 64,  hours: 28.8, color: '#ff9800' },
+              { ws: 'WS-SPORTS-LIVE',    orphaned: 261, hours: 117.4, color: '#e63946' },
+            ]).map((ws) => (
+              <div key={ws.ws} className="p-3 rounded-xl border text-center" style={{ background: `${ws.color}08`, borderColor: `${ws.color}25` }}>
+                <p className="text-[9px] text-[#555] uppercase tracking-wide mb-2 truncate">{ws.ws.replace('WS-', '')}</p>
+                <p className="text-xl font-black tabular-nums" style={{ color: ws.color }}>{ws.orphaned}</p>
+                <p className="text-[10px] text-[#555] mt-0.5">{ws.hours}h backlog</p>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      </RoleGate>
 
       {/* CrossTab Drill-Down */}
       <motion.div

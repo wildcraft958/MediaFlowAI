@@ -1,4 +1,4 @@
-# Frammer AI — Analytics Dashboard
+# MediaFlow AI — Analytics Dashboard
 ## IIT General Championship · Data Analytics 2026
 ### Presentation Script & Slide Content
 
@@ -8,7 +8,7 @@
 
 **Title:** The Cost of Flying Blind in B2B Media
 
-**Context:** Frammer AI is a B2B media operations platform used by newsrooms and production houses. It ingests raw video uploads (interviews, debates, press conferences, news bulletins) and uses AI to generate structured output — key moments, chapters, summaries, full packages — which are then published to YouTube Shorts and Instagram Reels.
+**Context:** MediaFlow AI is a B2B media operations platform used by newsrooms and production houses. It ingests raw video uploads (interviews, debates, press conferences, news bulletins) and uses AI to generate structured output — key moments, chapters, summaries, full packages — which are then published to YouTube Shorts and Instagram Reels.
 
 **The Problem:**
 Clients have no visibility into where their content pipeline is failing.
@@ -27,7 +27,7 @@ Three questions every client head of content needs answered daily:
 
 ## Slide 2 — About the Data: Original Dataset
 
-**Title:** What Frammer Gave Us (and Why It Wasn't Enough)
+**Title:** What MediaFlow Gave Us (and Why It Wasn't Enough)
 
 | Property | Value |
 |----------|-------|
@@ -40,7 +40,7 @@ Three questions every client head of content needs answered daily:
 
 **Gaps vs the Problem Statement:**
 - PS §3B requires a **3-stage funnel** (Upload → Process → Publish) — no `processed_date` column
-- PS §3C requires **AI output type tracking** — no `frammer_output_type` column
+- PS §3C requires **AI output type tracking** — no `ai_output_type` column
 - PS §3A requires **workspace-level** analysis — `channel` held platform names (shorts/reels), not workspace IDs
 - PS §9 uses journalism vocabulary (interview, debate, news_bulletin) — original used creator vocabulary
 - 0.74% publish rate produces **no insight**: uniform rates tell no story; variance is the story
@@ -58,9 +58,9 @@ Three questions every client head of content needs answered daily:
 | Transform | What Changed | PS Reference |
 |-----------|-------------|--------------|
 | `input_type` realigned | interview, debate, news_bulletin, speech, special_report, press_conference, discussion_show | §9 |
-| `frammer_output_type` added | key_moments, chapters, summary, full_package, my_key_moments | §3C |
+| `ai_output_type` added | key_moments, chapters, summary, full_package, my_key_moments | §3C |
 | `processed_date` added | log-normal lag from upload_date (enables 3-stage funnel) | §3B |
-| `frammer_workspace` added | 5 workspaces replacing misused `channel` column | §3A |
+| `workspace` added | 5 workspaces replacing misused `channel` column | §3A |
 | B2B vocabulary | content_editor_01–04, team names, company labels | §2 |
 | PCR variance applied | 38–92% publish rate by workspace (engineered from real operational patterns) | §4, §6C |
 
@@ -70,7 +70,7 @@ Three questions every client head of content needs answered daily:
 |-------|-------|---|
 | Total rows | **4,569** | 100% |
 | Valid upload_date | **4,179** | 91.5% |
-| Processed by Frammer AI | **4,179** | 100% of uploaded |
+| Processed by MediaFlow AI | **4,179** | 100% of uploaded |
 | Published | **3,188** | 69.8% overall |
 
 **Workspace Variance (the core data story):**
@@ -119,22 +119,22 @@ WS-SPORTS-LIVE     █████████                38%  ← 898 video
 
 ```sql
 -- PCR — Publish Conversion Rate
-SELECT frammer_workspace,
+SELECT workspace,
        ROUND(SUM(CASE WHEN published_flag=true THEN 1 END) * 100.0 / COUNT(*), 1) AS pcr
-FROM frammer_dataset
-GROUP BY frammer_workspace ORDER BY pcr DESC;
+FROM fact_video_events
+GROUP BY workspace ORDER BY pcr DESC;
 -- Result: 92.2% → 82.0% → 68.0% → 52.0% → 38.0%
 
 -- ZSP — Z-Score Performance (per video)
 SELECT video_id,
        (video_views - AVG(video_views) OVER ()) / NULLIF(STDDEV(video_views) OVER (), 0) AS zsp
-FROM frammer_dataset WHERE published_flag=true;
+FROM fact_video_events WHERE published_flag=true;
 
 -- TEU — Time-to-Engage Upload (processing lag in hours)
 SELECT uploaded_by,
        ROUND(AVG((epoch(TRY_CAST(processed_date AS TIMESTAMP))
                   - epoch(TRY_CAST(upload_date AS TIMESTAMP))) / 3600.0), 1) AS teu
-FROM frammer_dataset WHERE processed_date IS NOT NULL;
+FROM fact_video_events WHERE processed_date IS NOT NULL;
 ```
 
 **Star Schema:** `fact_video_events` + 9 dimension tables + 16 SQL KPI views + 3 Python KPI tables
@@ -257,7 +257,7 @@ User Question
 
 **SQL-of-Thought Pipeline (4-step before any query runs):**
 
-1. **Schema Linker** — `SchemaLink` Pydantic model: maps NL entities to DuckDB columns, extracts filter values (`frammer_workspace = 'WS-SPORTS-LIVE'`), detects time windows
+1. **Schema Linker** — `SchemaLink` Pydantic model: maps NL entities to DuckDB columns, extracts filter values (`workspace = 'WS-SPORTS-LIVE'`), detects time windows
 2. **Query Planner** — `QueryPlan` Pydantic model: CoT steps, tables used, aggregation strategy, join requirements
 3. **SQL Generator** — `GeneratedSQL` Pydantic model: confidence score + warnings, `_postprocess_sql()` cleans markdown fences
 4. **Correction Loop** — taxonomy-driven retry (max 2): classifies DuckDB errors → per-category prompts → `CorrectionPlan` → corrected SQL
@@ -296,9 +296,9 @@ When the agent detects a threshold breach (e.g. PCR drops below CLIENT_1 thresho
 The NLQ panel streams execution trace in real-time via Server-Sent Events:
 ```
 thought_step → "Router: classified as text2sql (confidence: high)"
-thought_step → "Schema Linker: mapped 'sports workspace' → frammer_workspace='WS-SPORTS-LIVE'"
+thought_step → "Schema Linker: mapped 'sports workspace' → workspace='WS-SPORTS-LIVE'"
 thought_step → "Query Planner: grouped aggregation, no join needed"
-sql_ready    → "SELECT frammer_workspace, COUNT(*) ..."
+sql_ready    → "SELECT workspace, COUNT(*) ..."
 thought_step → "Guardrail: SQL passed all checks"
 final        → "WS-SPORTS-LIVE published 341 of 898 uploaded videos (38.0% PCR)..."
 ```
@@ -326,7 +326,7 @@ Agent: → hitl → Agent Inbox notification → approve → `fire_alert` fires 
 **Creator persona (Editor / Uploader):**
 > "Show me all key_moments videos I uploaded last month with ZSP above 1.0."
 
-Agent: classifies as ad_hoc → text2sql path → schema links `uploaded_by`, `frammer_output_type`, `zsp`, date filter → generates DuckDB SQL → executes → narrates results with top performers named
+Agent: classifies as ad_hoc → text2sql path → schema links `uploaded_by`, `ai_output_type`, `zsp`, date filter → generates DuckDB SQL → executes → narrates results with top performers named
 
 **Multi-turn memory:**
 > "Now filter that to Hindi only."
@@ -337,7 +337,7 @@ Agent: uses session memory to scope the filter onto the prior result set — no 
 > "Delete all videos from the database."
 
 Agent: input_guardrail blocks immediately — `out-of-scope` category hard block, returns:
-*"I can only answer questions about Frammer AI analytics data."*
+*"I can only answer questions about MediaFlow AI analytics data."*
 
 ---
 
@@ -376,4 +376,4 @@ Agent: input_guardrail blocks immediately — `out-of-scope` category hard block
 
 ---
 
-*Generated: 2026-03-19 | Dataset: data/frammer_dataset.csv (4,569 rows, seed=42) | All numbers from live DuckDB queries*
+*Generated: 2026-03-19 | Dataset: data/dataset.csv (4,569 rows, seed=42) | All numbers from live DuckDB queries*

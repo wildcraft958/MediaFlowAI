@@ -24,10 +24,10 @@ Question: {question}
 Write a numbered step-by-step natural language plan for the SQL query.
 Each step should describe one SQL clause or operation.
 Example:
-1. FROM frammer_dataset
-2. WHERE frammer_workspace = 'WS-SPORTS-LIVE'
-3. GROUP BY frammer_workspace
-4. SELECT frammer_workspace, COUNT(*) as total, ...
+1. FROM media_dataset
+2. WHERE workspace = 'WS-SPORTS-LIVE'
+3. GROUP BY workspace
+4. SELECT workspace, COUNT(*) as total, ...
 5. ORDER BY total DESC
 
 Important DuckDB rules:
@@ -43,7 +43,7 @@ Plan (numbered steps):"""
 
 class QueryPlan(BaseModel):
     steps: list[str] = Field(default_factory=list)  # ordered CoT steps
-    tables_used: list[str] = Field(default_factory=lambda: ["frammer_dataset"])
+    tables_used: list[str] = Field(default_factory=lambda: ["media_dataset"])
     aggregation_strategy: str = "none"  # "none"|"simple_count"|"grouped_agg"|"window_function"
     requires_join: bool = False
     duckdb_notes: list[str] = Field(default_factory=list)
@@ -98,8 +98,8 @@ def plan_query(question: str, linked_columns: Union[dict[str, str], SchemaLink])
         steps = [line.strip() for line in raw.splitlines() if line.strip()]
         return QueryPlan(
             steps=steps,
-            tables_used=["frammer_dataset"],
+            tables_used=["media_dataset"],
             aggregation_strategy="unknown",
         )
     except Exception:
-        return QueryPlan(steps=[f"SELECT * FROM frammer_dataset LIMIT 10"])
+        return QueryPlan(steps=[f"SELECT * FROM media_dataset LIMIT 10"])

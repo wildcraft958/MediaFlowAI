@@ -1,5 +1,5 @@
 """
-Date shift utility for Frammer AI dataset.
+Date shift utility for MediaFlow AI dataset.
 
 The synthetic dataset was originally generated with upload dates spanning
 2024-11-19 → 2025-11-19 (1 year). Since the dashboard's daily-trends chart
@@ -32,7 +32,7 @@ from pathlib import Path
 
 import pandas as pd
 
-_CSV = Path(__file__).parent / "frammer_dataset.csv"
+_CSV = Path(__file__).parent / "dataset.csv"
 _SCHEMA = Path(__file__).parent / "schema.py"
 DATE_COLS = ["upload_date", "processed_date"]
 
@@ -87,7 +87,7 @@ def main() -> None:
     print(f"\nWrote shifted CSV → {_CSV}")
 
     # Rebuild DuckDB
-    print("Rebuilding frammer.duckdb …")
+    print("Rebuilding analytics.duckdb …")
     result = subprocess.run(
         [sys.executable, str(_SCHEMA)],
         cwd=_SCHEMA.parent.parent,
@@ -96,7 +96,7 @@ def main() -> None:
     if result.returncode != 0:
         print("schema.py stderr:", result.stderr[-2000:])
         sys.exit(f"ERROR: schema.py failed (exit {result.returncode})")
-    print("frammer.duckdb rebuilt successfully.")
+    print("analytics.duckdb rebuilt successfully.")
     print("\nDone. Re-run 'uv run pytest data/test_enrich.py' to verify tests still pass.")
 
 

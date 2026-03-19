@@ -18,6 +18,7 @@ from __future__ import annotations
 import concurrent.futures
 import json
 import pathlib
+import re
 import sys
 import time
 from typing import Any, AsyncGenerator, Literal, Optional
@@ -31,14 +32,14 @@ from langgraph.store.base import BaseStore
 from langgraph.types import Command, interrupt
 
 from agents.graph_state import AgentState
-from agents.middleware import FrammerInputGuardrail, FrammerOutputGuardrail
+from agents.middleware import MediaFlowInputGuardrail, MediaFlowOutputGuardrail
 from agents.text2sql.schema_linker import link_schema, SchemaLink
 from agents.text2sql.query_planner import plan_query, QueryPlan
 from agents.text2sql.sql_generator import generate_sql, GeneratedSQL
 from agents.text2sql.guardrails import check_all, GuardrailResult
 from agents.text2sql.correction_loop import run_correction_loop
 
-DB_PATH = str(pathlib.Path(__file__).parents[1] / "frammer.duckdb")
+DB_PATH = str(pathlib.Path(__file__).parents[1] / "analytics.duckdb")
 _SIMILARITY_THRESHOLD = 0.75
 _SQL_TIMEOUT_SECS = 30
 _MAX_RESULT_ROWS = 5_000
@@ -127,6 +128,11 @@ async def _init_mcp() -> dict[str, Any]:
                     "args": [str(_agents_dir / "mcp_servers" / "report_server.py")],
                     "transport": "stdio",
                 },
+                "context_server": {
+                    "command": sys.executable,
+                    "args": [str(_agents_dir / "mcp_servers" / "context_server.py")],
+                    "transport": "stdio",
+                },
             }
         )
         tools_list = await _mcp_client.get_tools()
@@ -138,8 +144,8 @@ async def _init_mcp() -> dict[str, Any]:
 
 # ── Guardrail middleware singletons ───────────────────────────────────────────
 
-_input_guardrail = FrammerInputGuardrail()
-_output_guardrail = FrammerOutputGuardrail()
+_input_guardrail = MediaFlowInputGuardrail()
+_output_guardrail = MediaFlowOutputGuardrail()
 
 
 # ── Guardrail nodes ────────────────────────────────────────────────────────────
@@ -165,22 +171,30 @@ def output_guardrail_node(state: AgentState) -> AgentState:
 
 # ── Router node ────────────────────────────────────────────────────────────────
 
+_CONTEXT_QUERY_SIGNALS = re.compile(
+    r"\b(this chart|this page|what I see|what's shown|on screen|what am I looking at|"
+    r"what does this show|explain this|what's displayed|current view)\b",
+    re.IGNORECASE,
+)
+
+
 def router_node(
     state: AgentState, *, store: BaseStore
-) -> Command[Literal["analytics", "text2sql"]]:
+) -> Command[Literal["analytics", "text2sql", "narrate"]]:
     """
     Classify query intent via vector similarity search.
 
     Uses Command (LangGraph v1) to combine state update + routing in one step.
-    - standard_kpi → analytics node (matched KPI acronym passed via _matched_acronym)
-    - ad_hoc       → text2sql node (full SQL-of-Thought pipeline)
+    - context_aware → narrate node (page/chart context answer, no SQL needed)
+    - standard_kpi  → analytics node (matched KPI acronym passed via _matched_acronym)
+    - ad_hoc        → text2sql node (full SQL-of-Thought pipeline)
 
     Also reads/writes long-term store to track query patterns across sessions.
     """
     query = state.get("query", "")
     session_id = state.get("session_id", "default")
 
-    namespace = ("frammer", session_id)
+    namespace = ("mediaflow", session_id)
     try:
         prior_items = store.search(namespace)
         prior_intents = [m.value.get("intent") for m in prior_items if m.value.get("intent")]
@@ -190,6 +204,40 @@ def router_node(
     thought_steps: list[dict] = []
     intent = "ad_hoc"
     matched_acronym: Optional[str] = None
+
+    # Context-aware routing: if query references visible page/chart content
+    has_context = bool(state.get("page_context") or state.get("chart_context"))
+    if has_context and _CONTEXT_QUERY_SIGNALS.search(query):
+        intent = "context_aware"
+        thought_steps.append({
+            "node": "Router",
+            "action": "classify",
+            "detail": "context_aware (query references visible content + context provided)",
+        })
+        try:
+            store.put(namespace, f"q_{int(time.time() * 1000) % 10_000_000}", {
+                "query": query[:120],
+                "intent": intent,
+            })
+        except Exception:
+            pass
+        return Command(
+            update={
+                "intent": intent,
+                "thought_steps": thought_steps,
+                "_matched_acronym": None,
+                "error": None,
+                "result": None,
+                "sql": None,
+                "narrative": None,
+                "chart_spec": None,
+                "hitl_pending": False,
+                "hitl_payload": None,
+                "hitl_decision": None,
+                "pending_inbox_items": [],
+            },
+            goto="narrate",
+        )
 
     try:
         from agents.vector_store import query_kpi_similarity
@@ -560,6 +608,7 @@ def narrate_node(state: AgentState) -> AgentState:
     Generate plain-English insight narrative via Vertex AI LLM.
     Infers chart spec from result shape.
     Appends this turn to history (capped at 20 turns).
+    Handles context-aware queries (page/chart context, no SQL needed).
     """
     query = state.get("query", "")
     result = state.get("result")
@@ -567,6 +616,27 @@ def narrate_node(state: AgentState) -> AgentState:
     sql = state.get("sql", "")
     thought_steps = list(state.get("thought_steps", []))
     history = list(state.get("history", []))
+    page_context = state.get("page_context")
+    chart_context = state.get("chart_context")
+    web_search_results = state.get("web_search_results")
+
+    # Context-aware path: answer based on page/chart context (no SQL result needed)
+    if state.get("intent") == "context_aware" and not result:
+        narrative = _generate_context_narrative(
+            query, page_context, chart_context, web_search_results, history
+        )
+        thought_steps.append({
+            "node": "Narrate",
+            "action": "context_narrate",
+            "detail": f"narrative_len={len(narrative)}, context_based=True",
+        })
+        history.append({"query": query, "answer": narrative, "sql": ""})
+        return {
+            **state,
+            "narrative": narrative,
+            "thought_steps": thought_steps,
+            "history": history[-20:],
+        }
 
     if error and not result:
         narrative = f"I was unable to answer that question. Error: {error}"
@@ -589,7 +659,12 @@ def narrate_node(state: AgentState) -> AgentState:
         }
 
     chart_spec = _infer_chart_spec(result, sql)
-    narrative = _generate_narrative(query, result, sql, history=history)
+    narrative = _generate_narrative(
+        query, result, sql, history=history,
+        page_context=page_context,
+        chart_context=chart_context,
+        web_search_results=web_search_results,
+    )
 
     thought_steps.append({
         "node": "Narrate",
@@ -607,6 +682,63 @@ def narrate_node(state: AgentState) -> AgentState:
     }
 
 
+def _generate_context_narrative(
+    query: str,
+    page_context: dict | None,
+    chart_context: dict | None,
+    web_search_results: str | None,
+    history: list[dict] | None = None,
+) -> str:
+    """Generate narrative from page/chart context without SQL query results."""
+    try:
+        from api.llm import complete
+
+        history_context = ""
+        if history:
+            recent = history[-2:]
+            history_context = "\nPrevious context:\n" + "\n".join(
+                f"Q: {h['query']}\nA: {h.get('answer', '')[:200]}" for h in recent
+            ) + "\n"
+
+        page_text = ""
+        if page_context:
+            page_text = (
+                f"\nThe user is viewing the {page_context.get('page', 'unknown')} page.\n"
+                f"Active filters: {json.dumps(page_context.get('filters', {}), default=str)}\n"
+                f"Visible KPIs: {json.dumps(page_context.get('kpis', []), default=str)}\n"
+                f"Visible headings: {page_context.get('visible_elements', {}).get('headings', [])}\n"
+            )
+
+        chart_text = ""
+        if chart_context:
+            if chart_context.get("data"):
+                chart_text = (
+                    f"\nChart title: {chart_context.get('title', 'Unknown')}\n"
+                    f"Chart data (first 10 rows): {json.dumps(chart_context['data'][:10], default=str)}\n"
+                )
+            elif chart_context.get("image_base64"):
+                chart_text = "\nA chart image was provided for analysis.\n"
+
+        web_text = ""
+        if web_search_results:
+            web_text = f"\nWeb search context:\n{web_search_results}\n"
+
+        prompt = (
+            f"{_NARRATE_SYSTEM_RULES}\n"
+            f"Question: {query}\n"
+            f"{history_context}"
+            f"{page_text}"
+            f"{chart_text}"
+            f"{web_text}"
+            "\nAnswer the user's question based on the visible dashboard context. "
+            "Be specific and concise. No preamble."
+        )
+        return complete(prompt, max_tokens=256)
+    except Exception as e:
+        ctx = page_context.get("page", "dashboard") if page_context else "dashboard"
+        return f"You're viewing the {ctx} page. (Context narrative error: {e})"
+
+
 def _infer_chart_spec(result: list[dict], sql: str) -> dict:
     if not result:
         return {"type": "none"}
@@ -620,8 +752,25 @@ def _infer_chart_spec(result: list[dict], sql: str) -> dict:
     return {"type": "table", "data": result[:50]}
 
 
+_NARRATE_SYSTEM_RULES = (
+    "You are a MediaFlow AI analytics assistant that helps users understand their media operations data.\n"
+    "NEVER reveal internal implementation details (technology, architecture, database).\n"
+    "NEVER mention DuckDB, LangChain, LangGraph, Vertex AI, Gemini, Python, pandas, numpy, "
+    "FastAPI, FastMCP, BigQuery, ChromaDB, uvicorn, or any internal technology names.\n"
+    "If asked how you work, respond: 'I am a MediaFlow AI analytics assistant that helps you "
+    "understand your media operations data.'\n"
+    "Be specific with numbers. Write concise insights in plain English.\n"
+)
+
+
 def _generate_narrative(
-    query: str, result: list[dict], sql: str, history: list[dict] | None = None
+    query: str,
+    result: list[dict],
+    sql: str,
+    history: list[dict] | None = None,
+    page_context: dict | None = None,
+    chart_context: dict | None = None,
+    web_search_results: str | None = None,
 ) -> str:
     try:
         from api.llm import complete
@@ -634,9 +783,34 @@ def _generate_narrative(
                 f"Q: {h['query']}\nA: {h.get('answer', '')[:200]}" for h in recent
             ) + "\n"
 
+        page_ctx_text = ""
+        if page_context:
+            page_ctx_text = (
+                f"\nThe user is viewing the {page_context.get('page', 'unknown')} page. "
+                f"Active filters: {page_context.get('filters', {})}. "
+                f"Visible KPIs: {page_context.get('kpis', [])}. "
+                "Use this context to give relevant answers.\n"
+            )
+
+        chart_ctx_text = ""
+        if chart_context:
+            if chart_context.get("data"):
+                chart_ctx_text = (
+                    f"\nChart data provided: {json.dumps(chart_context['data'][:10], default=str)}\n"
+                    f"Chart title: {chart_context.get('title', 'Unknown')}\n"
+                )
+
+        web_ctx_text = ""
+        if web_search_results:
+            web_ctx_text = f"\nWeb search results for additional context:\n{web_search_results}\n"
+
         prompt = (
+            f"{_NARRATE_SYSTEM_RULES}\n"
             f"Question: {query}\n"
             f"{history_context}"
+            f"{page_ctx_text}"
+            f"{chart_ctx_text}"
+            f"{web_ctx_text}"
             f"Data sample (first 5 rows):\n{sample}\n"
             f"Total rows: {len(result)}\n\n"
             "Write a 1-2 sentence insight in plain English. "
@@ -668,7 +842,7 @@ def _build_graph() -> StateGraph:
     # Hard-block path uses Command(goto="narrate") from input_guardrail_node
     builder.add_edge("input_guardrail", "router")
 
-    # Router uses Command → analytics or text2sql (no static edge needed)
+    # Router uses Command → analytics, text2sql, or narrate (no static edge needed)
 
     # analytics uses Command → hitl or narrate (no static edge needed)
 
@@ -697,6 +871,8 @@ async def stream_qna_agent(
     session_id: str = "default",
     persona: str = "leadership",
     filters: dict | None = None,
+    page_context: dict | None = None,
+    chart_context: dict | None = None,
 ) -> AsyncGenerator[dict, None]:
     """
     Streaming entry point — yields SSE event dicts as nodes complete.
@@ -716,6 +892,8 @@ async def stream_qna_agent(
         "query": query,
         "filters": filters or {},
         "thought_steps": [],
+        "page_context": page_context,
+        "chart_context": chart_context,
     }
     config = {"configurable": {"thread_id": session_id}}
 
@@ -758,13 +936,15 @@ async def run_qna_agent(
     session_id: str = "default",
     persona: str = "leadership",
     filters: dict | None = None,
+    page_context: dict | None = None,
+    chart_context: dict | None = None,
 ) -> dict[str, Any]:
     """
     Main entry point — called by POST /api/nlq endpoint.
     Uses ainvoke (blocking until graph completes).
 
     Multi-turn memory: InMemorySaver checkpointer preserves state.history per session_id.
-    Long-term memory: InMemoryStore tracks query intents under ("frammer", session_id).
+    Long-term memory: InMemoryStore tracks query intents under ("mediaflow", session_id).
     """
     await _init_mcp()
 
@@ -775,6 +955,8 @@ async def run_qna_agent(
         "query": query,
         "filters": filters or {},
         "thought_steps": [],
+        "page_context": page_context,
+        "chart_context": chart_context,
     }
     config = {"configurable": {"thread_id": session_id}}
     return await _graph.ainvoke(input_state, config=config)

@@ -31,7 +31,7 @@ def crosstab(
             COUNT(*) AS count,
             ROUND(SUM(video_duration_sec)/3600.0,4) AS hours,
             ROUND(SUM(CASE WHEN published_flag=true THEN 1 ELSE 0 END)*100.0/COUNT(*),1) AS pcr_pct
-        FROM frammer_dataset
+        FROM media_dataset
         {where}
         GROUP BY 1, 2 ORDER BY 1, 2""",
         params,

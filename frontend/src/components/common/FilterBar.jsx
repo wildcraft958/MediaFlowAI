@@ -90,14 +90,14 @@ const FILTER_DEFS = [
     multi: false, // radio
   },
   {
-    key: 'inputType',
+    key: 'input_type',
     label: 'Input Type',
     icon: FileVideo,
     options: INPUT_TYPE_OPTIONS,
     multi: true,
   },
   {
-    key: 'outputType',
+    key: 'ai_output_type',
     label: 'Output Type',
     icon: Package,
     options: OUTPUT_TYPE_OPTIONS,
@@ -301,7 +301,24 @@ export default function FilterBar({ onChange, className = '', showComparePeriod 
 
   const handleChange = useCallback(
     (key, newValue) => {
-      const updated = { ...(filters || {}), [key]: newValue }
+      let updated = { ...(filters || {}), [key]: newValue }
+      if (key === 'dateRange') {
+        const days =
+          newValue === 'Last 7 days' ? 7
+          : newValue === 'Last 30 days' ? 30
+          : newValue === 'Last 90 days' ? 90
+          : null
+        if (days !== null) {
+          const to = new Date()
+          const from = new Date()
+          from.setDate(from.getDate() - days)
+          updated.date_from = from.toISOString().slice(0, 10)
+          updated.date_to = to.toISOString().slice(0, 10)
+        } else {
+          updated.date_from = null
+          updated.date_to = null
+        }
+      }
       setFilters(updated)
       onChange?.(updated)
     },
@@ -313,6 +330,8 @@ export default function FilterBar({ onChange, className = '', showComparePeriod 
     FILTER_DEFS.forEach((def) => {
       cleared[def.key] = def.multi ? [] : null
     })
+    cleared.date_from = null
+    cleared.date_to = null
     setFilters(cleared)
     onChange?.(cleared)
   }

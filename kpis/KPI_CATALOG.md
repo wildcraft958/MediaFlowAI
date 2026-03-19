@@ -1,4 +1,4 @@
-# KPI Catalog — Frammer AI Dashboard
+# KPI Catalog — MediaFlow AI Dashboard
 > Complete catalog of all 42 KPIs from draft — 35 active (Phase 1 + Phase 2+), 7 documented as dropped.
 > Source: `draft/Filtered_kpis.txt`, `draft/complete_kpis.txt`
 > Active: 35 | Dropped (with full documentation): 7 — see Category F.
@@ -17,7 +17,7 @@
 
 ---
 
-## Category A — Frammer Operational Metrics
+## Category A — MediaFlow Operational Metrics
 
 ### A1. Publish Conversion Rate (PCR) ✅ `SQL`
 **Definition:** Percentage of uploaded videos that are eventually published.
@@ -72,9 +72,9 @@ Process→Publish= publish_count / process_count × 100
 ---
 
 ### A6. AI Output Leverage (AIL) ✅ `SQL`
-**Definition:** Impressions generated per hour of source content fed into Frammer. Measures AI extraction efficiency.
+**Definition:** Impressions generated per hour of source content fed into MediaFlow. Measures AI extraction efficiency.
 **Formula:** `SUM(impressions) / SUM(video_duration_sec / 3600)` for published videos
-**Dimensions:** workspace, frammer_output_type, input_type
+**Dimensions:** workspace, ai_output_type, input_type
 **Roles:** CXO, Founder, Product Head
 **PS Section:** 6B — Output mix
 
@@ -129,7 +129,7 @@ CPDG = min-max normalize(CPDG_raw) to [0,1]
 ### B3. Attention Harvest Yield (AHY) ✅ `SQL`
 **Definition:** Total watch hours returned per second of source content. Measures content extraction value.
 **Formula:** `SUM(total_watch_time_hours) / SUM(video_duration_sec)`
-**Dimensions:** workspace, input_type, frammer_output_type
+**Dimensions:** workspace, input_type, ai_output_type
 **Roles:** Head of Content, Social Media Manager, CXO
 **PS Section:** 6B — Output value
 
@@ -303,7 +303,7 @@ ULI_L = (normalize(WH_L) + normalize(SAE_L)) / 2 - normalize(VOL_L)
 Gini(W) = (2 × SUM(rank_i × w_i) - (n+1) × SUM(w_i)) / (n × SUM(w_i))
 CPBS = 1 - Gini(W)
 ```
-**Dimensions:** frammer_workspace, company
+**Dimensions:** workspace, company
 **Roles:** CXO, Founder
 **PS Section:** 6D
 
@@ -327,7 +327,7 @@ sub-metrics: impressions MoM, avg_view_percentage, subscribers MoM,
 weights: w_i = σ²_i / SUM(σ²_j)
 CHS = 100 × SUM(w_i × normalize(metric_i))
 ```
-**Dimensions:** frammer_workspace
+**Dimensions:** workspace
 **Roles:** CXO, Head of Content
 **PS Section:** 6D — Dashboard summary card
 
@@ -366,7 +366,7 @@ MCI_overall = AVG(MCI across [headline, team_name, language, input_type,
 ---
 
 ### F1. IHS — Integration Health Score ❌ `UNCOMPUTABLE`
-**Definition:** Composite score measuring technical health of all Frammer system integrations (API uptime, call success rate, etc.).
+**Definition:** Composite score measuring technical health of all MediaFlow system integrations (API uptime, call success rate, etc.).
 **Formula:**
 ```
 health_c = (successful_calls_c / total_calls_c) × 100
@@ -398,12 +398,12 @@ RD_T  = COUNT(comments with intent keywords) / COUNT(total) × 100  (request den
 DI_T  = AVG(reply_count_per_comment)                               (discussion index)
 ```
 **Why dropped:** Requires raw comment text for NLP processing. Dataset only has `comments` as an integer count.
-**If data available:** High-value KPI — would feed directly into editorial decisions. Worth adding if Frammer API provides comment text.
+**If data available:** High-value KPI — would feed directly into editorial decisions. Worth adding if MediaFlow API provides comment text.
 
 ---
 
 ### F4. CCCI — Cross-Channel Coordination Index ❌ `UNCOMPUTABLE`
-**Definition:** Measures how often a single piece of source content is republished across multiple Frammer workspaces.
+**Definition:** Measures how often a single piece of source content is republished across multiple MediaFlow workspaces.
 **Formula:** `COUNT(source_videos published on > 1 workspace) / COUNT(distinct source videos) × 100`
 **Why dropped:** `source_url` is obfuscated (`source_1`, `source_2`, …`source_N`) — cannot match the same source video across workspace rows. Requires un-obfuscated source identifiers.
 **If data available:** Directly answers PS Section 6C cross-workspace reuse analysis.

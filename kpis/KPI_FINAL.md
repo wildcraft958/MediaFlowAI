@@ -1,7 +1,7 @@
 # KPI Final List — Phase 1 Implementation
 > 19 KPIs selected for Phase 1 dashboard + agent.
 > Selection criteria: directly answers a PS Section 6 objective, computable with
-> `data/frammer_dataset.csv`, non-redundant, surfaceable in a dashboard chart or NL query.
+> `data/media_dataset.csv`, non-redundant, surfaceable in a dashboard chart or NL query.
 > Full catalog (35 KPIs) → `kpis/KPI_CATALOG.md`
 
 ---
@@ -37,12 +37,12 @@
 ### 1. Publish Conversion Rate (PCR)
 ```sql
 SELECT
-    frammer_workspace,
+    workspace,
     COUNT(*) AS total_uploaded,
     SUM(CASE WHEN published_flag = true THEN 1 ELSE 0 END) AS total_published,
     ROUND(SUM(CASE WHEN published_flag = true THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 2) AS pcr_pct
-FROM frammer_dataset
-GROUP BY frammer_workspace
+FROM media_dataset
+GROUP BY workspace
 ```
 
 ---
@@ -50,15 +50,15 @@ GROUP BY frammer_workspace
 ### 2. Funnel Stage Conversion (FSC)
 ```sql
 SELECT
-    frammer_workspace,
+    workspace,
     COUNT(*) AS uploaded,
     COUNT(processed_date) AS processed,
     SUM(CASE WHEN published_flag = true THEN 1 ELSE 0 END) AS published,
     ROUND(COUNT(processed_date) * 100.0 / COUNT(*), 2) AS upload_to_process_pct,
     ROUND(SUM(CASE WHEN published_flag = true THEN 1 ELSE 0 END) * 100.0
           / NULLIF(COUNT(processed_date), 0), 2) AS process_to_publish_pct
-FROM frammer_dataset
-GROUP BY frammer_workspace
+FROM media_dataset
+GROUP BY workspace
 ```
 
 ---
@@ -73,7 +73,7 @@ SELECT
     ROUND((COUNT(*) - LAG(COUNT(*)) OVER (ORDER BY DATE_TRUNC('month', TRY_CAST(upload_date AS TIMESTAMP))))
           * 100.0 / NULLIF(LAG(COUNT(*)) OVER (
               ORDER BY DATE_TRUNC('month', TRY_CAST(upload_date AS TIMESTAMP))), 0), 2) AS mom_growth_pct
-FROM frammer_dataset
+FROM media_dataset
 GROUP BY 1
 ORDER BY 1
 ```
@@ -83,15 +83,15 @@ ORDER BY 1
 ### 4. Orphaned Processing Index (OPI)
 ```sql
 SELECT
-    frammer_workspace,
+    workspace,
     team_name,
     input_type,
     COUNT(*) AS orphaned_count,
     ROUND(SUM(video_duration_sec / 3600.0), 2) AS orphaned_hours
-FROM frammer_dataset
+FROM media_dataset
 WHERE published_flag = false
   AND TRY_CAST(upload_date AS TIMESTAMP) < NOW() - INTERVAL '30 days'
-GROUP BY frammer_workspace, team_name, input_type
+GROUP BY workspace, team_name, input_type
 ORDER BY orphaned_hours DESC
 ```
 
@@ -114,7 +114,7 @@ FROM (
             TRY_CAST(upload_date AS TIMESTAMP)
             - LAG(TRY_CAST(upload_date AS TIMESTAMP)) OVER (PARTITION BY uploaded_by ORDER BY upload_date)
         )) / 3600.0 AS gap_hours
-    FROM frammer_dataset
+    FROM media_dataset
 ) sub
 WHERE gap_hours IS NOT NULL
 GROUP BY uploaded_by, team_name
@@ -125,12 +125,12 @@ GROUP BY uploaded_by, team_name
 ### 6. AI Output Leverage (AIL)
 ```sql
 SELECT
-    frammer_workspace,
-    frammer_output_type,
+    workspace,
+    ai_output_type,
     ROUND(SUM(impressions) / NULLIF(SUM(video_duration_sec / 3600.0), 0), 2) AS impressions_per_source_hour
-FROM frammer_dataset
+FROM media_dataset
 WHERE published_flag = true
-GROUP BY frammer_workspace, frammer_output_type
+GROUP BY workspace, ai_output_type
 ORDER BY impressions_per_source_hour DESC
 ```
 
@@ -141,7 +141,7 @@ ORDER BY impressions_per_source_hour DESC
 # Requires Python — Z-score normalization then min-max scale
 import duckdb, pandas as pd, numpy as np
 
-df = duckdb.sql("SELECT video_id, ctr_percentage, avg_view_percentage FROM frammer_dataset WHERE published_flag=true").df()
+df = duckdb.sql("SELECT video_id, ctr_percentage, avg_view_percentage FROM media_dataset WHERE published_flag=true").df()
 df = df.dropna(subset=['ctr_percentage', 'avg_view_percentage'])
 
 df['z_ctr'] = (df['ctr_percentage'] - df['ctr_percentage'].mean()) / df['ctr_percentage'].std()
@@ -156,12 +156,12 @@ df['cpdg'] = (df['cpdg_raw'] - df['cpdg_raw'].min()) / (df['cpdg_raw'].max() - d
 ### 8. Subscriber Attention Cost (SAC)
 ```sql
 SELECT
-    frammer_workspace,
+    workspace,
     input_type,
     ROUND(SUM(total_watch_time_hours) * 60.0 / NULLIF(SUM(subscribers_gained), 0), 2) AS minutes_per_subscriber
-FROM frammer_dataset
+FROM media_dataset
 WHERE published_flag = true
-GROUP BY frammer_workspace, input_type
+GROUP BY workspace, input_type
 ORDER BY minutes_per_subscriber ASC
 ```
 
@@ -170,12 +170,12 @@ ORDER BY minutes_per_subscriber ASC
 ### 9. Attention Harvest Yield (AHY)
 ```sql
 SELECT
-    frammer_workspace,
-    frammer_output_type,
+    workspace,
+    ai_output_type,
     ROUND(SUM(total_watch_time_hours) / NULLIF(SUM(video_duration_sec), 0), 6) AS watch_hours_per_source_second
-FROM frammer_dataset
+FROM media_dataset
 WHERE published_flag = true
-GROUP BY frammer_workspace, frammer_output_type
+GROUP BY workspace, ai_output_type
 ```
 
 ---
@@ -183,12 +183,12 @@ GROUP BY frammer_workspace, frammer_output_type
 ### 10. Engagement Depth Rate (EDR)
 ```sql
 SELECT
-    frammer_workspace,
+    workspace,
     input_type,
     ROUND(SUM(likes + comments + shares) * 100.0 / NULLIF(SUM(impressions), 0), 4) AS edr_pct
-FROM frammer_dataset
+FROM media_dataset
 WHERE published_flag = true
-GROUP BY frammer_workspace, input_type
+GROUP BY workspace, input_type
 ORDER BY edr_pct DESC
 ```
 
@@ -200,9 +200,9 @@ SELECT
     video_id,
     headline,
     input_type,
-    frammer_workspace,
+    workspace,
     ROUND(ctr_percentage * avg_view_percentage * LOG10(impressions), 4) AS hthr_score
-FROM frammer_dataset
+FROM media_dataset
 WHERE published_flag = true
   AND impressions > 0
 ORDER BY hthr_score DESC
@@ -216,7 +216,7 @@ import duckdb, pandas as pd, numpy as np
 
 df = duckdb.sql("""
     SELECT video_id, headline, company, impressions
-    FROM frammer_dataset WHERE published_flag=true
+    FROM media_dataset WHERE published_flag=true
 """).df().dropna(subset=['impressions'])
 
 df['zsp'] = df.groupby('company')['impressions'].transform(
@@ -235,7 +235,7 @@ SELECT
     ROUND(AVG(total_watch_time_hours), 2) AS avg_watch_hours,
     ROUND(AVG(avg_view_percentage), 2) AS avg_retention_pct,
     ROUND(AVG(subscribers_gained), 2) AS avg_subscribers
-FROM frammer_dataset
+FROM media_dataset
 WHERE published_flag = true AND traffic_source != ''
 GROUP BY traffic_source
 ORDER BY avg_watch_hours DESC
@@ -251,7 +251,7 @@ SELECT
     ROUND(AVG(impressions), 0) AS avg_impressions,
     ROUND(AVG(ctr_percentage), 2) AS avg_ctr,
     ROUND(AVG(avg_view_percentage), 2) AS avg_retention
-FROM frammer_dataset
+FROM media_dataset
 WHERE published_flag = true AND published_platform != ''
 GROUP BY published_platform
 ```
@@ -271,7 +271,7 @@ SELECT
         * 100.0 / NULLIF(LAG(SUM(subscribers_gained)) OVER (
         PARTITION BY company ORDER BY DATE_TRUNC('month', TRY_CAST(upload_date AS TIMESTAMP))), 0), 2)
     AS mom_growth_pct
-FROM frammer_dataset
+FROM media_dataset
 GROUP BY company, DATE_TRUNC('month', TRY_CAST(upload_date AS TIMESTAMP))
 ORDER BY company, month
 ```
@@ -281,20 +281,20 @@ ORDER BY company, month
 ### 16. Performance Momentum Index (PMI)
 ```sql
 SELECT
-    frammer_workspace,
+    workspace,
     DATE_TRUNC('week', TRY_CAST(upload_date AS TIMESTAMP)) AS week,
     SUM(impressions) AS weekly_impressions,
-    LAG(SUM(impressions)) OVER (PARTITION BY frammer_workspace
+    LAG(SUM(impressions)) OVER (PARTITION BY workspace
         ORDER BY DATE_TRUNC('week', TRY_CAST(upload_date AS TIMESTAMP))) AS prev_week,
     ROUND((SUM(impressions) - LAG(SUM(impressions)) OVER (
-        PARTITION BY frammer_workspace ORDER BY DATE_TRUNC('week', TRY_CAST(upload_date AS TIMESTAMP))))
+        PARTITION BY workspace ORDER BY DATE_TRUNC('week', TRY_CAST(upload_date AS TIMESTAMP))))
         * 100.0 / NULLIF(LAG(SUM(impressions)) OVER (
-        PARTITION BY frammer_workspace ORDER BY DATE_TRUNC('week', TRY_CAST(upload_date AS TIMESTAMP))), 0), 2)
+        PARTITION BY workspace ORDER BY DATE_TRUNC('week', TRY_CAST(upload_date AS TIMESTAMP))), 0), 2)
     AS wow_pmi
-FROM frammer_dataset
+FROM media_dataset
 WHERE published_flag = true
-GROUP BY frammer_workspace, DATE_TRUNC('week', TRY_CAST(upload_date AS TIMESTAMP))
-ORDER BY frammer_workspace, week
+GROUP BY workspace, DATE_TRUNC('week', TRY_CAST(upload_date AS TIMESTAMP))
+ORDER BY workspace, week
 ```
 
 ---
@@ -307,8 +307,8 @@ df = duckdb.sql("""
     SELECT language,
            AVG(total_watch_time_hours) AS avg_watch_hours,
            SUM(subscribers_gained) * 1000.0 / NULLIF(SUM(impressions), 0) AS sub_efficiency,
-           COUNT(*) * 1.0 / (SELECT COUNT(*) FROM frammer_dataset WHERE published_flag=true) AS vol_share
-    FROM frammer_dataset
+           COUNT(*) * 1.0 / (SELECT COUNT(*) FROM media_dataset WHERE published_flag=true) AS vol_share
+    FROM media_dataset
     WHERE published_flag=true
     GROUP BY language
 """).df()
@@ -325,7 +325,7 @@ df['lpi'] = (df['avg_watch_hours_norm'] + df['sub_efficiency_norm']) / 2 - df['v
 ### 18. Metadata Completeness Index (MCI)
 ```sql
 SELECT
-    frammer_workspace,
+    workspace,
     ROUND(AVG(CASE WHEN headline IS NOT NULL AND headline != '' THEN 1.0 ELSE 0 END) * 100, 2)    AS headline_pct,
     ROUND(AVG(CASE WHEN team_name IS NOT NULL AND team_name != '' THEN 1.0 ELSE 0 END) * 100, 2)  AS team_pct,
     ROUND(AVG(CASE WHEN language IS NOT NULL AND language != '' THEN 1.0 ELSE 0 END) * 100, 2)    AS language_pct,
@@ -336,9 +336,9 @@ SELECT
          CASE WHEN language != '' THEN 1 ELSE 0 END +
          CASE WHEN input_type != '' THEN 1 ELSE 0 END) / 4.0
     ) * 100, 2) AS overall_mci_pct
-FROM frammer_dataset
+FROM media_dataset
 WHERE published_flag = true
-GROUP BY frammer_workspace
+GROUP BY workspace
 ```
 
 ---
@@ -355,7 +355,7 @@ FROM (
         COUNT(*) OVER (PARTITION BY headline, DATE_TRUNC('day', TRY_CAST(upload_date AS TIMESTAMP))) AS occurrence_count,
         CASE WHEN COUNT(*) OVER (PARTITION BY headline, DATE_TRUNC('day', TRY_CAST(upload_date AS TIMESTAMP))) > 1
              THEN 1 ELSE 0 END AS dup_flag
-    FROM frammer_dataset
+    FROM media_dataset
 ) sub
 ```
 

@@ -1,6 +1,7 @@
 """
 TDD tests for data/enrich.py
 Run from GCAgent/data/: pytest test_enrich.py -v
+Note: column names use new neutral identifiers: ai_output_type, workspace.
 """
 
 import pytest
@@ -11,9 +12,9 @@ import sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from enrich import (
     assign_input_type,
-    assign_frammer_output_type,
+    assign_ai_output_type,
     compute_processed_date,
-    assign_frammer_workspace,
+    assign_workspace,
     enrich_dataset,
     TEAM_INPUT_WEIGHTS,
     INPUT_OUTPUT_WEIGHTS,
@@ -94,32 +95,32 @@ class TestAssignInputType:
             assert abs(total - 1.0) < 1e-9, f"{team} weights sum to {total}"
 
 
-# ── assign_frammer_output_type ────────────────────────────────────────────────
+# ── assign_ai_output_type ────────────────────────────────────────────────
 
-class TestAssignFrammerOutputType:
+class TestAssignAIOutputType:
     def test_returns_valid_output_type(self):
         rng = np.random.default_rng(0)
-        result = assign_frammer_output_type("interview", rng)
+        result = assign_ai_output_type("interview", rng)
         assert result in VALID_OUTPUT_TYPES
 
     def test_all_input_types_return_valid_output(self):
         rng = np.random.default_rng(0)
         for input_type in INPUT_OUTPUT_WEIGHTS:
-            assert assign_frammer_output_type(input_type, rng) in VALID_OUTPUT_TYPES
+            assert assign_ai_output_type(input_type, rng) in VALID_OUTPUT_TYPES
 
     def test_speech_produces_more_summaries(self):
         rng = np.random.default_rng(42)
-        results = [assign_frammer_output_type("speech", rng) for _ in range(1000)]
+        results = [assign_ai_output_type("speech", rng) for _ in range(1000)]
         assert results.count("summary") / len(results) > 0.25
 
     def test_interview_produces_more_key_moments(self):
         rng = np.random.default_rng(42)
-        results = [assign_frammer_output_type("interview", rng) for _ in range(1000)]
+        results = [assign_ai_output_type("interview", rng) for _ in range(1000)]
         assert results.count("key_moments") / len(results) > 0.35
 
     def test_special_report_produces_more_chapters(self):
         rng = np.random.default_rng(42)
-        results = [assign_frammer_output_type("special_report", rng) for _ in range(1000)]
+        results = [assign_ai_output_type("special_report", rng) for _ in range(1000)]
         assert results.count("chapters") / len(results) > 0.20
 
     def test_probabilities_sum_to_one_for_every_input_type(self):
@@ -161,22 +162,22 @@ class TestComputeProcessedDate:
         assert isinstance(result, pd.Timestamp)
 
 
-# ── assign_frammer_workspace ──────────────────────────────────────────────────
+# ── assign_workspace ──────────────────────────────────────────────────
 
-class TestAssignFrammerWorkspace:
+class TestAssignWorkspace:
     def test_company_b_reacts_returns_correct_workspace(self):
-        assert assign_frammer_workspace("Company_B", "Reacts") == "WS-DIGITAL-NEWS"
+        assert assign_workspace("Company_B", "Reacts") == "WS-DIGITAL-NEWS"
 
     def test_company_a_music_returns_correct_workspace(self):
-        assert assign_frammer_workspace("company_A", "Music") == "WS-ENTERTAINMENT"
+        assert assign_workspace("company_A", "Music") == "WS-ENTERTAINMENT"
 
     def test_all_defined_pairs_return_ws_prefixed_string(self):
         for (company, team), ws in TEAM_WORKSPACE.items():
-            result = assign_frammer_workspace(company, team)
+            result = assign_workspace(company, team)
             assert result.startswith("WS-")
 
     def test_unknown_combination_returns_fallback_ws_string(self):
-        result = assign_frammer_workspace("company_X", "NewTeam")
+        result = assign_workspace("company_X", "NewTeam")
         assert result.startswith("WS-")
 
 
@@ -187,10 +188,10 @@ class TestEnrichDataset:
         result = enrich_dataset(sample_df)
         assert all(v in VALID_INPUT_TYPES for v in result["input_type"])
 
-    def test_frammer_output_type_column_added(self, sample_df):
+    def test_ai_output_type_column_added(self, sample_df):
         result = enrich_dataset(sample_df)
-        assert "frammer_output_type" in result.columns
-        assert all(v in VALID_OUTPUT_TYPES for v in result["frammer_output_type"])
+        assert "ai_output_type" in result.columns
+        assert all(v in VALID_OUTPUT_TYPES for v in result["ai_output_type"])
 
     def test_processed_date_column_added(self, sample_df):
         result = enrich_dataset(sample_df)
@@ -202,10 +203,10 @@ class TestEnrichDataset:
         processed = pd.to_datetime(result["processed_date"])
         assert all(processed >= upload)
 
-    def test_frammer_workspace_column_added(self, sample_df):
+    def test_workspace_column_added(self, sample_df):
         result = enrich_dataset(sample_df)
-        assert "frammer_workspace" in result.columns
-        assert all(v.startswith("WS-") for v in result["frammer_workspace"])
+        assert "workspace" in result.columns
+        assert all(v.startswith("WS-") for v in result["workspace"])
 
     def test_old_channel_column_dropped(self, sample_df):
         result = enrich_dataset(sample_df)
@@ -229,7 +230,7 @@ class TestEnrichDataset:
         r1 = enrich_dataset(sample_df, seed=42)
         r2 = enrich_dataset(sample_df, seed=42)
         assert list(r1["input_type"]) == list(r2["input_type"])
-        assert list(r1["frammer_output_type"]) == list(r2["frammer_output_type"])
+        assert list(r1["ai_output_type"]) == list(r2["ai_output_type"])
         assert list(r1["processed_date"]) == list(r2["processed_date"])
 
     def test_different_seeds_produce_different_assignments(self, sample_df):
@@ -241,5 +242,5 @@ class TestEnrichDataset:
 
     def test_output_has_expected_new_columns(self, sample_df):
         result = enrich_dataset(sample_df)
-        for col in ["frammer_output_type", "processed_date", "frammer_workspace"]:
+        for col in ["ai_output_type", "processed_date", "workspace"]:
             assert col in result.columns, f"Missing column: {col}"

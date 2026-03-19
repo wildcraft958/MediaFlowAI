@@ -10,47 +10,47 @@ from agents.text2sql.guardrails import check, check_columns, check_all, Guardrai
 # ── Slice 1: Guardrails — pure function, no LLM needed ───────────────────────
 
 def test_guardrails_blocks_drop():
-    safe, errors = check("DROP TABLE frammer_dataset")
+    safe, errors = check("DROP TABLE media_dataset")
     assert not safe
     assert any("DROP" in e or "Blocked" in e for e in errors)
 
 
 def test_guardrails_blocks_delete():
-    safe, errors = check("DELETE FROM frammer_dataset WHERE 1=1")
+    safe, errors = check("DELETE FROM media_dataset WHERE 1=1")
     assert not safe
 
 
 def test_guardrails_blocks_wrong_cast():
-    safe, errors = check("SELECT upload_date::TIMESTAMP FROM frammer_dataset")
+    safe, errors = check("SELECT upload_date::TIMESTAMP FROM media_dataset")
     assert not safe
     assert any("TRY_CAST" in e for e in errors)
 
 
 def test_guardrails_blocks_wrong_boolean():
-    safe, errors = check("SELECT * FROM frammer_dataset WHERE published_flag = 1")
+    safe, errors = check("SELECT * FROM media_dataset WHERE published_flag = 1")
     assert not safe
 
 
 def test_guardrails_passes_valid_select():
     sql = """
-    SELECT frammer_workspace, COUNT(*) AS total,
+    SELECT workspace, COUNT(*) AS total,
            SUM(CASE WHEN published_flag=true THEN 1 ELSE 0 END) AS published
-    FROM frammer_dataset
+    FROM media_dataset
     WHERE TRY_CAST(upload_date AS TIMESTAMP) >= NOW() - INTERVAL '30 days'
-    GROUP BY frammer_workspace
+    GROUP BY workspace
     """
     safe, errors = check(sql)
     assert safe, f"Expected safe, got errors: {errors}"
 
 
 def test_guardrails_passes_with_clause():
-    sql = "WITH x AS (SELECT * FROM frammer_dataset) SELECT * FROM x LIMIT 10"
+    sql = "WITH x AS (SELECT * FROM media_dataset) SELECT * FROM x LIMIT 10"
     safe, errors = check(sql)
     assert safe
 
 
 def test_column_check_passes_known_columns():
-    sql = "SELECT frammer_workspace, published_flag, video_duration_sec FROM frammer_dataset"
+    sql = "SELECT workspace, published_flag, video_duration_sec FROM media_dataset"
     safe, errors = check_columns(sql)
     assert safe, f"Expected safe, got: {errors}"
 
@@ -158,14 +158,14 @@ def test_report_server_returns_base64_string():
 # ── Slice 7: Guardrail Pydantic models ───────────────────────────────────────
 
 def test_check_all_returns_guardrail_result():
-    result = check_all("SELECT * FROM frammer_dataset LIMIT 10")
+    result = check_all("SELECT * FROM media_dataset LIMIT 10")
     assert isinstance(result, GuardrailResult)
     assert result.safe is True
     assert result.violations == []
 
 
 def test_check_all_wrong_cast_returns_duckdb_violation():
-    result = check_all("SELECT upload_date::TIMESTAMP FROM frammer_dataset")
+    result = check_all("SELECT upload_date::TIMESTAMP FROM media_dataset")
     assert isinstance(result, GuardrailResult)
     assert result.safe is False
     assert len(result.violations) >= 1
@@ -174,7 +174,7 @@ def test_check_all_wrong_cast_returns_duckdb_violation():
 
 
 def test_check_all_wrong_boolean_returns_duckdb_violation():
-    result = check_all("SELECT * FROM frammer_dataset WHERE published_flag = 1")
+    result = check_all("SELECT * FROM media_dataset WHERE published_flag = 1")
     assert isinstance(result, GuardrailResult)
     assert result.safe is False
     categories = [v.category for v in result.violations]
@@ -184,7 +184,7 @@ def test_check_all_wrong_boolean_returns_duckdb_violation():
 
 
 def test_check_all_agg_no_groupby_returns_aggregation_violation():
-    sql = "SELECT frammer_workspace, COUNT(*) FROM frammer_dataset"
+    sql = "SELECT workspace, COUNT(*) FROM media_dataset"
     result = check_all(sql)
     assert isinstance(result, GuardrailResult)
     assert result.safe is False
@@ -196,13 +196,13 @@ def test_check_all_agg_no_groupby_returns_aggregation_violation():
 
 def test_check_all_count_star_only_is_safe():
     """SELECT COUNT(*) FROM ... has no non-aggregated cols — should pass."""
-    sql = "SELECT COUNT(*) AS total FROM frammer_dataset WHERE published_flag = true"
+    sql = "SELECT COUNT(*) AS total FROM media_dataset WHERE published_flag = true"
     result = check_all(sql)
     assert result.safe is True, f"Expected safe, got violations: {result.violations}"
 
 
 def test_check_all_unknown_workspace_returns_filter_violation():
-    sql = "SELECT * FROM frammer_dataset WHERE frammer_workspace = 'WS-FAKE'"
+    sql = "SELECT * FROM media_dataset WHERE workspace = 'WS-FAKE'"
     result = check_all(sql)
     assert isinstance(result, GuardrailResult)
     assert result.safe is False
@@ -275,7 +275,7 @@ def test_run_correction_loop_uses_initial_violations():
         return [{"ok": 1}], None
 
     final_sql, rows, error, log = run_correction_loop(
-        "test", "SELECT upload_date::TIMESTAMP FROM frammer_dataset",
+        "test", "SELECT upload_date::TIMESTAMP FROM media_dataset",
         fake_execute, initial_violations=violations
     )
     # First attempt logged with violation category
@@ -287,8 +287,8 @@ def test_run_correction_loop_uses_initial_violations():
 def test_query_plan_validates():
     from agents.text2sql.query_planner import QueryPlan
     plan = QueryPlan(
-        steps=["FROM frammer_dataset", "GROUP BY frammer_workspace", "SELECT COUNT(*)"],
-        tables_used=["frammer_dataset"],
+        steps=["FROM media_dataset", "GROUP BY workspace", "SELECT COUNT(*)"],
+        tables_used=["media_dataset"],
         aggregation_strategy="grouped_agg",
         requires_join=False,
         duckdb_notes=["Use TRY_CAST for dates"],
@@ -302,7 +302,7 @@ def test_query_plan_defaults():
     from agents.text2sql.query_planner import QueryPlan
     plan = QueryPlan()
     assert plan.aggregation_strategy == "none"
-    assert plan.tables_used == ["frammer_dataset"]
+    assert plan.tables_used == ["media_dataset"]
     assert plan.requires_join is False
 
 
@@ -345,8 +345,8 @@ def test_agent_state_hitl_decision_approve():
 # ── Slice 11: Input guardrail ─────────────────────────────────────────────────
 
 def test_input_guardrail_blocks_out_of_scope():
-    from agents.middleware import FrammerInputGuardrail
-    g = FrammerInputGuardrail()
+    from agents.middleware import MediaFlowInputGuardrail
+    g = MediaFlowInputGuardrail()
     state = {"query": "delete database now", "thought_steps": []}
     result = g.before_agent(state)
     assert result.get("error") is not None
@@ -354,8 +354,8 @@ def test_input_guardrail_blocks_out_of_scope():
 
 
 def test_input_guardrail_redacts_email():
-    from agents.middleware import FrammerInputGuardrail
-    g = FrammerInputGuardrail()
+    from agents.middleware import MediaFlowInputGuardrail
+    g = MediaFlowInputGuardrail()
     state = {"query": "show me user@example.com stats", "thought_steps": []}
     result = g.before_agent(state)
     assert "[EMAIL]" in result["query"]
@@ -363,8 +363,8 @@ def test_input_guardrail_redacts_email():
 
 
 def test_input_guardrail_passes_clean_query():
-    from agents.middleware import FrammerInputGuardrail
-    g = FrammerInputGuardrail()
+    from agents.middleware import MediaFlowInputGuardrail
+    g = MediaFlowInputGuardrail()
     state = {"query": "What is the PCR for WS-SPORTS-LIVE?", "thought_steps": []}
     result = g.before_agent(state)
     assert result.get("error") is None
@@ -374,8 +374,8 @@ def test_input_guardrail_passes_clean_query():
 # ── Slice 12: Output guardrail ────────────────────────────────────────────────
 
 def test_output_guardrail_handles_empty_narrative():
-    from agents.middleware import FrammerOutputGuardrail
-    g = FrammerOutputGuardrail()
+    from agents.middleware import MediaFlowOutputGuardrail
+    g = MediaFlowOutputGuardrail()
     state = {"narrative": "", "thought_steps": []}
     result = g.after_agent(state)
     assert result["narrative"] != ""
@@ -383,17 +383,17 @@ def test_output_guardrail_handles_empty_narrative():
 
 
 def test_output_guardrail_redacts_email_in_output():
-    from agents.middleware import FrammerOutputGuardrail
-    g = FrammerOutputGuardrail()
-    state = {"narrative": "Contact admin@frammer.com for details.", "thought_steps": []}
+    from agents.middleware import MediaFlowOutputGuardrail
+    g = MediaFlowOutputGuardrail()
+    state = {"narrative": "Contact admin@mediaflow.com for details.", "thought_steps": []}
     result = g.after_agent(state)
     assert "[EMAIL]" in result["narrative"]
     assert "output_pii:email_leaked" in result["output_guardrail_violations"]
 
 
 def test_output_guardrail_passes_clean_narrative():
-    from agents.middleware import FrammerOutputGuardrail
-    g = FrammerOutputGuardrail()
+    from agents.middleware import MediaFlowOutputGuardrail
+    g = MediaFlowOutputGuardrail()
     state = {"narrative": "WS-SPORTS-LIVE has a 38% PCR, the lowest across all workspaces.", "thought_steps": []}
     result = g.after_agent(state)
     assert result["output_guardrail_violations"] == []
@@ -405,7 +405,7 @@ def test_output_guardrail_passes_clean_narrative():
 def test_check_all_rejects_sql_over_50k_chars():
     from agents.text2sql.guardrails import check_all
     # Build a SQL string clearly over 50,000 chars
-    long_sql = "SELECT " + ", ".join(["1"] * 25_001) + " FROM frammer_dataset"
+    long_sql = "SELECT " + ", ".join(["1"] * 25_001) + " FROM media_dataset"
     result = check_all(long_sql)
     assert not result.safe
     assert any(v.code == "sql_too_long" for v in result.violations)
@@ -415,7 +415,7 @@ def test_check_all_rejects_sql_over_50k_chars():
 def test_check_all_accepts_sql_under_50k_chars():
     from agents.text2sql.guardrails import check_all
     # Normal query well under limit — DDL/length checks should pass
-    sql = "SELECT frammer_workspace, COUNT(*) AS total FROM frammer_dataset GROUP BY frammer_workspace"
+    sql = "SELECT workspace, COUNT(*) AS total FROM media_dataset GROUP BY workspace"
     result = check_all(sql)
     # Length check passes; result safe/unsafe depends on LLM validation (fail-open)
     # We only verify no sql_too_long violation
@@ -426,8 +426,8 @@ def test_check_all_accepts_sql_under_50k_chars():
 
 def test_tool_guardrail_blocks_fire_alert_without_approval():
     import pytest
-    from agents.middleware import FrammerToolGuardrail
-    g = FrammerToolGuardrail()
+    from agents.middleware import MediaFlowToolGuardrail
+    g = MediaFlowToolGuardrail()
     state = {"hitl_decision": None}
     with pytest.raises(ValueError, match="requires explicit human approval"):
         g.wrap_tool_call("fire_alert", {"kpi": "PCR"}, state)
@@ -435,24 +435,24 @@ def test_tool_guardrail_blocks_fire_alert_without_approval():
 
 def test_tool_guardrail_blocks_fire_alert_with_reject():
     import pytest
-    from agents.middleware import FrammerToolGuardrail
-    g = FrammerToolGuardrail()
+    from agents.middleware import MediaFlowToolGuardrail
+    g = MediaFlowToolGuardrail()
     state = {"hitl_decision": "reject"}
     with pytest.raises(ValueError, match="requires explicit human approval"):
         g.wrap_tool_call("fire_alert", {"kpi": "PCR"}, state)
 
 
 def test_tool_guardrail_allows_fire_alert_with_approval():
-    from agents.middleware import FrammerToolGuardrail
-    g = FrammerToolGuardrail()
+    from agents.middleware import MediaFlowToolGuardrail
+    g = MediaFlowToolGuardrail()
     state = {"hitl_decision": "approve"}
     result = g.wrap_tool_call("fire_alert", {"kpi": "PCR"}, state)
     assert result == {"kpi": "PCR"}
 
 
 def test_tool_guardrail_passes_other_tools_unconditionally():
-    from agents.middleware import FrammerToolGuardrail
-    g = FrammerToolGuardrail()
+    from agents.middleware import MediaFlowToolGuardrail
+    g = MediaFlowToolGuardrail()
     state = {"hitl_decision": None}
     result = g.wrap_tool_call("run_kpi_query", {"kpi_name": "PCR"}, state)
     assert result == {"kpi_name": "PCR"}

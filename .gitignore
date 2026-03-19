@@ -19,7 +19,7 @@ env/
 *.db
 *.sqlite
 *.sqlite3
-frammer.duckdb
+analytics.duckdb
 
 # OS
 .DS_Store
@@ -52,5 +52,5 @@ frontend/.vite/
 # ChromaDB (replaced by BigQuery Vector Search)
 .chromadb/
 
-# Corrected dataset — raw source, re-run data/enrich.py to rebuild frammer_dataset.csv
+# Corrected dataset — raw source, re-run data/enrich.py to rebuild dataset.csv
 Corrected_dataset.csv

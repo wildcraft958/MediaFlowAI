@@ -15,7 +15,7 @@ import FilterBar from '../components/common/FilterBar'
 import CountHoursToggle from '../components/common/CountHoursToggle'
 import DataTable from '../components/common/DataTable'
 import useStore from '../store/useStore'
-import { getDailyTrends, getCategoryTrends, getOutputTypeTrends, getExecutiveSummary, getPeriodComparison, getForecast } from '../api/client'
+import { getDailyTrends, getCategoryTrends, getOutputTypeTrends, getExecutiveSummary, getPeriodComparison, getForecast, getCrosstab } from '../api/client'
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
 
@@ -76,7 +76,7 @@ const WORKSPACE_HOURS = [
 
 // ── Sub-tab components ─────────────────────────────────────────────────────────
 
-function TimeAnalysis({ dailyData, categoryData, forecastData, loading, metric, comparison }) {
+function TimeAnalysis({ dailyData, categoryData, forecastData, loading, metric, comparison, languageData }) {
   const totalUploaded = dailyData.reduce((s, d) => s + (d.uploaded || 0), 0)
   const totalHours = dailyData.reduce((s, d) => s + (d.uploaded_hours || 0), 0)
   const d = comparison?.delta
@@ -94,7 +94,7 @@ function TimeAnalysis({ dailyData, categoryData, forecastData, loading, metric, 
             trendValue: d?.avg_processing_pct != null ? Math.abs(d.avg_processing_pct) : null,
             trendLabel: 'vs prev 30d',
             icon: Clock,
-            subtitle: 'Upload → Frammer AI processed',
+            subtitle: 'Upload → MediaFlow AI processed',
             loading,
           },
           {
@@ -178,12 +178,9 @@ function TimeAnalysis({ dailyData, categoryData, forecastData, loading, metric, 
           <h2 className="text-lg font-semibold text-white mb-4">Upload by Language</h2>
           <div style={{ height: 240 }}>
             <DonutChart
-              data={[
-                { name: 'English', value: 3290, color: '#e63946' },
-                { name: 'Hindi', value: 1279, color: '#666666' },
-              ]}
-              centerValue={metric === 'hours' ? '72%' : '3,290'}
-              centerLabel="English"
+              data={languageData}
+              centerValue={languageData[0]?.value?.toLocaleString() ?? '3,290'}
+              centerLabel={languageData[0]?.name ?? 'English'}
               loading={loading}
             />
           </div>
@@ -211,7 +208,7 @@ function TimeAnalysis({ dailyData, categoryData, forecastData, loading, metric, 
   )
 }
 
-function CategoryBreakdown({ loading, metric, outputTypeData = MOCK_OUTPUT_TYPES }) {
+function CategoryBreakdown({ loading, metric, outputTypeData = MOCK_OUTPUT_TYPES, platformData }) {
   const outputTableColumns = [
     { key: 'type', label: 'Output Type', sortable: true },
     {
@@ -296,12 +293,12 @@ function CategoryBreakdown({ loading, metric, outputTypeData = MOCK_OUTPUT_TYPES
           <h2 className="text-lg font-semibold text-white mb-4">Platform Distribution</h2>
           <div style={{ height: 240 }}>
             <DonutChart
-              data={[
+              data={platformData ?? [
                 { name: 'YouTube Shorts', value: 1752, color: '#e63946' },
                 { name: 'Instagram Reels', value: 1436, color: '#666666' },
               ]}
-              centerValue="55%"
-              centerLabel="YouTube"
+              centerValue={platformData ? `${Math.round((platformData[0]?.value ?? 0) / ((platformData[0]?.value ?? 0) + (platformData[1]?.value ?? 1)) * 100)}%` : '55%'}
+              centerLabel={platformData?.[0]?.name?.split(' ')[0] ?? 'YouTube'}
               loading={loading}
             />
           </div>
@@ -310,14 +307,14 @@ function CategoryBreakdown({ loading, metric, outputTypeData = MOCK_OUTPUT_TYPES
               <Youtube size={16} className="text-[#e63946] flex-shrink-0" />
               <div>
                 <p className="text-[10px] text-[#555] uppercase tracking-wide">YouTube Shorts</p>
-                <p className="text-base font-bold text-white tabular-nums">1,752</p>
+                <p className="text-base font-bold text-white tabular-nums">{(platformData?.[0]?.value ?? 1752).toLocaleString()}</p>
               </div>
             </div>
             <div className="flex items-center gap-2.5 p-3 rounded-xl bg-[#0a0a0a] border border-[#1f1f1f]">
               <Instagram size={16} className="text-[#ff8fa3] flex-shrink-0" />
               <div>
                 <p className="text-[10px] text-[#555] uppercase tracking-wide">Instagram Reels</p>
-                <p className="text-base font-bold text-white tabular-nums">1,436</p>
+                <p className="text-base font-bold text-white tabular-nums">{(platformData?.[1]?.value ?? 1436).toLocaleString()}</p>
               </div>
             </div>
           </div>
@@ -360,7 +357,7 @@ function StorageMetrics({ loading, metric, workspaceHours = WORKSPACE_HOURS, wee
             value: totalHours,
             unit: 'h',
             trend: 'up',
-            trendValue: 11.2,
+            trendValue: null,
             trendLabel: 'vs last period',
             icon: Database,
             subtitle: 'Across all 5 workspaces',
@@ -493,7 +490,7 @@ function HorizontalBarChart({ data, loading, height = 240 }) {
   return (
     <ReactECharts
       option={option}
-      theme="frammer-dark"
+      theme="dashboard-dark"
       style={{ height, width: '100%' }}
       opts={{ renderer: 'canvas' }}
       notMerge
@@ -584,7 +581,7 @@ function OutputTypeGroupedBar({ metric, loading, data = MOCK_OUTPUT_TYPES }) {
   return (
     <ReactECharts
       option={option}
-      theme="frammer-dark"
+      theme="dashboard-dark"
       style={{ height: 260, width: '100%' }}
       opts={{ renderer: 'canvas' }}
       notMerge
@@ -640,7 +637,7 @@ function WeeklyHoursChart({ data, metric }) {
   return (
     <ReactECharts
       option={option}
-      theme="frammer-dark"
+      theme="dashboard-dark"
       style={{ height: 220, width: '100%' }}
       opts={{ renderer: 'canvas' }}
       notMerge
@@ -673,8 +670,10 @@ export default function UsageTrends() {
       getExecutiveSummary(filters),
       getPeriodComparison({ period_days: comparePeriod, ...filters }),
       getForecast(),  // intentionally no filters — sparse series hurt forecast quality
+      getCrosstab({ d1: 'language', d2: 'input_type', metric: 'count' }).catch(() => ({ data: null })),
+      getCrosstab({ d1: 'platform', d2: 'ai_output_type', metric: 'count' }).catch(() => ({ data: null })),
     ])
-      .then(([daily, category, outputType, exec, comparison, forecast]) => {
+      .then(([daily, category, outputType, exec, comparison, forecast, langCrosstab, platformCrosstab]) => {
         setData({
           daily: daily.data,
           category: category.data,
@@ -682,11 +681,13 @@ export default function UsageTrends() {
           workspacePcr: exec.data?.workspace_pcr,
           comparison: comparison.data,
           forecast: forecast.data,
+          langCrosstab: langCrosstab.data,
+          platformCrosstab: platformCrosstab.data,
         })
         setLoading(false)
       })
       .catch(() => {
-        setData({ daily: MOCK_DAILY, category: MOCK_CATEGORY, outputType: null, workspacePcr: null, comparison: null, forecast: null })
+        setData({ daily: MOCK_DAILY, category: MOCK_CATEGORY, outputType: null, workspacePcr: null, comparison: null, forecast: null, langCrosstab: null, platformCrosstab: null })
         setLoading(false)
       })
   }, [filters, comparePeriod])
@@ -701,6 +702,32 @@ export default function UsageTrends() {
     hours: ws.total_hours || 0,
     count: ws.total,
   })) ?? WORKSPACE_HOURS
+
+  // Derive language donut data from crosstab (sum all input_type cols per language row)
+  const languageData = data?.langCrosstab
+    ? data.langCrosstab.map((row, i) => {
+        const total = Object.entries(row)
+          .filter(([k]) => k !== 'd1_val')
+          .reduce((s, [, v]) => s + Number(v || 0), 0)
+        return { name: row.d1_val, value: total, color: i === 0 ? '#e63946' : '#666666' }
+      })
+    : [
+        { name: 'English', value: 3290, color: '#e63946' },
+        { name: 'Hindi', value: 1279, color: '#666666' },
+      ]
+
+  // Derive platform donut data from crosstab (sum all output_type cols per platform row)
+  const platformData = data?.platformCrosstab
+    ? data.platformCrosstab.map((row, i) => {
+        const total = Object.entries(row)
+          .filter(([k]) => k !== 'd1_val')
+          .reduce((s, [, v]) => s + Number(v || 0), 0)
+        return { name: row.d1_val, value: total, color: i === 0 ? '#e63946' : '#666666' }
+      })
+    : [
+        { name: 'YouTube Shorts', value: 1752, color: '#e63946' },
+        { name: 'Instagram Reels', value: 1436, color: '#666666' },
+      ]
 
   // Aggregate daily data into weekly buckets (groups of 7 days)
   const weeklyHours = React.useMemo(() => {
@@ -760,10 +787,10 @@ export default function UsageTrends() {
           transition={{ duration: 0.2 }}
         >
           {activeSubTab === 'time' && (
-            <TimeAnalysis dailyData={dailyData} categoryData={categoryData} forecastData={data?.forecast} loading={loading} metric={metric} comparison={data?.comparison} />
+            <TimeAnalysis dailyData={dailyData} categoryData={categoryData} forecastData={data?.forecast} loading={loading} metric={metric} comparison={data?.comparison} languageData={languageData} />
           )}
           {activeSubTab === 'category' && (
-            <CategoryBreakdown loading={loading} metric={metric} outputTypeData={outputTypeData} />
+            <CategoryBreakdown loading={loading} metric={metric} outputTypeData={outputTypeData} platformData={platformData} />
           )}
           {activeSubTab === 'storage' && (
             <StorageMetrics loading={loading} metric={metric} workspaceHours={workspaceHours} weeklyHours={weeklyHours} />

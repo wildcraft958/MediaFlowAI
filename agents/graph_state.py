@@ -26,6 +26,11 @@ class AgentState(TypedDict, total=False):
     hitl_decision: Optional[str]    # "approve"|"reject" — set on resume
     pending_inbox_items: list[dict] # items pushed to Agent Inbox this turn
 
+    # Context-aware copilot fields
+    page_context: Optional[dict]       # {page, filters, kpis, chart_titles}
+    chart_context: Optional[dict]      # {title, data, image_base64}
+    web_search_results: Optional[str]
+
     # Guardrail tracking fields (WS-8D)
     input_guardrail_violations: list[str]   # e.g. ["pii:email_redacted"]
     output_guardrail_violations: list[str]

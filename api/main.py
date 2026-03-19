@@ -1,5 +1,5 @@
 """
-Frammer AI Analytics — FastAPI backend
+MediaFlow AI Analytics — FastAPI backend
 Run from project root:  uv run uvicorn api.main:app --reload --port 8000
 """
 from contextlib import asynccontextmanager
@@ -22,7 +22,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Frammer AI Analytics API",
+    title="MediaFlow AI Analytics API",
     version="1.0.0",
     lifespan=lifespan,
 )

@@ -15,6 +15,8 @@ from agents.text2sql.schema_linker import get_schema_context
 
 _PROMPT_TEMPLATE = """You are a DuckDB SQL generation agent.
 
+CRITICAL: Generate ONLY SELECT statements. NEVER generate DELETE, DROP, ALTER, TRUNCATE, UPDATE, INSERT, CREATE, GRANT, REVOKE.
+
 Schema:
 {schema}
 
@@ -31,7 +33,7 @@ Critical DuckDB syntax rules:
 - CAST(impressions AS DOUBLE) for impressions column
 - published_flag = true  (not = 1, not = 'true')
 - For date intervals: NOW() - INTERVAL '30 days'
-- No UPDATE, DELETE, DROP, INSERT, CREATE statements
+- ONLY SELECT statements — no DDL/DML (DELETE, DROP, ALTER, TRUNCATE, UPDATE, INSERT, CREATE, GRANT, REVOKE)
 
 Return ONLY the SQL query, no explanation, no markdown fences."""
 
@@ -66,6 +68,8 @@ def generate_sql(
             llm = get_llm(temperature=0.0).with_structured_output(GeneratedSQL)
             prompt = (
                 f"You are a DuckDB SQL generation agent.\n\n"
+                "CRITICAL: Generate ONLY SELECT statements. NEVER generate DELETE, DROP, ALTER, "
+                "TRUNCATE, UPDATE, INSERT, CREATE, GRANT, REVOKE.\n\n"
                 f"Schema:\n{get_schema_context()}\n\n"
                 f"Question: {question}\n\n"
                 f"Query plan:\n{plan_str}\n\n"
@@ -77,7 +81,7 @@ def generate_sql(
                 "- TRY_CAST(col AS TIMESTAMP) — never ::TIMESTAMP\n"
                 "- published_flag = true (not = 1)\n"
                 "- CAST(impressions AS DOUBLE) for impressions\n"
-                "- No DDL/DML statements."
+                "- ONLY SELECT — no DDL/DML (DELETE, DROP, ALTER, TRUNCATE, UPDATE, INSERT, CREATE, GRANT, REVOKE)."
             )
             result = llm.invoke(prompt)
             result.sql = _postprocess_sql(result.sql)
@@ -98,7 +102,7 @@ def generate_sql(
         return GeneratedSQL(sql=_postprocess_sql(raw), confidence=0.5)
     except Exception:
         return GeneratedSQL(
-            sql="SELECT * FROM frammer_dataset LIMIT 10",
+            sql="SELECT * FROM media_dataset LIMIT 10",
             confidence=0.1,
             warnings=["Fallback SQL used — generation failed"],
         )

@@ -11,7 +11,7 @@ def executive(f: FilterParams = Depends()):
 
     # PCR total
     pcr_row = query_one(
-        f"SELECT ROUND(SUM(CASE WHEN published_flag=true THEN 1 ELSE 0 END)*100.0/COUNT(*),1) FROM frammer_dataset {where}",
+        f"SELECT ROUND(SUM(CASE WHEN published_flag=true THEN 1 ELSE 0 END)*100.0/COUNT(*),1) FROM media_dataset {where}",
         params,
     )
     pcr_total = float(pcr_row[0]) if pcr_row and pcr_row[0] is not None else 0.0
@@ -22,7 +22,7 @@ def executive(f: FilterParams = Depends()):
             COUNT(*) FILTER (WHERE upload_date IS NOT NULL),
             COUNT(*) FILTER (WHERE processed_date IS NOT NULL),
             COUNT(*) FILTER (WHERE published_flag=true)
-        FROM frammer_dataset {where}""",
+        FROM media_dataset {where}""",
         params,
     )
     funnel = {
@@ -33,13 +33,13 @@ def executive(f: FilterParams = Depends()):
 
     # PCR by workspace (includes total_hours for StorageMetrics)
     ws_df = query_df(
-        f"""SELECT frammer_workspace AS workspace,
+        f"""SELECT workspace AS workspace,
                COUNT(*) AS total,
                SUM(CASE WHEN published_flag=true THEN 1 ELSE 0 END) AS published,
                ROUND(SUM(CASE WHEN published_flag=true THEN 1 ELSE 0 END)*100.0/COUNT(*),1) AS pcr,
                ROUND(SUM(video_duration_sec)/3600.0,2) AS total_hours
-        FROM frammer_dataset {where}
-        GROUP BY frammer_workspace ORDER BY pcr DESC""",
+        FROM media_dataset {where}
+        GROUP BY workspace ORDER BY pcr DESC""",
         params,
     )
     workspace_pcr = ws_df.to_dict(orient="records")
@@ -53,7 +53,7 @@ def executive(f: FilterParams = Depends()):
             SUM(CASE WHEN published_flag=true THEN 1 ELSE 0 END) AS published,
             ROUND(SUM(video_duration_sec)/3600.0,4) AS uploaded_hours,
             ROUND(SUM(CASE WHEN published_flag=true THEN video_duration_sec ELSE 0 END)/3600.0,4) AS published_hours
-        FROM frammer_dataset
+        FROM media_dataset
         {trend_where} TRY_CAST(upload_date AS TIMESTAMP) >= NOW() - INTERVAL '30 days'
         GROUP BY 1 ORDER BY 1""",
         params,
@@ -75,7 +75,7 @@ def user_activity(f: FilterParams = Depends()):
         f"""SELECT
             uploaded_by AS user,
             team_name AS team,
-            frammer_workspace AS workspace,
+            workspace AS workspace,
             COUNT(*) AS uploaded,
             SUM(CASE WHEN published_flag=true THEN 1 ELSE 0 END) AS published,
             ROUND(SUM(CASE WHEN published_flag=true THEN 1 ELSE 0 END)*100.0/COUNT(*),1) AS pcr,
@@ -86,8 +86,8 @@ def user_activity(f: FilterParams = Depends()):
                 END
             ), 1) AS teu,
             MAX(CAST(TRY_CAST(upload_date AS DATE) AS VARCHAR)) AS lastActive
-        FROM frammer_dataset {where}
-        GROUP BY uploaded_by, team_name, frammer_workspace
+        FROM media_dataset {where}
+        GROUP BY uploaded_by, team_name, workspace
         ORDER BY uploaded DESC""",
         params,
     )
@@ -116,7 +116,7 @@ def period_comparison(period_days: int = Query(30, ge=7, le=180), f: FilterParam
                 THEN (epoch(TRY_CAST(processed_date AS TIMESTAMP)) - epoch(TRY_CAST(upload_date AS TIMESTAMP))) / 3600.0 END), 1) AS cur_avg_proc_h,
             ROUND(AVG(CASE WHEN TRY_CAST(upload_date AS TIMESTAMP) < b.mid AND TRY_CAST(upload_date AS TIMESTAMP) >= b.start_dt AND processed_date IS NOT NULL
                 THEN (epoch(TRY_CAST(processed_date AS TIMESTAMP)) - epoch(TRY_CAST(upload_date AS TIMESTAMP))) / 3600.0 END), 1) AS prev_avg_proc_h
-        FROM frammer_dataset, boundaries b
+        FROM media_dataset, boundaries b
         {where}{and_clause} TRY_CAST(upload_date AS TIMESTAMP) >= b.start_dt
     """, params)
     row = df.iloc[0].to_dict() if len(df) > 0 else {}
@@ -156,7 +156,7 @@ def data_quality(f: FilterParams = Depends()):
         COUNT(billable_flag) AS billable_nn,
         COUNT(output_type) AS output_type_nn,
         COUNT(published_platform) AS platform_nn
-    FROM frammer_dataset {where}""", params)
+    FROM media_dataset {where}""", params)
     row = df.iloc[0]
     total = int(row['total'])
     fields = [
@@ -196,15 +196,15 @@ def billable_split(f: FilterParams = Depends()):
     where, params = build_where_clause(f, alias="")
     df = query_df(
         f"""SELECT
-            frammer_workspace AS workspace,
+            workspace AS workspace,
             COUNT(*) AS total,
             SUM(CASE WHEN billable_flag='True' THEN 1 ELSE 0 END) AS billable,
             SUM(CASE WHEN billable_flag='False' THEN 1 ELSE 0 END) AS non_billable,
             ROUND(SUM(CASE WHEN billable_flag='True' THEN 1 ELSE 0 END)*100.0/COUNT(*),1) AS billable_pct,
             ROUND(SUM(CASE WHEN billable_flag='True' THEN video_duration_sec ELSE 0 END)/3600.0, 2) AS billable_hours,
             ROUND(SUM(CASE WHEN billable_flag='False' THEN video_duration_sec ELSE 0 END)/3600.0, 2) AS non_billable_hours
-        FROM frammer_dataset {where}
-        GROUP BY frammer_workspace ORDER BY billable DESC""",
+        FROM media_dataset {where}
+        GROUP BY workspace ORDER BY billable DESC""",
         params,
     )
     total = int(df["total"].sum())
@@ -233,7 +233,7 @@ def publish_funnel(f: FilterParams = Depends()):
             SUM(CASE WHEN processed_date IS NOT NULL THEN video_duration_sec ELSE 0 END)/3600.0,
             COUNT(*) FILTER (WHERE published_flag=true),
             SUM(CASE WHEN published_flag=true THEN video_duration_sec ELSE 0 END)/3600.0
-        FROM frammer_dataset {where}""",
+        FROM media_dataset {where}""",
         params,
     )
     uploaded, up_h, processed, pr_h, published, pub_h = row

@@ -67,7 +67,7 @@ export default function SparkLine({
     <div style={{ width, height, flexShrink: 0 }}>
       <ReactECharts
         option={option}
-        theme="frammer-dark"
+        theme="dashboard-dark"
         style={{ width: '100%', height: '100%', ...chartStyle }}
         opts={opts}
         notMerge

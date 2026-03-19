@@ -3,7 +3,7 @@
  *
  * - Flex item (not fixed) — eliminates the gap issue
  * - Logo area: when collapsed, hover over "F" shows a ChevronRight expand button
- * - Logo area: when expanded, shows "Frammer AI" text + ChevronLeft collapse button
+ * - Logo area: when expanded, shows "MediaFlow AI" text + ChevronLeft collapse button
  * - NavLinks with lucide icons, active red styling
  * - RBAC: Admin item only shown for admin role
  * - Creator role: Video Explorer appears first
@@ -205,7 +205,7 @@ export default function Sidebar() {
                 transition={{ duration: 0.15 }}
                 className="flex-1 min-w-0 overflow-hidden whitespace-nowrap"
               >
-                <p className="text-sm font-bold text-white leading-tight">Frammer AI</p>
+                <p className="text-sm font-bold text-white leading-tight">MediaFlow AI</p>
                 <p className="text-[10px] text-[#555555] leading-tight mt-0.5">Analytics Dashboard</p>
               </motion.div>
             </AnimatePresence>

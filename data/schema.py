@@ -1,15 +1,15 @@
 """
 Step 3 — DuckDB Star Schema + KPI Views
 Run from project root: python data/schema.py
-Output: frammer.duckdb
+Output: analytics.duckdb
 """
 
 import duckdb
 import pandas as pd
 import numpy as np
 
-DB_PATH = "frammer.duckdb"
-CSV_PATH = "data/frammer_dataset.csv"
+DB_PATH = "analytics.duckdb"
+CSV_PATH = "data/dataset.csv"
 
 
 def create_db():
@@ -30,11 +30,11 @@ def create_db():
 
 def load_staging(con):
     con.execute(f"""
-        CREATE OR REPLACE TABLE frammer_dataset AS
+        CREATE OR REPLACE TABLE media_dataset AS
         SELECT * FROM read_csv_auto('{CSV_PATH}', header=true, nullstr='')
     """)
-    count = con.execute("SELECT COUNT(*) FROM frammer_dataset").fetchone()[0]
-    print(f"✓ Loaded {count} rows into frammer_dataset")
+    count = con.execute("SELECT COUNT(*) FROM media_dataset").fetchone()[0]
+    print(f"✓ Loaded {count} rows into media_dataset")
 
 
 # ---------------------------------------------------------------------------
@@ -44,57 +44,57 @@ def load_staging(con):
 def create_dimensions(con):
     con.execute("""
         CREATE OR REPLACE TABLE dim_workspace AS
-        SELECT DISTINCT frammer_workspace, company
-        FROM frammer_dataset
-        WHERE frammer_workspace IS NOT NULL
+        SELECT DISTINCT workspace, company
+        FROM media_dataset
+        WHERE workspace IS NOT NULL
     """)
 
     con.execute("""
         CREATE OR REPLACE TABLE dim_user AS
         SELECT DISTINCT uploaded_by
-        FROM frammer_dataset
+        FROM media_dataset
         WHERE uploaded_by IS NOT NULL
     """)
 
     con.execute("""
         CREATE OR REPLACE TABLE dim_team AS
         SELECT DISTINCT team_name
-        FROM frammer_dataset
+        FROM media_dataset
         WHERE team_name IS NOT NULL
     """)
 
     con.execute("""
         CREATE OR REPLACE TABLE dim_language AS
         SELECT DISTINCT language
-        FROM frammer_dataset
+        FROM media_dataset
         WHERE language IS NOT NULL
     """)
 
     con.execute("""
         CREATE OR REPLACE TABLE dim_input_type AS
         SELECT DISTINCT input_type
-        FROM frammer_dataset
+        FROM media_dataset
         WHERE input_type IS NOT NULL
     """)
 
     con.execute("""
         CREATE OR REPLACE TABLE dim_output_type AS
         SELECT DISTINCT output_type
-        FROM frammer_dataset
+        FROM media_dataset
         WHERE output_type IS NOT NULL
     """)
 
     con.execute("""
-        CREATE OR REPLACE TABLE dim_frammer_output_type AS
-        SELECT DISTINCT frammer_output_type
-        FROM frammer_dataset
-        WHERE frammer_output_type IS NOT NULL
+        CREATE OR REPLACE TABLE dim_ai_output_type AS
+        SELECT DISTINCT ai_output_type
+        FROM media_dataset
+        WHERE ai_output_type IS NOT NULL
     """)
 
     con.execute("""
         CREATE OR REPLACE TABLE dim_platform AS
         SELECT DISTINCT published_platform
-        FROM frammer_dataset
+        FROM media_dataset
         WHERE published_platform IS NOT NULL
     """)
 
@@ -109,7 +109,7 @@ def create_dimensions(con):
             EXTRACT(DOW   FROM date_val) AS day_of_week
         FROM (
             SELECT DISTINCT CAST(TRY_CAST(upload_date AS TIMESTAMP) AS DATE) AS date_val
-            FROM frammer_dataset
+            FROM media_dataset
             WHERE TRY_CAST(upload_date AS TIMESTAMP) IS NOT NULL
         ) t
     """)
@@ -144,15 +144,15 @@ def create_fact(con):
             total_watch_time_hours,
             traffic_source,
             published_url,
-            frammer_workspace,
+            workspace,
             uploaded_by,
             team_name,
             language,
             input_type,
             output_type,
-            frammer_output_type,
+            ai_output_type,
             published_platform
-        FROM frammer_dataset
+        FROM media_dataset
     """)
     print("✓ Created fact_video_events view")
 
@@ -167,27 +167,27 @@ def create_kpi_views(con):
     con.execute("""
         CREATE OR REPLACE VIEW v_pcr AS
         SELECT
-            frammer_workspace,
+            workspace,
             COUNT(*) AS total_uploaded,
             SUM(CASE WHEN published_flag = true THEN 1 ELSE 0 END) AS total_published,
             ROUND(SUM(CASE WHEN published_flag = true THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 2) AS pcr_pct
-        FROM frammer_dataset
-        GROUP BY frammer_workspace
+        FROM media_dataset
+        GROUP BY workspace
     """)
 
     # FSC — Funnel Stage Conversion
     con.execute("""
         CREATE OR REPLACE VIEW v_fsc AS
         SELECT
-            frammer_workspace,
+            workspace,
             COUNT(*) AS uploaded,
             COUNT(processed_date) AS processed,
             SUM(CASE WHEN published_flag = true THEN 1 ELSE 0 END) AS published,
             ROUND(COUNT(processed_date) * 100.0 / COUNT(*), 2) AS upload_to_process_pct,
             ROUND(SUM(CASE WHEN published_flag = true THEN 1 ELSE 0 END) * 100.0
                   / NULLIF(COUNT(processed_date), 0), 2) AS process_to_publish_pct
-        FROM frammer_dataset
-        GROUP BY frammer_workspace
+        FROM media_dataset
+        GROUP BY workspace
     """)
 
     # GR — MoM Growth Rate
@@ -202,7 +202,7 @@ def create_kpi_views(con):
                 * 100.0 / NULLIF(LAG(COUNT(*)) OVER (
                     ORDER BY DATE_TRUNC('month', TRY_CAST(upload_date AS TIMESTAMP))), 0),
             2) AS mom_growth_pct
-        FROM frammer_dataset
+        FROM media_dataset
         WHERE TRY_CAST(upload_date AS TIMESTAMP) IS NOT NULL
         GROUP BY 1
         ORDER BY 1
@@ -212,16 +212,16 @@ def create_kpi_views(con):
     con.execute("""
         CREATE OR REPLACE VIEW v_opi AS
         SELECT
-            frammer_workspace,
+            workspace,
             team_name,
             input_type,
             COUNT(*) AS orphaned_count,
             ROUND(SUM(video_duration_sec / 3600.0), 2) AS orphaned_hours
-        FROM frammer_dataset
+        FROM media_dataset
         WHERE published_flag = false
           AND TRY_CAST(upload_date AS TIMESTAMP) IS NOT NULL
           AND TRY_CAST(upload_date AS TIMESTAMP) < NOW() - INTERVAL '30 days'
-        GROUP BY frammer_workspace, team_name, input_type
+        GROUP BY workspace, team_name, input_type
         ORDER BY orphaned_hours DESC
     """)
 
@@ -244,7 +244,7 @@ def create_kpi_views(con):
                         PARTITION BY uploaded_by ORDER BY TRY_CAST(upload_date AS TIMESTAMP)
                     )
                 )) / 3600.0 AS gap_hours
-            FROM frammer_dataset
+            FROM media_dataset
             WHERE TRY_CAST(upload_date AS TIMESTAMP) IS NOT NULL
         ) sub
         WHERE gap_hours IS NOT NULL
@@ -255,13 +255,13 @@ def create_kpi_views(con):
     con.execute("""
         CREATE OR REPLACE VIEW v_ail AS
         SELECT
-            frammer_workspace,
-            frammer_output_type,
+            workspace,
+            ai_output_type,
             ROUND(SUM(CAST(impressions AS DOUBLE)) / NULLIF(SUM(video_duration_sec / 3600.0), 0), 2)
                 AS impressions_per_source_hour
-        FROM frammer_dataset
+        FROM media_dataset
         WHERE published_flag = true
-        GROUP BY frammer_workspace, frammer_output_type
+        GROUP BY workspace, ai_output_type
         ORDER BY impressions_per_source_hour DESC
     """)
 
@@ -269,13 +269,13 @@ def create_kpi_views(con):
     con.execute("""
         CREATE OR REPLACE VIEW v_sac AS
         SELECT
-            frammer_workspace,
+            workspace,
             input_type,
             ROUND(SUM(total_watch_time_hours) * 60.0 / NULLIF(SUM(subscribers_gained), 0), 2)
                 AS minutes_per_subscriber
-        FROM frammer_dataset
+        FROM media_dataset
         WHERE published_flag = true
-        GROUP BY frammer_workspace, input_type
+        GROUP BY workspace, input_type
         ORDER BY minutes_per_subscriber ASC
     """)
 
@@ -283,26 +283,26 @@ def create_kpi_views(con):
     con.execute("""
         CREATE OR REPLACE VIEW v_ahy AS
         SELECT
-            frammer_workspace,
-            frammer_output_type,
+            workspace,
+            ai_output_type,
             ROUND(SUM(total_watch_time_hours) / NULLIF(SUM(video_duration_sec), 0), 6)
                 AS watch_hours_per_source_second
-        FROM frammer_dataset
+        FROM media_dataset
         WHERE published_flag = true
-        GROUP BY frammer_workspace, frammer_output_type
+        GROUP BY workspace, ai_output_type
     """)
 
     # EDR — Engagement Depth Rate
     con.execute("""
         CREATE OR REPLACE VIEW v_edr AS
         SELECT
-            frammer_workspace,
+            workspace,
             input_type,
             ROUND(SUM(likes + comments + shares) * 100.0 / NULLIF(SUM(CAST(impressions AS DOUBLE)), 0), 4)
                 AS edr_pct
-        FROM frammer_dataset
+        FROM media_dataset
         WHERE published_flag = true
-        GROUP BY frammer_workspace, input_type
+        GROUP BY workspace, input_type
         ORDER BY edr_pct DESC
     """)
 
@@ -313,10 +313,10 @@ def create_kpi_views(con):
             video_id,
             headline,
             input_type,
-            frammer_workspace,
+            workspace,
             ROUND(ctr_percentage * avg_view_percentage * LOG10(CAST(impressions AS DOUBLE)), 4)
                 AS hthr_score
-        FROM frammer_dataset
+        FROM media_dataset
         WHERE published_flag = true
           AND CAST(impressions AS DOUBLE) > 0
         ORDER BY hthr_score DESC
@@ -331,7 +331,7 @@ def create_kpi_views(con):
             ROUND(AVG(total_watch_time_hours), 2) AS avg_watch_hours,
             ROUND(AVG(avg_view_percentage), 2) AS avg_retention_pct,
             ROUND(AVG(subscribers_gained), 2) AS avg_subscribers
-        FROM frammer_dataset
+        FROM media_dataset
         WHERE published_flag = true
           AND traffic_source IS NOT NULL AND traffic_source != ''
         GROUP BY traffic_source
@@ -347,7 +347,7 @@ def create_kpi_views(con):
             ROUND(AVG(CAST(impressions AS DOUBLE)), 0) AS avg_impressions,
             ROUND(AVG(ctr_percentage), 2) AS avg_ctr,
             ROUND(AVG(avg_view_percentage), 2) AS avg_retention
-        FROM frammer_dataset
+        FROM media_dataset
         WHERE published_flag = true
           AND published_platform IS NOT NULL AND published_platform != ''
         GROUP BY published_platform
@@ -373,7 +373,7 @@ def create_kpi_views(con):
                     ORDER BY DATE_TRUNC('month', TRY_CAST(upload_date AS TIMESTAMP))
                 ), 0),
             2) AS mom_growth_pct
-        FROM frammer_dataset
+        FROM media_dataset
         WHERE TRY_CAST(upload_date AS TIMESTAMP) IS NOT NULL
         GROUP BY company, DATE_TRUNC('month', TRY_CAST(upload_date AS TIMESTAMP))
         ORDER BY company, month
@@ -383,34 +383,34 @@ def create_kpi_views(con):
     con.execute("""
         CREATE OR REPLACE VIEW v_pmi AS
         SELECT
-            frammer_workspace,
+            workspace,
             DATE_TRUNC('week', TRY_CAST(upload_date AS TIMESTAMP)) AS week,
             SUM(CAST(impressions AS DOUBLE)) AS weekly_impressions,
             LAG(SUM(CAST(impressions AS DOUBLE))) OVER (
-                PARTITION BY frammer_workspace
+                PARTITION BY workspace
                 ORDER BY DATE_TRUNC('week', TRY_CAST(upload_date AS TIMESTAMP))
             ) AS prev_week,
             ROUND(
                 (SUM(CAST(impressions AS DOUBLE)) - LAG(SUM(CAST(impressions AS DOUBLE))) OVER (
-                    PARTITION BY frammer_workspace
+                    PARTITION BY workspace
                     ORDER BY DATE_TRUNC('week', TRY_CAST(upload_date AS TIMESTAMP))
                 )) * 100.0 / NULLIF(LAG(SUM(CAST(impressions AS DOUBLE))) OVER (
-                    PARTITION BY frammer_workspace
+                    PARTITION BY workspace
                     ORDER BY DATE_TRUNC('week', TRY_CAST(upload_date AS TIMESTAMP))
                 ), 0),
             2) AS wow_pmi
-        FROM frammer_dataset
+        FROM media_dataset
         WHERE published_flag = true
           AND TRY_CAST(upload_date AS TIMESTAMP) IS NOT NULL
-        GROUP BY frammer_workspace, DATE_TRUNC('week', TRY_CAST(upload_date AS TIMESTAMP))
-        ORDER BY frammer_workspace, week
+        GROUP BY workspace, DATE_TRUNC('week', TRY_CAST(upload_date AS TIMESTAMP))
+        ORDER BY workspace, week
     """)
 
     # MCI — Metadata Completeness Index (checks fields that actually have nulls)
     con.execute("""
         CREATE OR REPLACE VIEW v_mci AS
         SELECT
-            frammer_workspace,
+            workspace,
             ROUND(COUNT(upload_date) * 100.0 / COUNT(*), 1) AS upload_date_pct,
             ROUND(COUNT(processed_date) * 100.0 / COUNT(*), 1) AS processed_date_pct,
             ROUND(COUNT(billable_flag) * 100.0 / COUNT(*), 1) AS billable_flag_pct,
@@ -418,8 +418,8 @@ def create_kpi_views(con):
             ROUND(COUNT(published_platform) * 100.0 / COUNT(*), 1) AS platform_pct,
             ROUND((COUNT(upload_date) + COUNT(processed_date) + COUNT(billable_flag)
                  + COUNT(output_type) + COUNT(published_platform)) * 100.0 / (COUNT(*) * 5), 1) AS overall_mci_pct
-        FROM frammer_dataset
-        GROUP BY frammer_workspace ORDER BY overall_mci_pct
+        FROM media_dataset
+        GROUP BY workspace ORDER BY overall_mci_pct
     """)
 
     # DCDR — Duplicate Detection Rate
@@ -436,7 +436,7 @@ def create_kpi_views(con):
                     PARTITION BY headline,
                     DATE_TRUNC('day', TRY_CAST(upload_date AS TIMESTAMP))
                 ) > 1 THEN 1 ELSE 0 END AS dup_flag
-            FROM frammer_dataset
+            FROM media_dataset
             WHERE TRY_CAST(upload_date AS TIMESTAMP) IS NOT NULL
         ) sub
     """)
@@ -452,7 +452,7 @@ def compute_python_kpis(con):
     # CPDG — Content Promise vs Delivery Gap
     df = con.sql("""
         SELECT video_id, ctr_percentage, avg_view_percentage
-        FROM frammer_dataset
+        FROM media_dataset
         WHERE published_flag = true
     """).df().dropna(subset=['ctr_percentage', 'avg_view_percentage'])
 
@@ -466,7 +466,7 @@ def compute_python_kpis(con):
     # ZSP — Z-Score Performance (per company)
     df2 = con.sql("""
         SELECT video_id, headline, company, CAST(impressions AS DOUBLE) AS impressions
-        FROM frammer_dataset
+        FROM media_dataset
         WHERE published_flag = true
     """).df().dropna(subset=['impressions'])
 
@@ -482,8 +482,8 @@ def compute_python_kpis(con):
             language,
             AVG(total_watch_time_hours) AS avg_watch_hours,
             SUM(subscribers_gained) * 1000.0 / NULLIF(SUM(CAST(impressions AS DOUBLE)), 0) AS sub_efficiency,
-            COUNT(*) * 1.0 / (SELECT COUNT(*) FROM frammer_dataset WHERE published_flag = true) AS vol_share
-        FROM frammer_dataset
+            COUNT(*) * 1.0 / (SELECT COUNT(*) FROM media_dataset WHERE published_flag = true) AS vol_share
+        FROM media_dataset
         WHERE published_flag = true
         GROUP BY language
     """).df()
@@ -512,14 +512,14 @@ def create_agg_tables(con):
         CREATE OR REPLACE TABLE agg_daily_summary AS
         SELECT
             TRY_CAST(upload_date AS DATE) AS upload_day,
-            frammer_workspace,
+            workspace,
             COUNT(*) AS uploaded_count,
             ROUND(SUM(video_duration_sec / 3600.0), 4) AS uploaded_hours,
             COUNT(processed_date) AS processed_count,
             SUM(CASE WHEN published_flag = true THEN 1 ELSE 0 END) AS published_count,
             ROUND(SUM(CASE WHEN published_flag = true THEN video_duration_sec / 3600.0 ELSE 0 END), 4)
                 AS published_hours
-        FROM frammer_dataset
+        FROM media_dataset
         WHERE TRY_CAST(upload_date AS TIMESTAMP) IS NOT NULL
         GROUP BY 1, 2
     """)
@@ -527,7 +527,7 @@ def create_agg_tables(con):
     con.execute("""
         CREATE OR REPLACE TABLE agg_channel_funnel AS
         SELECT
-            frammer_workspace,
+            workspace,
             company,
             COUNT(*) AS total_uploaded,
             COUNT(processed_date) AS total_processed,
@@ -537,23 +537,23 @@ def create_agg_tables(con):
                   / NULLIF(COUNT(processed_date), 0), 2) AS process_to_publish_pct,
             ROUND(SUM(CASE WHEN published_flag = true THEN 1 ELSE 0 END) * 100.0
                   / COUNT(*), 2) AS overall_pcr_pct
-        FROM frammer_dataset
-        GROUP BY frammer_workspace, company
+        FROM media_dataset
+        GROUP BY workspace, company
     """)
 
     con.execute("""
         CREATE OR REPLACE TABLE agg_output_type_summary AS
         SELECT
-            frammer_output_type,
+            ai_output_type,
             DATE_TRUNC('month', TRY_CAST(upload_date AS TIMESTAMP)) AS month,
             COUNT(*) AS video_count,
             ROUND(SUM(CAST(impressions AS DOUBLE)), 0) AS total_impressions,
             ROUND(AVG(total_watch_time_hours), 4) AS avg_watch_hours,
             SUM(CASE WHEN published_flag = true THEN 1 ELSE 0 END) AS published_count
-        FROM frammer_dataset
+        FROM media_dataset
         WHERE TRY_CAST(upload_date AS TIMESTAMP) IS NOT NULL
-        GROUP BY frammer_output_type, DATE_TRUNC('month', TRY_CAST(upload_date AS TIMESTAMP))
-        ORDER BY frammer_output_type, month
+        GROUP BY ai_output_type, DATE_TRUNC('month', TRY_CAST(upload_date AS TIMESTAMP))
+        ORDER BY ai_output_type, month
     """)
 
     con.execute("""
@@ -565,7 +565,7 @@ def create_agg_tables(con):
             COUNT(*) AS uploads,
             ROUND(SUM(video_duration_sec / 3600.0), 4) AS upload_hours,
             SUM(CASE WHEN published_flag = true THEN 1 ELSE 0 END) AS published_count
-        FROM frammer_dataset
+        FROM media_dataset
         WHERE TRY_CAST(upload_date AS TIMESTAMP) IS NOT NULL
         GROUP BY uploaded_by, team_name, DATE_TRUNC('week', TRY_CAST(upload_date AS TIMESTAMP))
         ORDER BY uploaded_by, week
@@ -581,9 +581,9 @@ def create_agg_tables(con):
 def validate(con):
     print("\nKPI spot checks:")
     print("  v_pcr:")
-    con.sql("SELECT frammer_workspace, pcr_pct FROM v_pcr").show()
+    con.sql("SELECT workspace, pcr_pct FROM v_pcr").show()
     print("  v_fsc:")
-    con.sql("SELECT frammer_workspace, upload_to_process_pct, process_to_publish_pct FROM v_fsc").show()
+    con.sql("SELECT workspace, upload_to_process_pct, process_to_publish_pct FROM v_fsc").show()
     print("  kpi_zsp rows:", con.execute("SELECT COUNT(*) FROM kpi_zsp").fetchone()[0])
     print("  kpi_cpdg rows:", con.execute("SELECT COUNT(*) FROM kpi_cpdg").fetchone()[0])
     print("\nAll tables:")

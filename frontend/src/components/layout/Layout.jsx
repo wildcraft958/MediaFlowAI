@@ -9,12 +9,15 @@
  */
 
 import React from 'react'
+import { useLocation } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import TopNav from './TopNav'
 import NLQButton from '../nlq/NLQButton'
 import NLQPanel from '../nlq/NLQPanel'
 
 export default function Layout({ children }) {
+  const { pathname } = useLocation()
+  const showNLQ = pathname !== '/admin'
   return (
     <div className="flex h-screen overflow-hidden bg-[#0a0a0a] text-white">
 
@@ -53,9 +56,9 @@ export default function Layout({ children }) {
         </main>
       </div>
 
-      {/* NLQ Floating Panel + Button — fixed position, must be outside any motion ancestor */}
-      <NLQPanel />
-      <NLQButton />
+      {/* NLQ Floating Panel + Button — hidden on Admin page to avoid duplicate chat UIs */}
+      {showNLQ && <NLQPanel />}
+      {showNLQ && <NLQButton />}
     </div>
   )
 }

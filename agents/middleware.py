@@ -1,5 +1,5 @@
 """
-Frammer AI agent middleware — input, output, and tool-call guardrails.
+MediaFlow AI agent middleware — input, output, and tool-call guardrails.
 
 These classes follow the AgentMiddleware pattern (before_agent / after_agent /
 wrap_tool_call hooks) but are invoked directly from LangGraph nodes rather than
@@ -30,6 +30,38 @@ _INJECTION_RE = re.compile(
     re.IGNORECASE,
 )
 
+# ── Tech name leakage patterns ───────────────────────────────────────────────
+_TECH_NAME_RE = re.compile(
+    r"\b(DuckDB|LangChain|LangGraph|Vertex\s*AI|Gemini|FastMCP|BigQuery|"
+    r"ChromaDB|FastAPI|uvicorn|Python|pandas|numpy)\b",
+    re.IGNORECASE,
+)
+
+_TECH_REPLACEMENTS = {
+    "duckdb": "our database",
+    "langchain": "our AI system",
+    "langgraph": "our AI system",
+    "vertex ai": "our AI system",
+    "vertexai": "our AI system",
+    "gemini": "our AI system",
+    "fastmcp": "our analytics engine",
+    "bigquery": "our database",
+    "chromadb": "our analytics engine",
+    "fastapi": "our analytics engine",
+    "uvicorn": "our analytics engine",
+    "python": "our analytics engine",
+    "pandas": "our analytics engine",
+    "numpy": "our analytics engine",
+}
+
+
+def _redact_tech_names(text: str) -> str:
+    """Replace technology names with generic terms."""
+    def _replace(match):
+        key = match.group(0).lower().strip()
+        return _TECH_REPLACEMENTS.get(key, "our analytics engine")
+    return _TECH_NAME_RE.sub(_replace, text)
+
 # ── Out-of-scope hard-block patterns ─────────────────────────────────────────
 _OUT_OF_SCOPE_RE = re.compile(
     r"\b(password|credit\s*card|ssn|social\s*security|bank\s*account|"
@@ -38,7 +70,7 @@ _OUT_OF_SCOPE_RE = re.compile(
 )
 
 
-class FrammerInputGuardrail:
+class MediaFlowInputGuardrail:
     """
     Before-agent hook: validates and sanitizes inbound user query.
     Checks: PII detection/redaction, prompt injection, out-of-scope requests.
@@ -75,7 +107,7 @@ class FrammerInputGuardrail:
             return {
                 **state,
                 "error": "Query blocked: out-of-scope or sensitive content detected.",
-                "narrative": "I can only answer questions about Frammer AI analytics data.",
+                "narrative": "I can only answer questions about MediaFlow AI analytics data.",
                 "input_guardrail_violations": violations + ["scope:blocked"],
                 "pii_redacted": bool(violations),
             }
@@ -88,7 +120,7 @@ class FrammerInputGuardrail:
         }
 
 
-class FrammerOutputGuardrail:
+class MediaFlowOutputGuardrail:
     """
     After-agent hook: validates agent narrative output.
     Checks: PII leakage in output, empty response.
@@ -112,6 +144,11 @@ class FrammerOutputGuardrail:
             narrative = _PHONE_RE.sub("[PHONE]", narrative)
             violations.append("output_pii:phone_leaked")
 
+        # Tech name leakage detection + redaction
+        if _TECH_NAME_RE.search(narrative):
+            narrative = _redact_tech_names(narrative)
+            violations.append("output:tech_name_leaked")
+
         # Empty narrative sanity check
         if not narrative.strip():
             narrative = "I was unable to generate a response. Please rephrase your question."
@@ -124,7 +161,7 @@ class FrammerOutputGuardrail:
         }
 
 
-class FrammerToolGuardrail:
+class MediaFlowToolGuardrail:
     """
     Wrap-tool-call hook: validates MCP tool inputs before execution.
     Blocks fire_alert unless hitl_decision == 'approve'.

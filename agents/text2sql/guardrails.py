@@ -77,7 +77,7 @@ _PG_CAST_PATTERN = re.compile(r"::[A-Za-z]")
 # Validation prompt — all rules live here, not in code
 # ---------------------------------------------------------------------------
 
-_VALIDATION_PROMPT = """You are a DuckDB SQL validator for the Frammer AI analytics platform.
+_VALIDATION_PROMPT = """You are a DuckDB SQL validator for the MediaFlow AI analytics platform.
 
 Evaluate the SQL below against the schema, dimension values, and DuckDB rules.
 Check every rule. Be precise — only flag genuine violations, not style issues.
@@ -86,7 +86,7 @@ Check every rule. Be precise — only flag genuine violations, not style issues.
 {sql}
 
 === SCHEMA ===
-Primary table: frammer_dataset
+Primary table: media_dataset
 Columns:
   video_id (VARCHAR), headline (VARCHAR), source (VARCHAR),
   published_flag (BOOLEAN), billable_flag (BOOLEAN),
@@ -96,22 +96,22 @@ Columns:
   ctr_percentage (DOUBLE), impressions (VARCHAR),
   likes (DOUBLE), comments (DOUBLE), shares (DOUBLE),
   total_watch_time_hours (DOUBLE), traffic_source (VARCHAR),
-  published_url (VARCHAR), frammer_workspace (VARCHAR),
+  published_url (VARCHAR), workspace (VARCHAR),
   uploaded_by (VARCHAR), team_name (VARCHAR), language (VARCHAR),
   input_type (VARCHAR), output_type (VARCHAR),
-  frammer_output_type (VARCHAR), published_platform (VARCHAR), company (VARCHAR)
+  ai_output_type (VARCHAR), published_platform (VARCHAR), company (VARCHAR)
 
-Valid views/tables (besides frammer_dataset):
+Valid views/tables (besides media_dataset):
   fact_video_events, kpi_zsp, kpi_cpdg, kpi_lpi,
   v_pcr, v_fsc, v_gr, v_opi, v_teu, v_ail, v_sac, v_ahy, v_edr,
   v_hthr, v_tsqi, v_pig, v_agv, v_pmi, v_mci, v_dcdr,
   agg_daily_summary, agg_channel_funnel, agg_output_type_summary, agg_user_activity
 
 === VALID DIMENSION VALUES ===
-frammer_workspace: WS-DIGITAL-NEWS, WS-ENTERTAINMENT, WS-TECH-ANALYSIS, WS-LIFESTYLE, WS-SPORTS-LIVE
+workspace: WS-DIGITAL-NEWS, WS-ENTERTAINMENT, WS-TECH-ANALYSIS, WS-LIFESTYLE, WS-SPORTS-LIVE
 language: English, Hindi
 input_type: interview, speech, debate, news_bulletin, special_report, press_conference, discussion_show
-frammer_output_type: key_moments, chapters, full_package, summary, my_key_moments
+ai_output_type: key_moments, chapters, full_package, summary, my_key_moments
 output_type: shorts, reels
 published_platform: Youtube, Instagram
 company: Company_A, Company_B
@@ -132,24 +132,24 @@ Boolean columns (published_flag, billable_flag) must compare with true/false, ne
 When SELECT mixes aggregate functions (COUNT, SUM, AVG, MAX, MIN) with bare non-aggregated
 column references, GROUP BY is required.
   EXCEPTION: SELECT COUNT(*) FROM ... with no other columns is always valid.
-  BAD:  SELECT frammer_workspace, COUNT(*) FROM frammer_dataset
-  GOOD: SELECT frammer_workspace, COUNT(*) FROM frammer_dataset GROUP BY frammer_workspace
-  GOOD: SELECT COUNT(*) FROM frammer_dataset   ← no GROUP BY needed
+  BAD:  SELECT workspace, COUNT(*) FROM media_dataset
+  GOOD: SELECT workspace, COUNT(*) FROM media_dataset GROUP BY workspace
+  GOOD: SELECT COUNT(*) FROM media_dataset   ← no GROUP BY needed
 
 [aggregation / having_without_groupby]
 HAVING clause requires GROUP BY.
-  BAD:  SELECT COUNT(*) FROM frammer_dataset HAVING COUNT(*) > 10
+  BAD:  SELECT COUNT(*) FROM media_dataset HAVING COUNT(*) > 10
 
 [filter / value_format_wrong]
 String literal values used in WHERE conditions for dimension columns must match the valid
 dimension values exactly (case-sensitive, exact spelling).
-  BAD:  WHERE frammer_workspace = 'sports-live'   (should be 'WS-SPORTS-LIVE')
-  BAD:  WHERE language = 'hindi'                  (should be 'Hindi')
-  GOOD: WHERE frammer_workspace = 'WS-SPORTS-LIVE'
+  BAD:  WHERE workspace = 'sports-live'   (should be 'WS-SPORTS-LIVE')
+  BAD:  WHERE language = 'hindi'          (should be 'Hindi')
+  GOOD: WHERE workspace = 'WS-SPORTS-LIVE'
 
 [schema_link / col_missing]
 All column names referenced in SELECT, WHERE, GROUP BY, ORDER BY, HAVING must exist in
-frammer_dataset or the view/table being queried. Do not flag SQL functions, aliases,
+media_dataset or the view/table being queried. Do not flag SQL functions, aliases,
 or subquery results as missing columns.
 
 === RESPONSE INSTRUCTIONS ===
