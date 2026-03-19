@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.11-slim-bookworm
 
 # System deps for WeasyPrint (PDF generation) + curl for health probes
 RUN apt-get update && apt-get install -y --no-install-recommends \
