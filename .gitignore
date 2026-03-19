@@ -35,9 +35,6 @@ Thumbs.db
 .env
 *.env
 
-# ChromaDB local store (rebuilt on first run)
-.chromadb/
-
 # GCP service account keys — never commit
 *.json
 !package.json

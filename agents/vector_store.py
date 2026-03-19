@@ -1,6 +1,11 @@
 """
-ChromaDB vector store with Vertex AI embeddings.
-Replaces sentence-transformers — all embeddings run on Vertex AI (text-embedding-004).
+Vector store backed by Google BigQuery Vector Search.
+- Dataset:  agrowise-192e3.frammer_vectors
+- Tables:   kpi_embeddings, dimension_embeddings
+- Embeddings: Vertex AI text-embedding-005
+
+Documents are upserted on first call and cached for the process lifetime.
+BigQuery handles persistence — no local files, no external DB.
 """
 from __future__ import annotations
 import pathlib
@@ -9,106 +14,98 @@ from api.llm import GCP_PROJECT, GCP_REGION
 
 _ROOT = pathlib.Path(__file__).parents[1]
 
-_chroma_client = None
-_kpi_collection = None
-_dim_collection = None
+BQ_DATASET  = "frammer_vectors"
+BQ_LOCATION = "US"
+EMBED_MODEL = "text-embedding-005"
 
-EMBEDDING_MODEL = "text-embedding-004"  # Vertex AI text embedding model
-
-
-def _get_client():
-    global _chroma_client
-    if _chroma_client is None:
-        import chromadb
-        _chroma_client = chromadb.PersistentClient(path=str(_ROOT / ".chromadb"))
-    return _chroma_client
+_kpi_store = None
+_dim_store = None
 
 
-def _get_embedding_fn():
-    """Vertex AI embedding function for ChromaDB."""
-    from chromadb import EmbeddingFunction, Embeddings
+def _get_embeddings():
     from langchain_google_vertexai import VertexAIEmbeddings
-
-    class VertexEmbeddingFn(EmbeddingFunction):
-        def __init__(self):
-            self._model = VertexAIEmbeddings(
-                model_name=EMBEDDING_MODEL,
-                project=GCP_PROJECT,
-                location=GCP_REGION,
-            )
-
-        def __call__(self, input: list[str]) -> Embeddings:
-            return self._model.embed_documents(input)
-
-    return VertexEmbeddingFn()
-
-
-def get_kpi_collection():
-    global _kpi_collection
-    if _kpi_collection is not None:
-        return _kpi_collection
-    client = _get_client()
-    ef = _get_embedding_fn()
-    _kpi_collection = client.get_or_create_collection(
-        name="kpi_definitions_vertex", embedding_function=ef
+    return VertexAIEmbeddings(
+        model_name=EMBED_MODEL,
+        project=GCP_PROJECT,
+        location=GCP_REGION,
     )
-    if _kpi_collection.count() == 0:
-        _seed_kpis(_kpi_collection)
-    return _kpi_collection
 
 
-def get_dim_collection():
-    global _dim_collection
-    if _dim_collection is not None:
-        return _dim_collection
-    client = _get_client()
-    ef = _get_embedding_fn()
-    _dim_collection = client.get_or_create_collection(
-        name="dimension_values_vertex", embedding_function=ef
-    )
-    if _dim_collection.count() == 0:
-        _seed_dimensions(_dim_collection)
-    return _dim_collection
+def _get_kpi_store():
+    global _kpi_store
+    if _kpi_store is not None:
+        return _kpi_store
 
+    from langchain_google_community.bq_storage_vectorstores.bigquery import BigQueryVectorStore
 
-def _seed_kpis(collection):
     with open(_ROOT / "config" / "metric_registry.yaml") as f:
         registry = yaml.safe_load(f)["metrics"]
-    docs, ids, metas = [], [], []
+
+    texts, metadatas = [], []
     for acronym, kpi in registry.items():
-        text = f"{kpi['name']} ({acronym}): {kpi['description']}"
-        docs.append(text)
-        ids.append(f"kpi_{acronym}")
-        metas.append({"acronym": acronym, "page": kpi.get("dashboard_page", "")})
-    collection.add(documents=docs, ids=ids, metadatas=metas)
+        texts.append(f"{kpi['name']} ({acronym}): {kpi['description']}")
+        metadatas.append({
+            "acronym": acronym,
+            "page": kpi.get("dashboard_page", ""),
+            "doc_type": "kpi",
+        })
+
+    store = BigQueryVectorStore(
+        project_id=GCP_PROJECT,
+        dataset_name=BQ_DATASET,
+        table_name="kpi_embeddings",
+        location=BQ_LOCATION,
+        embedding=_get_embeddings(),
+    )
+    store.add_texts(texts=texts, metadatas=metadatas)
+    _kpi_store = store
+    return _kpi_store
 
 
-def _seed_dimensions(collection):
+def _get_dim_store():
+    global _dim_store
+    if _dim_store is not None:
+        return _dim_store
+
+    from langchain_google_community.bq_storage_vectorstores.bigquery import BigQueryVectorStore
+
     with open(_ROOT / "config" / "dimensions.yaml") as f:
         dims = yaml.safe_load(f)["dimensions"]
-    docs, ids, metas = [], [], []
+
+    texts, metadatas = [], []
     for dim_name, dim_data in dims.items():
-        values = dim_data.get("values", [])
-        if not values:
-            continue
-        for val in values:
-            text = f"{dim_name}: {val} — {dim_data.get('description', '')}"
-            safe_val = str(val).replace(" ", "_").replace("-", "_")
-            docs.append(text)
-            ids.append(f"dim_{dim_name}_{safe_val}")
-            metas.append({"dimension": dim_name, "value": str(val)})
-    collection.add(documents=docs, ids=ids, metadatas=metas)
+        for val in dim_data.get("values", []):
+            texts.append(f"{dim_name}: {val} — {dim_data.get('description', '')}")
+            metadatas.append({
+                "dimension": dim_name,
+                "value": str(val),
+                "doc_type": "dimension",
+            })
+
+    store = BigQueryVectorStore(
+        project_id=GCP_PROJECT,
+        dataset_name=BQ_DATASET,
+        table_name="dimension_embeddings",
+        location=BQ_LOCATION,
+        embedding=_get_embeddings(),
+    )
+    store.add_texts(texts=texts, metadatas=metadatas)
+    _dim_store = store
+    return _dim_store
 
 
 def query_kpi_similarity(query: str, n_results: int = 3) -> list[dict]:
-    """Returns top-n KPI matches with distances."""
-    coll = get_kpi_collection()
-    results = coll.query(query_texts=[query], n_results=min(n_results, coll.count()))
-    out = []
-    for doc, meta, dist in zip(
-        results["documents"][0],
-        results["metadatas"][0],
-        results["distances"][0],
-    ):
-        out.append({"document": doc, "acronym": meta["acronym"], "distance": dist})
-    return out
+    """
+    Returns top-n KPI matches from BigQuery Vector Search.
+    Each result: {acronym, document, score}
+    """
+    store = _get_kpi_store()
+    results = store.similarity_search_with_score(query, k=n_results)
+    return [
+        {
+            "acronym": doc.metadata["acronym"],
+            "document": doc.page_content,
+            "score": float(score),
+        }
+        for doc, score in results
+    ]
