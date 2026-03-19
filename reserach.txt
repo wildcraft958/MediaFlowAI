@@ -1,0 +1,95 @@
+# Research Notes — Frammer AI Analytics Dashboard
+# Source: Early ideation chat logs (WhatsApp + Claude conversations)
+# Status: Reference only — architecture decisions finalized in agents/PLAN.md
+
+---
+
+## Key Insights From Research Phase
+
+### 1. Funnel (3-stage, not 2)
+- Uploaded: 4,453 → Created: 14,916 → Published: 111
+- 3.35× multiplier (Upload→Create): AI working correctly
+- Count publish rate: 0.74% | Duration publish rate: 0.32% (worse — nobody else computes this)
+- 1,350.8 hours of AI-processed content never reached a viewer
+
+### 2. Data Quality Findings (no other team will have these)
+- 99.3% Unknown team names — systemic pipeline failure
+- 68% of published videos have no URL/platform recorded
+- QA contamination: 29.2% of all created content (QA-Purushottam = 2nd biggest "user")
+- Channel label mismatch: CLIENT_1_combined ≠ channel-wise-publishing.csv (same numbers, different labels)
+- My Key Moments: 2.59% publish rate vs 0.74% avg — 3.5× better
+
+### 3. Duration Analysis (the missing axis)
+- Avg created clip: 5.5 min | Avg published clip: 2.5 min
+- Clients only publish SHORT clips (Reels, Shorts, My Key Moments)
+- Long-form outputs ignored: Chapters 0.10%, Summaries 0.12%
+- COUNT ↔ HOURS toggle required on every chart
+
+### 4. Platform Coverage Index (Frammer's real value prop)
+- metric: total_platform_publishes / unique_published_videos
+- Channel D: ~5.0 (multi-platform, ideal client)
+- Channel A: ~1.3 (mostly single-platform)
+- This IS the value proposition of Frammer working vs not working
+
+### 5. Multi-tenant Signal
+- CLIENT_1_combined_data_... naming signals B2B multi-tenant platform
+- Need client switcher pill in nav
+- CLIENT_2 (Entertainment): 1.7% publish rate benchmark
+- CLIENT_3 (Sports): 0.24% publish rate (large client, no SLA)
+
+### 6. Architecture Decisions (final)
+Stack: LangGraph + LangChain + langchain-mcp-adapters → MotherDuck MCP → DuckDB
+Agent graph: router → interpret → execute → narrate (4 nodes)
+Custom MCP servers via FastMCP: kpi_server, alert_server, report_server
+SQL pattern: SQL-of-Thought (arXiv:2509.00581) — local ref in draft/SQL-of-Thought-main/
+Forecasting: Chronos-Bolt-Tiny (9M params, zero-shot) for upload counts
+Anomaly detection: River HalfSpaceTrees (real-time, per-event)
+Personas: Leadership (CEO/Manager) | Creator (Editor/Uploader)
+Extensibility: YAML metric registry — add KPI via YAML entry + SQL file, zero code change
+
+### 7. Ambient Agent Architecture
+3 always-running agents:
+- Monitor (cron 6h): publish rate vs baseline → Notify/Review to Agent Inbox
+- Intake (new row trigger): missing team_name, missing URL → Question to inbox
+- Reporter (cron 1st of month): generate_client_brief → Review → send on approval
+
+HITL modes (Agent Inbox UI):
+- Notify: fire alert, no approval
+- Question: ask user before external notification
+- Review: surface insight for human decision
+
+### 8. The 10 Locked Insights (for deck/demo)
+1. 0.74% count / 0.32% hours — dual publish rate headline
+2. 3.35× clip multiplier — AI works, distribution doesn't
+3. 1,350.8 hours of content, zero audience
+4. My Key Moments: 2.59% (3.5× avg) — best output type
+5. Channel D: 5 platforms, 3.04h published — ideal client pattern
+6. Hindi: 0.33% vs English 1.03% — 3.1× language gap
+7. 26.7% QA contamination — without filtering, all metrics are lies
+8. 99.3% Unknown team name — pipeline never writes back
+9. Feb 2026: volume spike + rate collapse — growth without workflow readiness
+10. discussion-show: 3.80% best rate — highest-value content type, least processed
+
+### 9. Competitive Positioning
+- Power BI team: will get funnel wrong, no NLQ, score ~64
+- GPT-over-CSV team: hallucinated aggregations, no filter chips, fail NLQ criterion
+- Hardcoded React team: can't add new dimension axis — extensibility criterion gone
+- Us: one YAML entry per new KPI, 4 LangGraph nodes visible in thought process panel
+
+### 10. Synthetic Data Plan (6 datasets)
+1. Post-publish engagement: views/likes/shares/watch_time per published video
+2. Processing timestamps: processing_lag_minutes per video (constrained to real monthly totals)
+3. CLIENT_2 + CLIENT_3: multi-tenant benchmark data
+4. Video Intelligence metadata: detected_topics, detected_faces, dominant_emotion
+5. News event calendar: explains zero-publish months (editorial context)
+6. Channel onboarding metadata: Tier=Enterprise/Standard/Trial, CSM assigned/not
+
+### 11. References Used
+- AWS ML Blog: LangGraph + Strands financial analysis agent
+- arXiv:2509.00581: SQL-of-Thought multi-agentic Text-to-SQL
+- arXiv:2412.01490: Spark Agents 5-generic-tools pattern
+- github.com/motherduckdb/mcp-server-motherduck
+- github.com/langchain-ai/ambient-agent-101
+- Chronos-Bolt paper (Amazon, Apache 2.0)
+- River documentation: riverml.xyz
+- Frammer website: frammer.com (ex-NDTV founders, SOC-2, Lumikai funded)
