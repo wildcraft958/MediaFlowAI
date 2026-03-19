@@ -39,8 +39,8 @@
 SELECT
     frammer_workspace,
     COUNT(*) AS total_uploaded,
-    SUM(CASE WHEN published_flag = 'True' THEN 1 ELSE 0 END) AS total_published,
-    ROUND(SUM(CASE WHEN published_flag = 'True' THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 2) AS pcr_pct
+    SUM(CASE WHEN published_flag = true THEN 1 ELSE 0 END) AS total_published,
+    ROUND(SUM(CASE WHEN published_flag = true THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 2) AS pcr_pct
 FROM frammer_dataset
 GROUP BY frammer_workspace
 ```
@@ -53,9 +53,9 @@ SELECT
     frammer_workspace,
     COUNT(*) AS uploaded,
     COUNT(processed_date) AS processed,
-    SUM(CASE WHEN published_flag = 'True' THEN 1 ELSE 0 END) AS published,
+    SUM(CASE WHEN published_flag = true THEN 1 ELSE 0 END) AS published,
     ROUND(COUNT(processed_date) * 100.0 / COUNT(*), 2) AS upload_to_process_pct,
-    ROUND(SUM(CASE WHEN published_flag = 'True' THEN 1 ELSE 0 END) * 100.0
+    ROUND(SUM(CASE WHEN published_flag = true THEN 1 ELSE 0 END) * 100.0
           / NULLIF(COUNT(processed_date), 0), 2) AS process_to_publish_pct
 FROM frammer_dataset
 GROUP BY frammer_workspace
@@ -67,12 +67,12 @@ GROUP BY frammer_workspace
 ```sql
 -- Monthly uploads growth
 SELECT
-    DATE_TRUNC('month', upload_date::TIMESTAMP) AS month,
+    DATE_TRUNC('month', TRY_CAST(upload_date AS TIMESTAMP)) AS month,
     COUNT(*) AS uploads,
-    LAG(COUNT(*)) OVER (ORDER BY DATE_TRUNC('month', upload_date::TIMESTAMP)) AS prev_month,
-    ROUND((COUNT(*) - LAG(COUNT(*)) OVER (ORDER BY DATE_TRUNC('month', upload_date::TIMESTAMP)))
+    LAG(COUNT(*)) OVER (ORDER BY DATE_TRUNC('month', TRY_CAST(upload_date AS TIMESTAMP))) AS prev_month,
+    ROUND((COUNT(*) - LAG(COUNT(*)) OVER (ORDER BY DATE_TRUNC('month', TRY_CAST(upload_date AS TIMESTAMP))))
           * 100.0 / NULLIF(LAG(COUNT(*)) OVER (
-              ORDER BY DATE_TRUNC('month', upload_date::TIMESTAMP)), 0), 2) AS mom_growth_pct
+              ORDER BY DATE_TRUNC('month', TRY_CAST(upload_date AS TIMESTAMP))), 0), 2) AS mom_growth_pct
 FROM frammer_dataset
 GROUP BY 1
 ORDER BY 1
@@ -89,8 +89,8 @@ SELECT
     COUNT(*) AS orphaned_count,
     ROUND(SUM(video_duration_sec / 3600.0), 2) AS orphaned_hours
 FROM frammer_dataset
-WHERE published_flag = 'False'
-  AND upload_date::TIMESTAMP < NOW() - INTERVAL '30 days'
+WHERE published_flag = false
+  AND TRY_CAST(upload_date AS TIMESTAMP) < NOW() - INTERVAL '30 days'
 GROUP BY frammer_workspace, team_name, input_type
 ORDER BY orphaned_hours DESC
 ```
@@ -111,8 +111,8 @@ FROM (
         uploaded_by,
         team_name,
         EXTRACT(EPOCH FROM (
-            upload_date::TIMESTAMP
-            - LAG(upload_date::TIMESTAMP) OVER (PARTITION BY uploaded_by ORDER BY upload_date)
+            TRY_CAST(upload_date AS TIMESTAMP)
+            - LAG(TRY_CAST(upload_date AS TIMESTAMP)) OVER (PARTITION BY uploaded_by ORDER BY upload_date)
         )) / 3600.0 AS gap_hours
     FROM frammer_dataset
 ) sub
@@ -129,7 +129,7 @@ SELECT
     frammer_output_type,
     ROUND(SUM(impressions) / NULLIF(SUM(video_duration_sec / 3600.0), 0), 2) AS impressions_per_source_hour
 FROM frammer_dataset
-WHERE published_flag = 'True'
+WHERE published_flag = true
 GROUP BY frammer_workspace, frammer_output_type
 ORDER BY impressions_per_source_hour DESC
 ```
@@ -141,7 +141,7 @@ ORDER BY impressions_per_source_hour DESC
 # Requires Python — Z-score normalization then min-max scale
 import duckdb, pandas as pd, numpy as np
 
-df = duckdb.sql("SELECT video_id, ctr_percentage, avg_view_percentage FROM frammer_dataset WHERE published_flag='True'").df()
+df = duckdb.sql("SELECT video_id, ctr_percentage, avg_view_percentage FROM frammer_dataset WHERE published_flag=true").df()
 df = df.dropna(subset=['ctr_percentage', 'avg_view_percentage'])
 
 df['z_ctr'] = (df['ctr_percentage'] - df['ctr_percentage'].mean()) / df['ctr_percentage'].std()
@@ -160,7 +160,7 @@ SELECT
     input_type,
     ROUND(SUM(total_watch_time_hours) * 60.0 / NULLIF(SUM(subscribers_gained), 0), 2) AS minutes_per_subscriber
 FROM frammer_dataset
-WHERE published_flag = 'True'
+WHERE published_flag = true
 GROUP BY frammer_workspace, input_type
 ORDER BY minutes_per_subscriber ASC
 ```
@@ -174,7 +174,7 @@ SELECT
     frammer_output_type,
     ROUND(SUM(total_watch_time_hours) / NULLIF(SUM(video_duration_sec), 0), 6) AS watch_hours_per_source_second
 FROM frammer_dataset
-WHERE published_flag = 'True'
+WHERE published_flag = true
 GROUP BY frammer_workspace, frammer_output_type
 ```
 
@@ -187,7 +187,7 @@ SELECT
     input_type,
     ROUND(SUM(likes + comments + shares) * 100.0 / NULLIF(SUM(impressions), 0), 4) AS edr_pct
 FROM frammer_dataset
-WHERE published_flag = 'True'
+WHERE published_flag = true
 GROUP BY frammer_workspace, input_type
 ORDER BY edr_pct DESC
 ```
@@ -203,7 +203,7 @@ SELECT
     frammer_workspace,
     ROUND(ctr_percentage * avg_view_percentage * LOG10(impressions), 4) AS hthr_score
 FROM frammer_dataset
-WHERE published_flag = 'True'
+WHERE published_flag = true
   AND impressions > 0
 ORDER BY hthr_score DESC
 ```
@@ -216,7 +216,7 @@ import duckdb, pandas as pd, numpy as np
 
 df = duckdb.sql("""
     SELECT video_id, headline, company, impressions
-    FROM frammer_dataset WHERE published_flag='True'
+    FROM frammer_dataset WHERE published_flag=true
 """).df().dropna(subset=['impressions'])
 
 df['zsp'] = df.groupby('company')['impressions'].transform(
@@ -236,7 +236,7 @@ SELECT
     ROUND(AVG(avg_view_percentage), 2) AS avg_retention_pct,
     ROUND(AVG(subscribers_gained), 2) AS avg_subscribers
 FROM frammer_dataset
-WHERE published_flag = 'True' AND traffic_source != ''
+WHERE published_flag = true AND traffic_source != ''
 GROUP BY traffic_source
 ORDER BY avg_watch_hours DESC
 ```
@@ -252,7 +252,7 @@ SELECT
     ROUND(AVG(ctr_percentage), 2) AS avg_ctr,
     ROUND(AVG(avg_view_percentage), 2) AS avg_retention
 FROM frammer_dataset
-WHERE published_flag = 'True' AND published_platform != ''
+WHERE published_flag = true AND published_platform != ''
 GROUP BY published_platform
 ```
 
@@ -262,17 +262,17 @@ GROUP BY published_platform
 ```sql
 SELECT
     company,
-    DATE_TRUNC('month', upload_date::TIMESTAMP) AS month,
+    DATE_TRUNC('month', TRY_CAST(upload_date AS TIMESTAMP)) AS month,
     SUM(subscribers_gained) AS monthly_subscribers,
     LAG(SUM(subscribers_gained)) OVER (PARTITION BY company
-        ORDER BY DATE_TRUNC('month', upload_date::TIMESTAMP)) AS prev_month_subs,
+        ORDER BY DATE_TRUNC('month', TRY_CAST(upload_date AS TIMESTAMP))) AS prev_month_subs,
     ROUND((SUM(subscribers_gained) - LAG(SUM(subscribers_gained)) OVER (
-        PARTITION BY company ORDER BY DATE_TRUNC('month', upload_date::TIMESTAMP)))
+        PARTITION BY company ORDER BY DATE_TRUNC('month', TRY_CAST(upload_date AS TIMESTAMP))))
         * 100.0 / NULLIF(LAG(SUM(subscribers_gained)) OVER (
-        PARTITION BY company ORDER BY DATE_TRUNC('month', upload_date::TIMESTAMP)), 0), 2)
+        PARTITION BY company ORDER BY DATE_TRUNC('month', TRY_CAST(upload_date AS TIMESTAMP))), 0), 2)
     AS mom_growth_pct
 FROM frammer_dataset
-GROUP BY company, DATE_TRUNC('month', upload_date::TIMESTAMP)
+GROUP BY company, DATE_TRUNC('month', TRY_CAST(upload_date AS TIMESTAMP))
 ORDER BY company, month
 ```
 
@@ -282,18 +282,18 @@ ORDER BY company, month
 ```sql
 SELECT
     frammer_workspace,
-    DATE_TRUNC('week', upload_date::TIMESTAMP) AS week,
+    DATE_TRUNC('week', TRY_CAST(upload_date AS TIMESTAMP)) AS week,
     SUM(impressions) AS weekly_impressions,
     LAG(SUM(impressions)) OVER (PARTITION BY frammer_workspace
-        ORDER BY DATE_TRUNC('week', upload_date::TIMESTAMP)) AS prev_week,
+        ORDER BY DATE_TRUNC('week', TRY_CAST(upload_date AS TIMESTAMP))) AS prev_week,
     ROUND((SUM(impressions) - LAG(SUM(impressions)) OVER (
-        PARTITION BY frammer_workspace ORDER BY DATE_TRUNC('week', upload_date::TIMESTAMP)))
+        PARTITION BY frammer_workspace ORDER BY DATE_TRUNC('week', TRY_CAST(upload_date AS TIMESTAMP))))
         * 100.0 / NULLIF(LAG(SUM(impressions)) OVER (
-        PARTITION BY frammer_workspace ORDER BY DATE_TRUNC('week', upload_date::TIMESTAMP)), 0), 2)
+        PARTITION BY frammer_workspace ORDER BY DATE_TRUNC('week', TRY_CAST(upload_date AS TIMESTAMP))), 0), 2)
     AS wow_pmi
 FROM frammer_dataset
-WHERE published_flag = 'True'
-GROUP BY frammer_workspace, DATE_TRUNC('week', upload_date::TIMESTAMP)
+WHERE published_flag = true
+GROUP BY frammer_workspace, DATE_TRUNC('week', TRY_CAST(upload_date AS TIMESTAMP))
 ORDER BY frammer_workspace, week
 ```
 
@@ -307,9 +307,9 @@ df = duckdb.sql("""
     SELECT language,
            AVG(total_watch_time_hours) AS avg_watch_hours,
            SUM(subscribers_gained) * 1000.0 / NULLIF(SUM(impressions), 0) AS sub_efficiency,
-           COUNT(*) * 1.0 / (SELECT COUNT(*) FROM frammer_dataset WHERE published_flag='True') AS vol_share
+           COUNT(*) * 1.0 / (SELECT COUNT(*) FROM frammer_dataset WHERE published_flag=true) AS vol_share
     FROM frammer_dataset
-    WHERE published_flag='True'
+    WHERE published_flag=true
     GROUP BY language
 """).df()
 
@@ -337,7 +337,7 @@ SELECT
          CASE WHEN input_type != '' THEN 1 ELSE 0 END) / 4.0
     ) * 100, 2) AS overall_mci_pct
 FROM frammer_dataset
-WHERE published_flag = 'True'
+WHERE published_flag = true
 GROUP BY frammer_workspace
 ```
 
@@ -352,8 +352,8 @@ SELECT
 FROM (
     SELECT
         video_id,
-        COUNT(*) OVER (PARTITION BY headline, DATE_TRUNC('day', upload_date::TIMESTAMP)) AS occurrence_count,
-        CASE WHEN COUNT(*) OVER (PARTITION BY headline, DATE_TRUNC('day', upload_date::TIMESTAMP)) > 1
+        COUNT(*) OVER (PARTITION BY headline, DATE_TRUNC('day', TRY_CAST(upload_date AS TIMESTAMP))) AS occurrence_count,
+        CASE WHEN COUNT(*) OVER (PARTITION BY headline, DATE_TRUNC('day', TRY_CAST(upload_date AS TIMESTAMP))) > 1
              THEN 1 ELSE 0 END AS dup_flag
     FROM frammer_dataset
 ) sub

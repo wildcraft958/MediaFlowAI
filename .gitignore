@@ -19,6 +19,7 @@ env/
 *.db
 *.sqlite
 *.sqlite3
+frammer.duckdb
 
 # OS
 .DS_Store
@@ -33,3 +34,8 @@ Thumbs.db
 # Env
 .env
 *.env
+
+# Frontend build artifacts
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/

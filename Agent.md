@@ -196,7 +196,7 @@ Exposes DuckDB directly — no custom wiring needed.
 ## 5. Dashboard Structure (5 tabs)
 
 ### Tab 1: Executive Summary
-- Dual headline: 0.74% by count | 0.32% by hours (side by side)
+- Dual headline: 69.8% overall PCR | workspace range 38–92% (side by side)
 - 3-stage funnel overview (uploaded → processed → published)
 - Platform Coverage Index per workspace
 - Agent Inbox widget (pending HITL items)
@@ -217,8 +217,8 @@ Exposes DuckDB directly — no custom wiring needed.
 
 ### Tab 4: Publish Metrics + Funnel
 - Output type distribution + publish rate per type
-- Input type performance (discussion-show: 3.80% best, least processed)
-- My Key Moments highlight (2.59% vs 0.74% platform avg)
+- Input type performance breakdown by frammer_output_type publish conversion
+- My Key Moments highlight (64.6% PCR vs 70.9% summary — lowest converter, investigation hook)
 - CPDG, SAC, AHY, EDR, HTHR, TSQI, PIG per content type
 
 ### Tab 5: Video Explorer

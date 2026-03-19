@@ -165,10 +165,10 @@ class TestComputeProcessedDate:
 
 class TestAssignFrammerWorkspace:
     def test_company_b_reacts_returns_correct_workspace(self):
-        assert assign_frammer_workspace("Company_B", "Reacts") == "WS-BR-Reacts"
+        assert assign_frammer_workspace("Company_B", "Reacts") == "WS-DIGITAL-NEWS"
 
     def test_company_a_music_returns_correct_workspace(self):
-        assert assign_frammer_workspace("company_A", "Music") == "WS-AM-Music"
+        assert assign_frammer_workspace("company_A", "Music") == "WS-ENTERTAINMENT"
 
     def test_all_defined_pairs_return_ws_prefixed_string(self):
         for (company, team), ws in TEAM_WORKSPACE.items():

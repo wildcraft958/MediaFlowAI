@@ -121,13 +121,56 @@ INPUT_OUTPUT_WEIGHTS: dict[str, dict[str, float]] = {
     },
 }
 
+# Platform metric columns that only exist for published videos.
+# Cleared to NaN when a row is flipped published → unpublished.
+PUBLISH_METRIC_COLS: list[str] = [
+    "output_type", "published_platform", "published_url",
+    "avg_view_duration_sec", "avg_view_percentage", "subscribers_gained",
+    "traffic_source", "ctr_percentage", "impressions",
+    "likes", "comments", "shares", "total_watch_time_hours",
+]
+
+# Target publish-conversion rates per workspace.
+# Creates the channel-level variance the PS (Section 6C) requires:
+# "Which channels process high volume but publish low?"
+WORKSPACE_TARGET_RATES: dict[str, float] = {
+    "WS-DIGITAL-NEWS":  0.95,  # top performer — news content ships fast
+    "WS-ENTERTAINMENT": 0.82,  # healthy — solid editorial pipeline
+    "WS-TECH-ANALYSIS": 0.68,  # moderate — tech pieces need review
+    "WS-LIFESTYLE":     0.52,  # weak — quality is variable, many held back
+    "WS-SPORTS-LIVE":   0.38,  # lowest — live clips go stale before approval
+}
+
 # (company, team) → Frammer workspace identifier
+# Uses original team names from Corrected_dataset.csv (before rename step)
 TEAM_WORKSPACE: dict[tuple[str, str], str] = {
-    ("Company_B", "Reacts"):  "WS-BR-Reacts",
-    ("company_A", "Music"):   "WS-AM-Music",
-    ("company_A", "Tech"):    "WS-AT-Tech",
-    ("company_A", "Gaming"):  "WS-AG-Gaming",
-    ("company_A", "Vlog"):    "WS-AV-Vlog",
+    ("Company_B", "Reacts"):  "WS-DIGITAL-NEWS",
+    ("company_A", "Music"):   "WS-ENTERTAINMENT",
+    ("company_A", "Tech"):    "WS-TECH-ANALYSIS",
+    ("company_A", "Gaming"):  "WS-SPORTS-LIVE",
+    ("company_A", "Vlog"):    "WS-LIFESTYLE",
+}
+
+# B2B-aligned label maps (PS alignment — replaces YouTube-creator vocabulary)
+# Applied AFTER workspace assignment so workspace keys still resolve correctly.
+TEAM_NAME_MAP: dict[str, str] = {
+    "Reacts":  "Digital_News",
+    "Music":   "Entertainment",
+    "Tech":    "Tech_Analysis",
+    "Gaming":  "Sports_Live",
+    "Vlog":    "Lifestyle",
+}
+
+USER_NAME_MAP: dict[str, str] = {
+    "user1_reacts":    "content_editor_01",
+    "user2_music":     "content_editor_02",
+    "user3_tech_vlog": "content_editor_03",
+    "user4_gaming":    "content_editor_04",
+}
+
+COMPANY_NAME_MAP: dict[str, str] = {
+    "company_A": "Company_A",   # fix inconsistent casing from source data
+    "Company_B": "Company_B",
 }
 
 
@@ -165,10 +208,54 @@ def assign_frammer_workspace(company: str, team_name: str) -> str:
     key = (company, team_name)
     if key in TEAM_WORKSPACE:
         return TEAM_WORKSPACE[key]
-    # Fallback: derive from company + team initials
     co = company[:2].upper()
     tm = team_name[:3].upper()
     return f"WS-{co}-{tm}"
+
+
+def rename_labels(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Rename team names, user names, and fix company casing for B2B alignment.
+    Must be called AFTER frammer_workspace is assigned (workspace keys use
+    original source names).
+    """
+    out = df.copy()
+    out["team_name"]   = out["team_name"].map(TEAM_NAME_MAP).fillna(out["team_name"])
+    out["uploaded_by"] = out["uploaded_by"].map(USER_NAME_MAP).fillna(out["uploaded_by"])
+    out["company"]     = out["company"].map(COMPANY_NAME_MAP).fillna(out["company"])
+    return out
+
+
+def adjust_publish_rates(df: pd.DataFrame, rng: np.random.Generator) -> pd.DataFrame:
+    """
+    Introduce channel-level variance in publish-conversion rates (PS Section 6C).
+
+    For each workspace: if currently published > target count, flip the excess
+    rows to unpublished and clear their platform metrics.
+    Originally unpublished rows are never modified.
+    Seeded via rng for reproducibility.
+
+    Handles both boolean and string representations of published_flag.
+    """
+    out = df.copy()
+    # published_flag is always boolean at this point (normalised in enrich_dataset)
+    for ws, target_rate in WORKSPACE_TARGET_RATES.items():
+        ws_mask  = out["frammer_workspace"] == ws
+        pub_mask = ws_mask & out["published_flag"]
+        n_ws     = int(ws_mask.sum())
+        n_target = round(n_ws * target_rate)
+        n_pub    = int(pub_mask.sum())
+
+        if n_pub > n_target:
+            to_flip = rng.choice(
+                out[pub_mask].index.to_numpy(), size=n_pub - n_target, replace=False
+            )
+            out.loc[to_flip, "published_flag"] = False
+            for col in PUBLISH_METRIC_COLS:
+                if col in out.columns:
+                    out.loc[to_flip, col] = np.nan
+
+    return out
 
 
 # ── Main enrichment ────────────────────────────────────────────────────────────
@@ -180,6 +267,11 @@ def enrich_dataset(df: pd.DataFrame, seed: int = 42) -> pd.DataFrame:
     """
     rng = np.random.default_rng(seed)
     out = df.copy()
+
+    # 0. Normalise published_flag to Python bool (source may be str 'True'/'False')
+    out["published_flag"] = out["published_flag"].map(
+        lambda x: x if isinstance(x, bool) else str(x).strip().lower() == "true"
+    )
 
     # 1. Overwrite input_type with PS-aligned vocabulary (team-stratified)
     out["input_type"] = [
@@ -198,6 +290,7 @@ def enrich_dataset(df: pd.DataFrame, seed: int = 42) -> pd.DataFrame:
     ]
 
     # 4. Add frammer_workspace — replaces the misused 'channel' column
+    #    (must happen before rename_labels so workspace keys resolve correctly)
     out["frammer_workspace"] = [
         assign_frammer_workspace(c, t)
         for c, t in zip(out["company"], out["team_name"])
@@ -205,6 +298,12 @@ def enrich_dataset(df: pd.DataFrame, seed: int = 42) -> pd.DataFrame:
 
     # 5. Drop original 'channel' column (it duplicated published_platform)
     out = out.drop(columns=["channel"])
+
+    # 6. Rename team/user/company labels to B2B media vocabulary
+    out = rename_labels(out)
+
+    # 7. Introduce channel-level publish variance (PS Section 6C requirement)
+    out = adjust_publish_rates(out, rng)
 
     return out
 

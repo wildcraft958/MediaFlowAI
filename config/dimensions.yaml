@@ -1,0 +1,87 @@
+dimensions:
+  workspace:
+    source_column: frammer_workspace
+    dim_table: dim_workspace
+    description: "Client workspace / channel identifier"
+    cardinality: 5
+    values: [WS-DIGITAL-NEWS, WS-ENTERTAINMENT, WS-TECH-ANALYSIS, WS-LIFESTYLE, WS-SPORTS-LIVE]
+    filter_api_param: workspace
+
+  company:
+    source_column: company
+    dim_table: dim_workspace
+    description: "Parent company that owns the workspace"
+    cardinality: 2
+    values: [Company_A, Company_B]
+    filter_api_param: company
+
+  team:
+    source_column: team_name
+    dim_table: dim_team
+    description: "Editorial team responsible for content"
+    cardinality: 5
+    values: [Digital_News, Entertainment, Tech_Analysis, Sports_Live, Lifestyle]
+    filter_api_param: team
+    workspace_mapping:
+      Digital_News: WS-DIGITAL-NEWS
+      Entertainment: WS-ENTERTAINMENT
+      Tech_Analysis: WS-TECH-ANALYSIS
+      Sports_Live: WS-SPORTS-LIVE
+      Lifestyle: WS-LIFESTYLE
+
+  user:
+    source_column: uploaded_by
+    dim_table: dim_user
+    description: "Operator who uploaded the video"
+    cardinality: 4
+    values: [content_editor_01, content_editor_02, content_editor_03, content_editor_04]
+    filter_api_param: user
+
+  language:
+    source_column: language
+    dim_table: dim_language
+    description: "Content language"
+    cardinality: 2
+    values: [English, Hindi]
+    filter_api_param: language
+
+  input_type:
+    source_column: input_type
+    dim_table: dim_input_type
+    description: "Source content category — PS Section 9 vocabulary"
+    cardinality: 7
+    values: [interview, speech, debate, news_bulletin, special_report, press_conference, discussion_show]
+    filter_api_param: input_type
+
+  frammer_output_type:
+    source_column: frammer_output_type
+    dim_table: dim_frammer_output_type
+    description: "AI-generated content package type from Frammer (what Frammer created)"
+    cardinality: 5
+    values: [key_moments, chapters, full_package, summary, my_key_moments]
+    filter_api_param: frammer_output_type
+
+  output_type:
+    source_column: output_type
+    dim_table: dim_output_type
+    description: "Published format on the distribution platform (publish-layer column, null for unpublished)"
+    cardinality: 2
+    values: [shorts, reels]
+    filter_api_param: output_type
+
+  platform:
+    source_column: published_platform
+    dim_table: dim_platform
+    description: "Distribution platform (null for unpublished videos)"
+    cardinality: 2
+    values: [Youtube, Instagram]
+    filter_api_param: platform
+
+  date:
+    source_column: upload_date
+    dim_table: dim_date
+    description: "Upload timestamp — continuous time dimension (390 rows have null)"
+    cardinality: continuous
+    range: "2024-11-19 to 2025-11-xx"
+    filter_api_param: date_range
+    sub_dimensions: [year, month, week, quarter, day_of_week]

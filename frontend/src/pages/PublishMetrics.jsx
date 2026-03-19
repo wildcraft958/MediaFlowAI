@@ -1,0 +1,604 @@
+/**
+ * PublishMetrics.jsx — Tab 4: Publish Metrics + Funnel
+ * FunnelViz · Input Type Donut · PCR by Output Type · CPDG scatter · HTHR leaderboard · FSC table
+ */
+
+import React, { useState, useEffect } from 'react'
+import { motion } from 'framer-motion'
+import {
+  TrendingDown, AlertTriangle, Target, Zap, BarChart2, Clock,
+  ChevronDown,
+} from 'lucide-react'
+import ReactECharts from 'echarts-for-react'
+import KPICard from '../components/charts/KPICard'
+import DonutChart from '../components/charts/DonutChart'
+import DataTable from '../components/common/DataTable'
+import FilterBar from '../components/common/FilterBar'
+import Badge from '../components/common/Badge'
+import useStore from '../store/useStore'
+
+// ── Mock data ─────────────────────────────────────────────────────────────────
+
+const FUNNEL_STAGES = [
+  { name: 'Upload',      icon: 'upload',  count: 4179, hours: 8928, pct: 100  },
+  { name: 'Processing',  icon: 'process', count: 4179, pct: 100  },
+  { name: 'Validation',  icon: 'check',   count: 4179, pct: 100  },
+  { name: 'Published',   icon: 'publish', count: 3188, pct: 69.8 },
+]
+
+const OUTPUT_PCR = [
+  { type: 'summary',        pcr: 70.9, total: 754,  published: 535  },
+  { type: 'key_moments',    pcr: 70.6, total: 1124, published: 793  },
+  { type: 'chapters',       pcr: 69.9, total: 982,  published: 687  },
+  { type: 'full_package',   pcr: 68.8, total: 876,  published: 603  },
+  { type: 'my_key_moments', pcr: 64.6, total: 833,  published: 538, isLowest: true },
+]
+
+const INPUT_TYPE_MIX = [
+  { name: 'interview',        value: 850,  pct: 32, color: '#e63946' },
+  { name: 'news_bulletin',    value: 598,  pct: 22, color: '#666666' },
+  { name: 'speech',           value: 354,  pct: 13, color: '#444444' },
+  { name: 'debate',           value: 299,  pct: 11, color: '#555555' },
+  { name: 'special_report',   value: 245,  pct: 9,  color: '#888888' },
+  { name: 'press_conference', value: 190,  pct: 7,  color: '#aaaaaa' },
+  { name: 'discussion_show',  value: 163,  pct: 6,  color: '#cc4444' },
+]
+
+const SCATTER_DATA = [
+  { type: 'interview',        ctr: 8.2, viewPct: 62, count: 850, color: '#e63946' },
+  { type: 'news_bulletin',    ctr: 7.1, viewPct: 55, count: 598, color: '#666666' },
+  { type: 'speech',           ctr: 5.9, viewPct: 48, count: 354, color: '#444444' },
+  { type: 'debate',           ctr: 6.4, viewPct: 51, count: 299, color: '#555555' },
+  { type: 'special_report',   ctr: 7.8, viewPct: 58, count: 245, color: '#888888' },
+  { type: 'press_conference', ctr: 5.2, viewPct: 44, count: 190, color: '#aaaaaa' },
+  { type: 'discussion_show',  ctr: 5.6, viewPct: 47, count: 163, color: '#cc4444' },
+]
+
+const HTHR_DATA = [
+  { rank: 1,  type: 'interview',        hthr: 0.94, ctr: 8.2, avgView: 62, impressions: 28400 },
+  { rank: 2,  type: 'special_report',   hthr: 0.91, ctr: 7.8, avgView: 58, impressions: 24600 },
+  { rank: 3,  type: 'news_bulletin',    hthr: 0.88, ctr: 7.1, avgView: 55, impressions: 22100 },
+  { rank: 4,  type: 'debate',           hthr: 0.83, ctr: 6.4, avgView: 51, impressions: 19800 },
+  { rank: 5,  type: 'discussion_show',  hthr: 0.79, ctr: 5.6, avgView: 47, impressions: 17400 },
+  { rank: 6,  type: 'speech',           hthr: 0.76, ctr: 5.9, avgView: 48, impressions: 16900 },
+  { rank: 7,  type: 'press_conference', hthr: 0.71, ctr: 5.2, avgView: 44, impressions: 15200 },
+]
+
+const FSC_DATA = [
+  { ws: 'WS-DIGITAL-NEWS',   uploaded: 1200, processed: 1200, published: 1106, uploadToProcess: 100, processToPublish: 92 },
+  { ws: 'WS-ENTERTAINMENT',  uploaded: 884,  processed: 884,  published: 725,  uploadToProcess: 100, processToPublish: 82 },
+  { ws: 'WS-TECH-ANALYSIS',  uploaded: 1191, processed: 1191, published: 810,  uploadToProcess: 100, processToPublish: 68 },
+  { ws: 'WS-LIFESTYLE',      uploaded: 396,  processed: 396,  published: 206,  uploadToProcess: 100, processToPublish: 52 },
+  { ws: 'WS-SPORTS-LIVE',    uploaded: 508,  processed: 508,  published: 341,  uploadToProcess: 100, processToPublish: 38 },
+]
+
+// ── Sub-charts ─────────────────────────────────────────────────────────────────
+
+function OutputTypePCRBar({ loading }) {
+  const option = {
+    backgroundColor: 'transparent',
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      backgroundColor: '#1a1a1a',
+      borderColor: '#2a2a2a',
+      borderWidth: 1,
+      textStyle: { color: '#fff', fontSize: 12 },
+      formatter(params) {
+        const p = params[0]
+        const isLowest = p.name.replace(/ /g, '_') === 'my_key_moments'
+        return `<b>${p.name}</b><br/>PCR: <b style="color:${isLowest ? '#e63946' : '#4caf50'}">${p.value}%</b>${isLowest ? '<br/><span style="color:#e63946">⚠ Lowest performer</span>' : ''}`
+      },
+    },
+    grid: { left: 130, right: 80, top: 8, bottom: 8, containLabel: false },
+    xAxis: {
+      type: 'value',
+      min: 60,
+      max: 75,
+      axisLabel: { color: '#555', fontSize: 11, formatter: '{value}%' },
+      splitLine: { lineStyle: { color: '#1a1a1a', type: 'dashed' } },
+    },
+    yAxis: {
+      type: 'category',
+      data: OUTPUT_PCR.map((o) => o.type.replace(/_/g, ' ')).reverse(),
+      axisLabel: { color: '#a0a0a0', fontSize: 11 },
+      axisLine: { lineStyle: { color: '#1f1f1f' } },
+    },
+    series: [
+      {
+        type: 'bar',
+        data: [...OUTPUT_PCR].reverse().map((o) => ({
+          value: o.pcr,
+          itemStyle: {
+            color: o.isLowest ? '#e63946' : '#666666',
+            borderRadius: [0, 6, 6, 0],
+          },
+          label: {
+            show: true,
+            position: 'right',
+            formatter: `{c}%${o.isLowest ? ' ⚠' : ''}`,
+            color: o.isLowest ? '#e63946' : '#a0a0a0',
+            fontSize: 11,
+            fontWeight: o.isLowest ? '700' : '400',
+          },
+        })),
+        barMaxWidth: 28,
+      },
+    ],
+  }
+
+  if (loading) {
+    return <div className="animate-pulse h-48 bg-[#1f1f1f] rounded-xl" />
+  }
+
+  return (
+    <ReactECharts
+      option={option}
+      theme="frammer-dark"
+      style={{ height: 200, width: '100%' }}
+      opts={{ renderer: 'canvas' }}
+      notMerge
+    />
+  )
+}
+
+function CPDGScatter({ loading }) {
+  const option = {
+    backgroundColor: 'transparent',
+    tooltip: {
+      trigger: 'item',
+      backgroundColor: '#1a1a1a',
+      borderColor: '#2a2a2a',
+      borderWidth: 1,
+      textStyle: { color: '#fff', fontSize: 12 },
+      formatter(p) {
+        const d = p.data
+        return `<b>${d[3]}</b><br/>CTR: <b>${d[0]}%</b><br/>Avg View %: <b>${d[1]}%</b><br/>Count: <b>${d[2].toLocaleString()}</b>`
+      },
+    },
+    legend: {
+      show: false,
+    },
+    grid: { left: 48, right: 24, top: 32, bottom: 40 },
+    xAxis: {
+      type: 'value',
+      name: 'CTR %',
+      nameTextStyle: { color: '#555', fontSize: 11 },
+      min: 4,
+      max: 10,
+      axisLabel: { color: '#555', fontSize: 11, formatter: '{value}%' },
+      splitLine: { lineStyle: { color: '#1a1a1a', type: 'dashed' } },
+    },
+    yAxis: {
+      type: 'value',
+      name: 'Avg View %',
+      nameTextStyle: { color: '#555', fontSize: 11 },
+      min: 35,
+      max: 75,
+      axisLabel: { color: '#555', fontSize: 11, formatter: '{value}%' },
+      splitLine: { lineStyle: { color: '#1a1a1a', type: 'dashed' } },
+    },
+    series: [
+      {
+        type: 'scatter',
+        data: SCATTER_DATA.map((d) => [d.ctr, d.viewPct, d.count, d.type]),
+        symbolSize(data) {
+          return Math.sqrt(data[2]) * 1.8
+        },
+        itemStyle: {
+          color: (params) => SCATTER_DATA[params.dataIndex]?.color || '#e63946',
+          opacity: 0.85,
+        },
+        label: {
+          show: false,
+        },
+        emphasis: {
+          itemStyle: {
+            shadowBlur: 12,
+            shadowColor: 'rgba(230,57,70,0.5)',
+          },
+        },
+      },
+    ],
+  }
+
+  if (loading) {
+    return <div className="animate-pulse h-64 bg-[#1f1f1f] rounded-xl" />
+  }
+
+  return (
+    <ReactECharts
+      option={option}
+      theme="frammer-dark"
+      style={{ height: 260, width: '100%' }}
+      opts={{ renderer: 'canvas' }}
+      notMerge
+    />
+  )
+}
+
+// ── Main Page ─────────────────────────────────────────────────────────────────
+
+export default function PublishMetrics() {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [hthrPage, setHthrPage] = useState(1)
+  const [fscPage, setFscPage] = useState(1)
+  const filters = useStore((s) => s.filters)
+
+  useEffect(() => {
+    setLoading(true)
+    setTimeout(() => {
+      setData({ funnel: FUNNEL_STAGES })
+      setLoading(false)
+    }, 400)
+  }, [filters])
+
+  // HTHR table columns
+  const hthrColumns = [
+    {
+      key: 'rank',
+      label: 'Rank',
+      render: (v) => (
+        <span
+          className={`text-sm font-bold tabular-nums ${v <= 3 ? 'text-[#e63946]' : 'text-[#555]'}`}
+        >
+          #{v}
+        </span>
+      ),
+    },
+    {
+      key: 'type',
+      label: 'Content Type',
+      sortable: true,
+      render: (v) => (
+        <span className="font-medium text-white capitalize">{v.replace(/_/g, ' ')}</span>
+      ),
+    },
+    {
+      key: 'hthr',
+      label: 'HTHR Score',
+      sortable: true,
+      render: (v) => {
+        const color = v >= 0.9 ? '#4caf50' : v >= 0.8 ? '#ff9800' : '#a0a0a0'
+        return (
+          <span className="font-bold tabular-nums" style={{ color }}>{v.toFixed(2)}</span>
+        )
+      },
+    },
+    {
+      key: 'ctr',
+      label: 'CTR %',
+      sortable: true,
+      render: (v) => <span className="tabular-nums text-[#a0a0a0]">{v}%</span>,
+    },
+    {
+      key: 'avgView',
+      label: 'Avg View %',
+      sortable: true,
+      render: (v) => <span className="tabular-nums text-[#a0a0a0]">{v}%</span>,
+    },
+    {
+      key: 'impressions',
+      label: 'Impressions',
+      sortable: true,
+      render: (v) => <span className="tabular-nums text-[#a0a0a0]">{v.toLocaleString()}</span>,
+    },
+  ]
+
+  // FSC table columns
+  const fscColumns = [
+    {
+      key: 'ws',
+      label: 'Workspace',
+      render: (v) => <Badge variant="workspace">{v}</Badge>,
+    },
+    {
+      key: 'uploaded',
+      label: 'Uploaded',
+      render: (v) => <span className="tabular-nums text-[#a0a0a0]">{v.toLocaleString()}</span>,
+    },
+    {
+      key: 'processed',
+      label: 'Processed',
+      render: (v) => <span className="tabular-nums text-[#a0a0a0]">{v.toLocaleString()}</span>,
+    },
+    {
+      key: 'published',
+      label: 'Published',
+      render: (v) => <span className="tabular-nums text-[#a0a0a0]">{v.toLocaleString()}</span>,
+    },
+    {
+      key: 'uploadToProcess',
+      label: 'Upload → Process',
+      render: (v) => (
+        <span className="font-bold tabular-nums text-[#4caf50]">{v}%</span>
+      ),
+    },
+    {
+      key: 'processToPublish',
+      label: 'Process → Publish',
+      render: (v, row) => {
+        const color = v >= 80 ? '#4caf50' : v >= 60 ? '#ff9800' : '#e63946'
+        return (
+          <span className="font-bold tabular-nums" style={{ color }}>
+            {v}%
+            {v < 50 && (
+              <span className="ml-1.5 text-[10px] text-[#e63946] border border-[#e63946]/30 bg-[#e63946]/10 px-1 rounded">
+                LOW
+              </span>
+            )}
+          </span>
+        )
+      },
+    },
+  ]
+
+  return (
+    <motion.div
+      className="p-6 space-y-6 min-h-screen bg-[#0a0a0a]"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+    >
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-bold text-white mb-1">Publish Metrics &amp; Funnel</h1>
+        <p className="text-sm text-[#a0a0a0]">Pipeline funnel, output type analysis, and content engagement</p>
+      </div>
+
+      {/* FilterBar */}
+      <FilterBar />
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          {
+            title: 'Overall Publish Rate',
+            value: 69.8,
+            unit: '%',
+            trend: 'up',
+            trendValue: 2.1,
+            trendLabel: 'vs target 80%',
+            icon: BarChart2,
+            accent: true,
+            subtitle: '3,188 published of 4,569 total',
+            loading,
+          },
+          {
+            title: 'Avg Drop-off',
+            value: 30.2,
+            unit: '%',
+            trend: 'down',
+            trendValue: 1.8,
+            trendLabel: 'widening gap',
+            icon: TrendingDown,
+            subtitle: 'Processing → Published drop',
+            loading,
+          },
+          {
+            title: 'Avg Processing',
+            value: 4.2,
+            unit: 'h',
+            trend: 'down',
+            trendValue: 15,
+            trendLabel: 'improving',
+            icon: Clock,
+            subtitle: 'Frammer AI processing time',
+            loading,
+          },
+          {
+            title: 'Top PCR Output',
+            value: 70.9,
+            unit: '%',
+            trend: 'neutral',
+            trendLabel: 'Summary output type',
+            icon: Target,
+            subtitle: 'summary - highest PCR',
+            loading,
+          },
+        ].map((card, i) => (
+          <motion.div
+            key={card.title}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.07 }}
+          >
+            <KPICard {...card} />
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Publish Conversion Overview */}
+      <motion.div
+        className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-6"
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3 }}
+      >
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <h2 className="text-lg font-semibold text-white">Publish Conversion by Workspace</h2>
+            <p className="text-xs text-[#555] mt-0.5">
+              Upload to Published rate (PCR) per workspace — sorted by conversion
+            </p>
+          </div>
+          <div className="flex items-center gap-4 text-xs text-[#555]">
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-sm inline-block bg-[#3a3a3a]" />
+              Uploaded
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-sm inline-block bg-[#e63946]" />
+              Published
+            </span>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          {FSC_DATA.sort((a, b) => b.processToPublish - a.processToPublish).map((ws, i) => {
+            const pcr   = ws.processToPublish
+            const color = pcr >= 80 ? '#4caf50' : pcr >= 60 ? '#ff9800' : '#e63946'
+            const short = ws.ws.replace('WS-', '')
+            return (
+              <motion.div
+                key={ws.ws}
+                initial={{ opacity: 0, x: -12 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.35 + i * 0.07 }}
+              >
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-xs font-medium text-[#a0a0a0] w-36 flex-shrink-0">{short}</span>
+                  <div className="flex items-center gap-3 text-xs text-[#555] tabular-nums">
+                    <span>{ws.uploaded.toLocaleString()} uploaded</span>
+                    <span className="text-[#333]">·</span>
+                    <span>{ws.published.toLocaleString()} published</span>
+                    <span
+                      className="font-bold w-12 text-right"
+                      style={{ color }}
+                    >
+                      {pcr}%
+                    </span>
+                  </div>
+                </div>
+                {/* Stacked progress bar: grey = uploaded, red = published */}
+                <div className="h-5 bg-[#1a1a1a] rounded-lg overflow-hidden relative">
+                  {/* Uploaded bg */}
+                  <div className="absolute inset-0 bg-[#2a2a2a] rounded-lg" />
+                  {/* Published fill */}
+                  <motion.div
+                    className="absolute left-0 top-0 h-full rounded-lg flex items-center pl-2"
+                    style={{ background: color, opacity: 0.85 }}
+                    initial={{ width: 0 }}
+                    animate={{ width: `${pcr}%` }}
+                    transition={{ delay: 0.4 + i * 0.07, duration: 0.7, ease: 'easeOut' }}
+                  />
+                  {/* 70% target line */}
+                  <div
+                    className="absolute top-0 bottom-0 w-px bg-white/20"
+                    style={{ left: '70%' }}
+                    title="70% target"
+                  />
+                </div>
+              </motion.div>
+            )
+          })}
+        </div>
+
+        <div className="mt-4 flex items-center gap-4 text-xs text-[#555]">
+          <div className="flex items-center gap-1.5">
+            <div className="w-px h-4 bg-white/20" />
+            <span>70% target line</span>
+          </div>
+          <span className="text-[#e63946] font-medium">
+            WS-SPORTS-LIVE 38% is 32pp below target — 557 videos unpublished
+          </span>
+        </div>
+      </motion.div>
+
+      {/* Input Type Mix + PCR by Output Type */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <motion.div
+          className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-6"
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.38 }}
+        >
+          <h2 className="text-lg font-semibold text-white mb-4">Input Type Mix</h2>
+          <div style={{ height: 220 }}>
+            <DonutChart
+              data={INPUT_TYPE_MIX.map((i) => ({ name: i.name.replace(/_/g, ' '), value: i.value, color: i.color }))}
+              centerValue="7"
+              centerLabel="Types"
+              loading={loading}
+            />
+          </div>
+        </motion.div>
+
+        <motion.div
+          className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-6"
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.44 }}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-white">PCR by Output Type</h2>
+            <div className="flex items-center gap-1.5 text-xs text-[#e63946] border border-[#e63946]/30 bg-[#e63946]/10 px-2 py-1 rounded-md">
+              <AlertTriangle size={11} />
+              my_key_moments lowest
+            </div>
+          </div>
+          <OutputTypePCRBar loading={loading} />
+          <div className="mt-3 p-3 rounded-xl bg-[#0a0a0a] border border-[#1f1f1f]">
+            <p className="text-xs text-[#a0a0a0]">
+              <span className="text-[#e63946] font-semibold">my_key_moments</span> at 64.6% is
+              6.3pp below <span className="text-[#4caf50] font-semibold">summary</span> (70.9%).
+              Review curation quality for this output type.
+            </p>
+          </div>
+        </motion.div>
+      </div>
+
+      {/* CPDG Scatter */}
+      <motion.div
+        className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-6"
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.5 }}
+      >
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold text-white">Content Promise vs Delivery (CPDG)</h2>
+          <p className="text-xs text-[#555] mt-0.5">
+            CTR (click-through) vs Avg View % - bubble size = video count per type
+          </p>
+        </div>
+        <CPDGScatter loading={loading} />
+      </motion.div>
+
+      {/* HTHR Leaderboard */}
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.55 }}
+      >
+        <h2 className="text-lg font-semibold text-white mb-4">
+          Top Performers - HTHR Leaderboard
+        </h2>
+        <DataTable
+          columns={hthrColumns}
+          data={HTHR_DATA}
+          loading={loading}
+          total={HTHR_DATA.length}
+          page={hthrPage}
+          pageSize={10}
+          onPageChange={setHthrPage}
+          onSort={() => {}}
+        />
+      </motion.div>
+
+      {/* FSC Workspace Funnel Comparison */}
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.62 }}
+      >
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold text-white">Workspace Funnel Comparison (FSC)</h2>
+          <p className="text-xs text-[#555] mt-0.5">
+            Funnel Stage Conversion per workspace - highlights WS-SPORTS-LIVE drop-off
+          </p>
+        </div>
+        <DataTable
+          columns={fscColumns}
+          data={FSC_DATA}
+          loading={loading}
+          total={FSC_DATA.length}
+          page={fscPage}
+          pageSize={10}
+          onPageChange={setFscPage}
+          onSort={() => {}}
+        />
+      </motion.div>
+    </motion.div>
+  )
+}

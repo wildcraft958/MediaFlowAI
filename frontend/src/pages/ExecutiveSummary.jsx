@@ -1,0 +1,637 @@
+/**
+ * ExecutiveSummary.jsx — Tab 1: Leadership overview
+ * 4 KPI cards · TrendChart · InsightsPanel · FunnelViz · Workspace PCR · AgentInbox · AlertBanner
+ */
+
+import React, { useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import {
+  Upload, Cpu, CheckCircle, AlertTriangle, TrendingUp, TrendingDown,
+  Clock, Activity, X, Bell, Zap, ChevronRight, Users, BarChart2,
+} from 'lucide-react'
+import ReactECharts from 'echarts-for-react'
+import KPICard from '../components/charts/KPICard'
+import FunnelViz from '../components/charts/FunnelViz'
+import FilterBar from '../components/common/FilterBar'
+import useStore from '../store/useStore'
+import { getExecutiveSummary, getPublishFunnel } from '../api/client'
+
+// ── Mock data ─────────────────────────────────────────────────────────────────
+
+const generateTrendData = () => {
+  const out = []
+  const base = new Date('2025-10-15')
+  for (let i = 0; i < 30; i++) {
+    const d = new Date(base)
+    d.setDate(base.getDate() + i)
+    const uploaded = 120 + Math.floor(Math.sin(i / 3.5) * 28 + Math.random() * 30)
+    const published = Math.floor(uploaded * (0.58 + Math.random() * 0.32))
+    out.push({
+      date: d.toISOString().slice(0, 10),
+      uploaded,
+      published,
+      uploaded_hours: +(uploaded * 0.45 + Math.random() * 12).toFixed(1),
+      published_hours: +(published * 0.45 + Math.random() * 8).toFixed(1),
+    })
+  }
+  return out
+}
+
+const MOCK_TREND = generateTrendData()
+
+const MOCK_FUNNEL = [
+  { name: 'Uploaded', icon: 'upload', count: 4179, hours: 8928, pct: 100 },
+  { name: 'Processed', icon: 'process', count: 4179, pct: 100 },
+  { name: 'Published', icon: 'publish', count: 3188, pct: 76.3 },
+]
+
+const WORKSPACES = [
+  { name: 'WS-DIGITAL-NEWS',    pcr: 92, total: 1200, published: 1106 },
+  { name: 'WS-ENTERTAINMENT',   pcr: 82, total: 884,  published: 725  },
+  { name: 'WS-TECH-ANALYSIS',   pcr: 68, total: 1191, published: 810  },
+  { name: 'WS-LIFESTYLE',       pcr: 52, total: 396,  published: 206  },
+  { name: 'WS-SPORTS-LIVE',     pcr: 38, total: 898,  published: 341  },
+]
+
+// ── Sub-components ─────────────────────────────────────────────────────────────
+
+function InsightsPanel() {
+  const insights = [
+    {
+      id: 1,
+      type: 'warning',
+      icon: AlertTriangle,
+      title: 'Sports-Live bottleneck',
+      body: 'WS-SPORTS-LIVE publishes only 38% - 556 orphaned videos with no publish date.',
+      color: '#ff9800',
+    },
+    {
+      id: 2,
+      type: 'success',
+      icon: TrendingUp,
+      title: 'Top performer identified',
+      body: 'WS-DIGITAL-NEWS leads at 92% PCR - consistent high-throughput operation.',
+      color: '#4caf50',
+    },
+    {
+      id: 3,
+      type: 'warning',
+      icon: AlertTriangle,
+      title: 'Data quality gap',
+      body: '390 videos (8.5%) are missing upload_date - impacts MCI and OPI calculations.',
+      color: '#ff9800',
+    },
+  ]
+
+  return (
+    <div className="flex flex-col gap-3">
+      {insights.map((ins, i) => {
+        const Icon = ins.icon
+        return (
+          <motion.div
+            key={ins.id}
+            className="flex items-start gap-3 p-4 rounded-xl border"
+            style={{ background: `${ins.color}08`, borderColor: `${ins.color}30` }}
+            initial={{ opacity: 0, x: 12 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.5 + i * 0.1, duration: 0.35 }}
+          >
+            <div
+              className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
+              style={{ background: `${ins.color}20` }}
+            >
+              <Icon size={14} style={{ color: ins.color }} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-white mb-0.5">{ins.title}</p>
+              <p className="text-xs text-[#a0a0a0] leading-relaxed">{ins.body}</p>
+            </div>
+          </motion.div>
+        )
+      })}
+    </div>
+  )
+}
+
+function TrendMiniChart({ data, metric }) {
+  const dates = data.map((d) => {
+    const dt = new Date(d.date)
+    return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  })
+  const uploaded = data.map((d) => metric === 'hours' ? d.uploaded_hours : d.uploaded)
+  const published = data.map((d) => metric === 'hours' ? d.published_hours : d.published)
+
+  const option = {
+    backgroundColor: 'transparent',
+    animation: true,
+    animationDuration: 900,
+    legend: {
+      show: true,
+      right: 8,
+      top: 4,
+      itemWidth: 12,
+      itemHeight: 2,
+      textStyle: { color: '#a0a0a0', fontSize: 11 },
+    },
+    tooltip: {
+      trigger: 'axis',
+      backgroundColor: '#1a1a1a',
+      borderColor: '#2a2a2a',
+      borderWidth: 1,
+      textStyle: { color: '#fff', fontSize: 11 },
+      formatter(params) {
+        const date = params[0]?.axisValue || ''
+        let html = `<div style="color:#a0a0a0;font-weight:600;margin-bottom:3px">${date}</div>`
+        params.forEach((p) => {
+          html += `<div><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${p.color};margin-right:5px"></span>${p.seriesName}: <b>${p.value?.toLocaleString()}</b></div>`
+        })
+        return html
+      },
+    },
+    grid: { left: 44, right: 16, bottom: 36, top: 36 },
+    xAxis: {
+      type: 'category',
+      data: dates,
+      boundaryGap: false,
+      axisLine: { lineStyle: { color: '#1f1f1f' } },
+      axisTick: { show: false },
+      axisLabel: { color: '#555', fontSize: 10, interval: 5 },
+    },
+    yAxis: {
+      type: 'value',
+      axisLine: { show: false },
+      axisTick: { show: false },
+      splitLine: { lineStyle: { color: '#1a1a1a', type: 'dashed' } },
+      axisLabel: { color: '#555', fontSize: 10 },
+    },
+    series: [
+      {
+        name: 'Uploaded',
+        type: 'line',
+        data: uploaded,
+        smooth: true,
+        symbol: 'none',
+        lineStyle: { color: '#555555', width: 1.5, type: 'dashed' },
+        z: 2,
+      },
+      {
+        name: 'Published',
+        type: 'line',
+        data: published,
+        smooth: true,
+        symbol: 'none',
+        lineStyle: { color: '#e63946', width: 2 },
+        areaStyle: {
+          color: {
+            type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+            colorStops: [
+              { offset: 0, color: 'rgba(230,57,70,0.35)' },
+              { offset: 1, color: 'rgba(230,57,70,0)' },
+            ],
+          },
+        },
+        z: 3,
+      },
+    ],
+  }
+
+  return (
+    <ReactECharts
+      option={option}
+      theme="frammer-dark"
+      style={{ height: 240, width: '100%' }}
+      opts={{ renderer: 'canvas' }}
+      notMerge
+    />
+  )
+}
+
+function WorkspacePCRBar({ name, pcr, published, total, delay }) {
+  const color = pcr >= 80 ? '#4caf50' : pcr >= 60 ? '#ff9800' : '#e63946'
+  const shortName = name.replace('WS-', '')
+  return (
+    <motion.div
+      className="mb-3 last:mb-0"
+      initial={{ opacity: 0, x: -12 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay, duration: 0.4 }}
+    >
+      <div className="flex justify-between items-center mb-1.5">
+        <span className="text-xs font-medium text-[#a0a0a0] truncate max-w-[140px]">{shortName}</span>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <span className="text-xs text-[#555] tabular-nums">
+            {published.toLocaleString()} / {total.toLocaleString()}
+          </span>
+          <span className="text-sm font-bold tabular-nums w-10 text-right" style={{ color }}>
+            {pcr}%
+          </span>
+        </div>
+      </div>
+      <div className="h-1.5 bg-[#0a0a0a] rounded-full overflow-hidden">
+        <motion.div
+          className="h-full rounded-full"
+          style={{ background: color }}
+          initial={{ width: 0 }}
+          animate={{ width: `${pcr}%` }}
+          transition={{ delay: delay + 0.1, duration: 0.7, ease: 'easeOut' }}
+        />
+      </div>
+    </motion.div>
+  )
+}
+
+function AgentInboxWidget() {
+  const { agentMessages, markMessageRead, dismissMessage } = useStore()
+  const unread = agentMessages.filter((m) => !m.read).length
+
+  const severityColor = {
+    warning: '#ff9800',
+    info: '#2196f3',
+    neutral: '#a0a0a0',
+    danger: '#e63946',
+    success: '#4caf50',
+  }
+  const severityIcon = {
+    warning: AlertTriangle,
+    info: Activity,
+    neutral: Bell,
+    danger: AlertTriangle,
+    success: TrendingUp,
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <Bell size={14} className="text-[#a0a0a0]" />
+          <span className="text-sm font-semibold text-white">Agent Inbox</span>
+          {unread > 0 && (
+            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[#e63946] text-[10px] font-bold text-white">
+              {unread}
+            </span>
+          )}
+        </div>
+        <button className="text-xs text-[#555] hover:text-[#a0a0a0] transition-colors">
+          View all
+        </button>
+      </div>
+
+      <div className="space-y-2">
+        {agentMessages.map((msg) => {
+          const color = severityColor[msg.severity] || '#a0a0a0'
+          const Icon = severityIcon[msg.severity] || Bell
+          return (
+            <div
+              key={msg.id}
+              onClick={() => markMessageRead(msg.id)}
+              className={`relative flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all duration-150 hover:border-[#333] ${
+                msg.read ? 'opacity-60' : ''
+              }`}
+              style={{
+                background: msg.read ? '#0d0d0d' : `${color}08`,
+                borderColor: msg.read ? '#1f1f1f' : `${color}30`,
+              }}
+            >
+              {!msg.read && (
+                <div
+                  className="absolute top-3 right-3 w-1.5 h-1.5 rounded-full flex-shrink-0"
+                  style={{ background: color }}
+                />
+              )}
+              <div
+                className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+                style={{ background: `${color}20` }}
+              >
+                <Icon size={13} style={{ color }} />
+              </div>
+              <div className="min-w-0 flex-1 pr-4">
+                <div className="flex items-center justify-between mb-0.5">
+                  <p className="text-xs font-semibold text-white">{msg.title}</p>
+                </div>
+                <p className="text-xs text-[#a0a0a0] leading-relaxed line-clamp-2">{msg.body}</p>
+                <p className="text-[10px] text-[#555] mt-1">{msg.time}</p>
+              </div>
+              <button
+                onClick={(e) => { e.stopPropagation(); dismissMessage(msg.id) }}
+                className="absolute top-2 right-2 w-5 h-5 rounded flex items-center justify-center text-[#333] hover:text-[#a0a0a0] transition-colors"
+              >
+                <X size={11} />
+              </button>
+            </div>
+          )
+        })}
+        {agentMessages.length === 0 && (
+          <div className="flex flex-col items-center py-6 text-center">
+            <Bell size={24} className="text-[#333] mb-2" />
+            <p className="text-xs text-[#555]">No pending messages</p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function AlertBanner({ onDismiss }) {
+  return (
+    <motion.div
+      className="flex items-start gap-3 p-4 rounded-2xl border border-[#ff9800]/30 bg-[#ff9800]/08"
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -8 }}
+      transition={{ duration: 0.3 }}
+    >
+      <div className="w-8 h-8 rounded-xl bg-[#ff9800]/20 flex items-center justify-center flex-shrink-0">
+        <AlertTriangle size={15} className="text-[#ff9800]" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-white">
+          PCR threshold breached - WS-SPORTS-LIVE
+        </p>
+        <p className="text-xs text-[#a0a0a0] mt-0.5">
+          Current PCR 38% is below the 50% minimum threshold configured in CLIENT_1 settings.
+          556 videos remain unpublished.
+          <button className="ml-2 text-[#ff9800] hover:underline inline-flex items-center gap-1">
+            Investigate <ChevronRight size={11} />
+          </button>
+        </p>
+      </div>
+      <button
+        onClick={onDismiss}
+        className="text-[#555] hover:text-[#a0a0a0] transition-colors flex-shrink-0 mt-0.5"
+      >
+        <X size={14} />
+      </button>
+    </motion.div>
+  )
+}
+
+// ── Main Page ─────────────────────────────────────────────────────────────────
+
+export default function ExecutiveSummary() {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [alertVisible, setAlertVisible] = useState(true)
+  const filters = useStore((s) => s.filters)
+  const metric = useStore((s) => s.metric)
+
+  useEffect(() => {
+    setLoading(true)
+    Promise.all([
+      getExecutiveSummary(filters),
+      getPublishFunnel(filters),
+    ])
+      .then(([summary, funnel]) => {
+        setData({ summary, funnel })
+        setLoading(false)
+      })
+      .catch(() => {
+        // Fall back to mock data
+        setData({ summary: null, funnel: MOCK_FUNNEL })
+        setLoading(false)
+      })
+  }, [filters])
+
+  const trendData = data?.summary?.trend || MOCK_TREND
+  const funnelData = data?.funnel || MOCK_FUNNEL
+
+  const kpiCards = [
+    {
+      title: 'Total Uploaded',
+      value: 4179,
+      unit: '',
+      trend: 'up',
+      trendValue: 12.3,
+      trendLabel: 'vs last month',
+      icon: Upload,
+      subtitle: '91.5% data completeness',
+      loading,
+    },
+    {
+      title: 'Published',
+      value: 3188,
+      unit: '',
+      trend: 'up',
+      trendValue: 8.1,
+      trendLabel: 'vs last month',
+      icon: CheckCircle,
+      subtitle: 'YouTube Shorts + Instagram Reels',
+      loading,
+    },
+    {
+      title: 'Overall PCR',
+      value: 69.8,
+      unit: '%',
+      trend: 'down',
+      trendValue: 2.1,
+      trendLabel: 'vs last month',
+      icon: BarChart2,
+      accent: true,
+      subtitle: 'Ranges 38%–92% by workspace',
+      loading,
+    },
+    {
+      title: 'Avg Processing',
+      value: 4.2,
+      unit: 'h',
+      trend: 'down',
+      trendValue: 15,
+      trendLabel: 'faster - good',
+      icon: Clock,
+      subtitle: 'Upload → Frammer AI processed',
+      loading,
+    },
+  ]
+
+  return (
+    <motion.div
+      className="p-6 space-y-6 min-h-screen bg-[#0a0a0a]"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+    >
+      {/* Alert Banner */}
+      <AnimatePresence>
+        {alertVisible && (
+          <AlertBanner onDismiss={() => setAlertVisible(false)} />
+        )}
+      </AnimatePresence>
+
+      {/* Header */}
+      <div className="flex items-start justify-between">
+        <div>
+          <div className="flex items-center gap-3 mb-1">
+            <h1 className="text-2xl font-bold text-white">Executive Summary</h1>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-[#e63946]/15 text-[#e63946] border border-[#e63946]/30">
+              <Users size={11} />
+              Leadership View
+            </span>
+          </div>
+          <p className="text-sm text-[#a0a0a0]">
+            Frammer AI media operations - 4,569 total videos across 5 workspaces
+          </p>
+        </div>
+      </div>
+
+      {/* FilterBar */}
+      <FilterBar />
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {kpiCards.map((card, i) => (
+          <motion.div
+            key={card.title}
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.07, duration: 0.35 }}
+          >
+            <KPICard {...card} />
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Trend + Insights */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+        <motion.div
+          className="lg:col-span-3 bg-[#111111] border border-[#1f1f1f] rounded-2xl p-6"
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3, duration: 0.35 }}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-white">Daily Upload vs Publish</h2>
+            <span className="text-xs text-[#555]">Last 30 days</span>
+          </div>
+          <TrendMiniChart data={trendData} metric={metric} />
+        </motion.div>
+
+        <motion.div
+          className="lg:col-span-2 bg-[#111111] border border-[#1f1f1f] rounded-2xl p-6"
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.38, duration: 0.35 }}
+        >
+          <h2 className="text-lg font-semibold text-white mb-4">AI Insights</h2>
+          <InsightsPanel />
+        </motion.div>
+      </div>
+
+      {/* Funnel */}
+      <motion.div
+        className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-6"
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.45, duration: 0.35 }}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-white">3-Stage Publish Funnel</h2>
+          <span className="inline-flex items-center gap-1.5 text-xs text-[#555] border border-[#1f1f1f] rounded-full px-2.5 py-1">
+            Upload → Process → Publish
+          </span>
+        </div>
+        <FunnelViz stages={funnelData} loading={loading} />
+        <div className="mt-4 flex items-start gap-2 p-3 rounded-xl bg-[#0a0a0a] border border-[#1f1f1f]">
+          <AlertTriangle size={13} className="text-[#ff9800] mt-0.5 flex-shrink-0" />
+          <p className="text-xs text-[#a0a0a0]">
+            <span className="text-[#ff9800] font-semibold">390 videos</span> have no upload_date
+            - data quality gap visible in MCI / OPI KPIs.
+            100% of uploaded videos are processed by Frammer AI.
+          </p>
+        </div>
+      </motion.div>
+
+      {/* Workspace PCR + Agent Inbox */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <motion.div
+          className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-6"
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.52, duration: 0.35 }}
+        >
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="text-lg font-semibold text-white">Workspace PCR</h2>
+            <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-[#e63946]/15 text-[#e63946] text-xs font-bold border border-[#e63946]/30">
+              PCR
+            </span>
+          </div>
+          {WORKSPACES.map((ws, i) => (
+            <WorkspacePCRBar key={ws.name} {...ws} delay={0.55 + i * 0.08} />
+          ))}
+          <div className="mt-4 p-3 rounded-xl bg-[#0a0a0a] border border-[#1f1f1f]">
+            <p className="text-xs text-[#a0a0a0]">
+              <span className="text-[#e63946] font-semibold">WS-SPORTS-LIVE</span> at 38% is
+              54pp below top performer.{' '}
+              <span className="text-[#4caf50] font-semibold">WS-DIGITAL-NEWS</span> at 92%
+              - Company_B's single workspace.
+            </p>
+          </div>
+        </motion.div>
+
+        <motion.div
+          className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-6"
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.58, duration: 0.35 }}
+        >
+          <AgentInboxWidget />
+        </motion.div>
+      </div>
+
+      {/* Summary Table */}
+      <motion.div
+        className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-6 overflow-hidden"
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.65, duration: 0.35 }}
+      >
+        <h2 className="text-lg font-semibold text-white mb-4">Workspace Summary</h2>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-[#1f1f1f]">
+                {['Workspace', 'Company', 'Team', 'Total', 'Uploaded', 'Published', 'PCR', 'Status'].map((h) => (
+                  <th key={h} className="text-left text-[#555] text-xs font-semibold pb-3 pr-4 last:pr-0 uppercase tracking-wider">
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                { ws: 'WS-DIGITAL-NEWS',  company: 'Company_B', team: 'Digital_News',  total: 1200, uploaded: 1200, pub: 1106, pcr: 92 },
+                { ws: 'WS-ENTERTAINMENT', company: 'Company_A', team: 'Entertainment', total: 884,  uploaded: 884,  pub: 725,  pcr: 82 },
+                { ws: 'WS-TECH-ANALYSIS', company: 'Company_A', team: 'Tech_Analysis', total: 1191, uploaded: 1191, pub: 810,  pcr: 68 },
+                { ws: 'WS-LIFESTYLE',     company: 'Company_A', team: 'Lifestyle',     total: 396,  uploaded: 396,  pub: 206,  pcr: 52 },
+                { ws: 'WS-SPORTS-LIVE',   company: 'Company_A', team: 'Sports_Live',   total: 898,  uploaded: 508,  pub: 341,  pcr: 38 },
+              ].map((row) => {
+                const color = row.pcr >= 80 ? '#4caf50' : row.pcr >= 60 ? '#ff9800' : '#e63946'
+                const label = row.pcr >= 80 ? 'Healthy' : row.pcr >= 60 ? 'Moderate' : 'Review'
+                return (
+                  <tr
+                    key={row.ws}
+                    className="border-b border-[#1f1f1f]/60 last:border-0 hover:bg-[#1a1a1a] transition-colors"
+                  >
+                    <td className="py-3 pr-4 font-medium text-white text-xs">{row.ws}</td>
+                    <td className="py-3 pr-4 text-[#a0a0a0] text-xs">{row.company}</td>
+                    <td className="py-3 pr-4 text-[#a0a0a0] text-xs">{row.team}</td>
+                    <td className="py-3 pr-4 tabular-nums text-xs text-[#a0a0a0]">{row.total.toLocaleString()}</td>
+                    <td className="py-3 pr-4 tabular-nums text-xs text-[#a0a0a0]">{row.uploaded.toLocaleString()}</td>
+                    <td className="py-3 pr-4 tabular-nums text-xs text-[#a0a0a0]">{row.pub.toLocaleString()}</td>
+                    <td className="py-3 pr-4 tabular-nums font-bold text-sm" style={{ color }}>{row.pcr}%</td>
+                    <td className="py-3">
+                      <span
+                        className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold"
+                        style={{ background: `${color}18`, color, border: `1px solid ${color}40` }}
+                      >
+                        {label}
+                      </span>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}

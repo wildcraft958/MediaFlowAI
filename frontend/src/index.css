@@ -1,0 +1,397 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Design Token Custom Properties */
+:root {
+  --bg-base:        #080808;
+  --bg-card:        #161616;
+  --bg-card-hover:  #202020;
+  --border:         #252525;
+  --border-2:       #333333;
+  --accent:         #e63946;
+  --accent-hover:   #c62828;
+  --accent-soft:    #ff8fa3;
+  --text-primary:   #ffffff;
+  --text-secondary: #a0a0a0;
+  --text-muted:     #555555;
+  --success:        #4caf50;
+  --warning:        #ff9800;
+  --info:           #2196f3;
+
+  --radius-card:    16px;
+  --radius-badge:   8px;
+  --radius-button:  10px;
+
+  --shadow-card:    0 4px 24px rgba(0,0,0,0.4);
+  --shadow-card-lg: 0 8px 40px rgba(0,0,0,0.6);
+  --shadow-accent:  0 0 24px rgba(230,57,70,0.3);
+
+  --sidebar-width:           220px;
+  --sidebar-width-collapsed: 64px;
+  --topnav-height:           64px;
+}
+
+/* Base Resets */
+html {
+  scroll-behavior: smooth;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom Scrollbar - thin dark, NOT red */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2a2a2a;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3a3a3a;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #2a2a2a transparent;
+}
+
+/* Utility Component Classes */
+@layer components {
+  .glass-card {
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+  }
+
+  .gradient-text {
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-soft) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .kpi-number {
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .btn-primary {
+    background-color: var(--accent);
+    color: #ffffff;
+    border: none;
+    border-radius: var(--radius-button);
+    padding: 8px 16px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+  }
+
+  .btn-primary:hover {
+    background-color: var(--accent-hover);
+    box-shadow: var(--shadow-accent);
+    transform: translateY(-1px);
+  }
+
+  .btn-primary:active {
+    transform: translateY(0);
+  }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-button);
+    padding: 8px 16px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  }
+
+  .btn-ghost:hover {
+    background-color: var(--bg-card-hover);
+    color: var(--text-primary);
+    border-color: var(--border-2);
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: var(--radius-badge);
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+  }
+
+  .badge-accent {
+    background: rgba(230, 57, 70, 0.15);
+    color: var(--accent-soft);
+    border: 1px solid rgba(230, 57, 70, 0.3);
+  }
+
+  .badge-success {
+    background: rgba(76, 175, 80, 0.15);
+    color: #81c784;
+    border: 1px solid rgba(76, 175, 80, 0.3);
+  }
+
+  .badge-warning {
+    background: rgba(255, 152, 0, 0.15);
+    color: #ffb74d;
+    border: 1px solid rgba(255, 152, 0, 0.3);
+  }
+
+  .badge-info {
+    background: rgba(33, 150, 243, 0.15);
+    color: #64b5f6;
+    border: 1px solid rgba(33, 150, 243, 0.3);
+  }
+
+  .badge-muted {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-2);
+  }
+
+  .kpi-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    padding: 20px 24px;
+    box-shadow: var(--shadow-card);
+    transition: border-color 0.2s ease, background-color 0.2s ease, transform 0.2s ease;
+  }
+
+  .kpi-card:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--border-2);
+    transform: translateY(-2px);
+  }
+
+  .section-title {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .input-dark {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-button);
+    color: var(--text-primary);
+    padding: 8px 12px;
+    font-size: 0.875rem;
+    font-family: 'Inter', sans-serif;
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    width: 100%;
+  }
+
+  .input-dark::placeholder {
+    color: var(--text-muted);
+  }
+
+  .input-dark:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(230, 57, 70, 0.15);
+  }
+
+  .divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 0;
+  }
+}
+
+/* Count-up Animation */
+@keyframes countUp {
+  0%   { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  0%   { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@keyframes slideInLeft {
+  0%   { opacity: 0; transform: translateX(-16px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slideInRight {
+  0%   { opacity: 0; transform: translateX(16px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slideInUp {
+  0%   { opacity: 0; transform: translateY(16px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulseSoft {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-count {
+  animation: countUp 0.8s ease-out forwards;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+.animate-slide-in-left {
+  animation: slideInLeft 0.35s ease-out forwards;
+}
+
+.animate-slide-in-up {
+  animation: slideInUp 0.35s ease-out forwards;
+}
+
+/* Skeleton shimmer for loading states */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--bg-card) 25%,
+    var(--bg-card-hover) 50%,
+    var(--bg-card) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+  border-radius: 8px;
+}
+
+/* ECharts Tooltip Override */
+.echarts-tooltip,
+div[style*='z-index: 9999999'] {
+  background: #1a1a1a !important;
+  border: 1px solid #2a2a2a !important;
+  border-radius: 10px !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6) !important;
+  color: #ffffff !important;
+  font-family: 'Inter', sans-serif !important;
+  font-size: 13px !important;
+  padding: 10px 14px !important;
+}
+
+/* CSS 3D Card Utilities */
+.perspective-grid {
+  perspective: 1200px;
+}
+
+/* Glassmorphism premium variant */
+.glass-card-premium {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: var(--radius-card);
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transition: box-shadow 0.3s ease, transform 0.3s ease;
+}
+
+.glass-card-premium:hover {
+  box-shadow:
+    0 8px 40px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* Accent card - red-glow glassmorphism */
+.glass-card-accent {
+  background: rgba(230, 57, 70, 0.04);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  border: 1px solid rgba(230, 57, 70, 0.2);
+  border-radius: var(--radius-card);
+  box-shadow:
+    0 0 32px rgba(230, 57, 70, 0.12),
+    0 4px 24px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(230, 57, 70, 0.08);
+}
+
+/* Ambient Mesh Background */
+.mesh-bg::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse 60% 40% at 10% 0%, rgba(230,57,70,0.06) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 30% at 90% 100%, rgba(230,57,70,0.04) 0%, transparent 50%);
+}
+
+/* Focus Ring - ONLY for buttons and links, NOT inputs */
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Remove all browser default focus rings from form controls */
+input:focus,
+input:focus-visible,
+textarea:focus,
+textarea:focus-visible,
+select:focus,
+select:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+/* Selection */
+::selection {
+  background: rgba(230, 57, 70, 0.3);
+  color: #ffffff;
+}
+
+/* Framer Motion page wrapper */
+.page-enter {
+  animation: slideInUp 0.3s ease-out forwards;
+}
+
+/* Chart container min-heights */
+.chart-sm  { min-height: 200px; }
+.chart-md  { min-height: 280px; }
+.chart-lg  { min-height: 360px; }
+.chart-xl  { min-height: 440px; }

@@ -1,0 +1,34 @@
+client_id: CLIENT_1
+display_name: Frammer Client 1
+workspaces:
+  - WS-DIGITAL-NEWS
+  - WS-ENTERTAINMENT
+  - WS-TECH-ANALYSIS
+  - WS-LIFESTYLE
+  - WS-SPORTS-LIVE
+
+thresholds:
+  OPI_hours: 48              # Alert if orphaned hours exceed this per workspace
+  AGV_drop_pct: 15           # Alert if MoM subscriber growth drops more than this %
+  ZScore_anomaly: 2.5        # Flag videos with |ZSP| > this as outliers
+  publish_rate_min_pct: 0.5  # Alert if PCR drops below this %
+  MCI_min_pct: 80            # Alert if metadata completeness drops below this %
+
+alert_channels:
+  email: ops@client1.example.com
+  slack_webhook: ""
+
+enabled_kpis:
+  - PCR
+  - FSC
+  - GR
+  - OPI
+  - TEU
+  - AIL
+  - AGV
+  - PMI
+  - MCI
+  - DCDR
+
+default_persona: leadership   # leadership | creator
+date_range_default_days: 90   # default lookback window for all dashboard views
