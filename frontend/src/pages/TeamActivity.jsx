@@ -477,12 +477,9 @@ export default function TeamActivity() {
       transition={{ duration: 0.3 }}
     >
       {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white mb-1">Team &amp; User Activity</h1>
-          <p className="text-sm text-[#a0a0a0]">Workspace × team × user performance breakdown</p>
-        </div>
-        <CountHoursToggle />
+      <div>
+        <h1 className="text-2xl font-bold text-white mb-1">Team Activity</h1>
+        <p className="text-sm text-[#a0a0a0]">Workspace, team, and user performance breakdown</p>
       </div>
 
       {/* FilterBar */}
@@ -625,12 +622,6 @@ export default function TeamActivity() {
               onChange={setDim2}
             />
           </div>
-          <span className="text-xs text-[#555] ml-2">
-            Endpoint:{' '}
-            <code className="text-[#ff8fa3] font-mono bg-[#1f1f1f] px-1.5 py-0.5 rounded">
-              /api/crosstab?d1={dim1}&d2={dim2}
-            </code>
-          </span>
         </div>
 
         <CrossTabHeatmap d1={dim1} d2={dim2} loading={crossTabLoading} />

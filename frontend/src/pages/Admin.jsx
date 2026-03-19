@@ -205,9 +205,9 @@ function KPIChat() {
   }
 
   return (
-    <div className="flex flex-col h-full" style={{ minHeight: 480 }}>
+    <div className="flex flex-col" style={{ height: 460 }}>
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto space-y-4 pr-1 mb-4" style={{ maxHeight: 380 }}>
+      <div className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1 pb-2">
         {messages.map((msg) => (
           <ChatBubble key={msg.id} msg={msg} />
         ))}
@@ -232,8 +232,8 @@ function KPIChat() {
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
-      <div className="flex gap-2 mt-auto">
+      {/* Input — always anchored to bottom */}
+      <div className="flex-shrink-0 flex gap-2 pt-3 border-t border-[#1f1f1f]">
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}

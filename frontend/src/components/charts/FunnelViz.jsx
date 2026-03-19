@@ -178,12 +178,11 @@ export default function FunnelViz({ stages = [], loading = false }) {
                   }}
                 >
                   <div className="text-center px-2">
-                    <p className="text-2xl font-black text-white leading-none tabular-nums kpi-number">
+                    <p className="text-xl font-black text-white leading-none tabular-nums kpi-number">
                       {stage.count.toLocaleString()}
                     </p>
-                    <p className="text-[10px] text-white/60 mt-1 truncate max-w-[120px] mx-auto">{subtitle}</p>
                     {convLabel && (
-                      <p className="text-[9px] text-white/40 mt-0.5 truncate max-w-[110px] mx-auto">
+                      <p className="text-[10px] text-white/50 mt-1.5">
                         {convLabel}
                       </p>
                     )}
@@ -191,14 +190,17 @@ export default function FunnelViz({ stages = [], loading = false }) {
                 </div>
               </div>
 
-              {/* RIGHT: % badge */}
-              <div className="absolute right-0 w-24 flex justify-start pl-4">
+              {/* RIGHT: % badge + subtitle */}
+              <div className="absolute right-0 w-24 flex flex-col items-start pl-4 gap-1">
                 <div
                   className="px-3 py-1.5 rounded text-sm font-bold text-white"
                   style={{ background: colors.badge, minWidth: 60, textAlign: 'center' }}
                 >
                   {stage.pct ?? 100}%
                 </div>
+                <span className="text-[9px] leading-tight" style={{ color: colors.label, opacity: 0.7 }}>
+                  {subtitle}
+                </span>
               </div>
             </motion.div>
           </React.Fragment>

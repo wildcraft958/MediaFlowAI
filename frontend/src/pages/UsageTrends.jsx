@@ -666,11 +666,8 @@ export default function UsageTrends() {
         <p className="text-sm text-[#a0a0a0]">90-day upload and publish activity across all workspaces</p>
       </div>
 
-      {/* FilterBar + CountHoursToggle */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <FilterBar />
-        <CountHoursToggle />
-      </div>
+      {/* FilterBar */}
+      <FilterBar />
 
       {/* Sub-tab navigation */}
       <div className="flex items-center gap-2 p-1 bg-[#111111] border border-[#1f1f1f] rounded-2xl w-fit">

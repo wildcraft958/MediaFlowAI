@@ -48,12 +48,7 @@ const ADMIN_ITEM = {
   id: 'admin', label: 'Admin', icon: Settings, path: '/admin',
 }
 
-function getNavItems(role) {
-  if (role === 'creator') {
-    const explorer = BASE_NAV_ITEMS.find((i) => i.id === 'explorer')
-    const rest     = BASE_NAV_ITEMS.filter((i) => i.id !== 'explorer')
-    return [explorer, ...rest]
-  }
+function getNavItems() {
   return BASE_NAV_ITEMS
 }
 
@@ -149,7 +144,7 @@ export default function Sidebar() {
   const role    = user?.role || 'leadership'
   const isAdmin = role === 'admin'
 
-  const navItems    = getNavItems(role)
+  const navItems    = getNavItems()
   const AvatarIcon  = role === 'creator' ? Edit3 : Crown
   const avatarColor = ROLE_COLORS[role] || ROLE_COLORS.leadership
 
