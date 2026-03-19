@@ -18,6 +18,7 @@ Implemented deliverables:
 - Star schema data model + metric/dimension dictionary
 - SQL-of-Thought pipeline with deterministic guardrails (43/43 tests)
 - Input/output/tool guardrails via `agents/middleware.py`
+- Chronos-Bolt-Tiny 30-day upload forecast — `GET /api/trends/forecast`, confidence band in TrendChart
 
 ---
 

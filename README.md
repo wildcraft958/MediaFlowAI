@@ -102,11 +102,11 @@ GCAgent/
 | 1 — Data enrichment | ✅ | 4,569 rows, 8 transforms, 32/32 TDD tests, seed=42 |
 | 2 — KPI design | ✅ | 19 Phase-1 KPIs, YAML registry, 35-KPI catalog |
 | 3 — DuckDB schema | ✅ | Star schema, 16 SQL views, 3 Python KPI tables, 4 agg tables |
-| 4 — FastAPI backend | ✅ | 14 endpoints, period-comparison, data-quality, 32/32 tests |
+| 4 — FastAPI backend | ✅ | 16 endpoints, period-comparison, data-quality, forecast, 39/39 tests |
 | 5 — Agent layer | ✅ | LangGraph 4-node, SQL-of-Thought, MCP, SSE, HITL, 43/43 tests |
-| 6 — Frontend | ✅ | 6 tabs + NLQ panel, live API, COUNT↔HOURS, D1×D2 CrossTab |
+| 6 — Frontend | ✅ | 6 tabs + NLQ panel, live API, COUNT↔HOURS, D1×D2 CrossTab, billable |
 | 7 — Insights deck | 🔲 | Script in PPT.md — needs export to PDF/PPT (10 marks) |
-| 8 — Predictive layer | 🔲 | Bonus: Chronos forecast + River anomaly detection |
+| 8 — Predictive layer | ✅ | Chronos-Bolt-Tiny 30-day forecast band live in Usage & Trends |
 
 ---
 
@@ -137,6 +137,7 @@ GCAgent/
 | `GET /api/dashboard/users` | Per-user activity summary |
 | `GET /api/kpis/{acronym}` | Single KPI result (PCR, FSC, ZSP, etc.) |
 | `GET /api/trends/daily` | 90-day daily upload/publish |
+| `GET /api/trends/forecast` | 30-day Chronos forecast (history + p10/p50/p90 quantiles) |
 | `GET /api/trends/category` | By input type |
 | `GET /api/trends/output-type` | By Frammer output type |
 | `GET /api/crosstab` | D1×D2 heatmap (`metric=count\|hours\|pcr_pct`) |
@@ -204,7 +205,7 @@ uv run uvicorn api.main:app --port 8000   # http://localhost:8000
 
 ```bash
 uv run pytest data/test_enrich.py -v     # 32/32 — data enrichment
-uv run pytest api/test_api.py -v         # 32/32 — API endpoints
+uv run pytest api/test_api.py -v         # 39/39 — API endpoints (inc. 7 forecast tests)
 uv run pytest agents/test_agents.py -v  # 43/43 — agent pipeline
 ```
 

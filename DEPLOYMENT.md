@@ -110,7 +110,7 @@ The SPA catchall in `api/main.py` routes all non-`/api` paths to `frontend/dist/
 
 ```bash
 uv run pytest data/test_enrich.py -v     # 32/32 — data enrichment + ArrowDtype fix
-uv run pytest api/test_api.py -v         # 32/32 — all API endpoints
+uv run pytest api/test_api.py -v         # 39/39 — all API endpoints (inc. 7 Chronos forecast tests)
 uv run pytest agents/test_agents.py -v  # 43/43 — SQL-of-Thought + guardrails + NLQ
 ```
 
@@ -127,6 +127,9 @@ curl http://localhost:8000/api/dashboard/period-comparison | python3 -m json.too
 
 # Data quality (field completeness)
 curl http://localhost:8000/api/dashboard/data-quality | python3 -m json.tool
+
+# Chronos 30-day forecast
+curl http://localhost:8000/api/trends/forecast | python3 -m json.tool
 
 # Natural language query (real LLM)
 curl -X POST http://localhost:8000/api/nlq \
@@ -171,3 +174,126 @@ This re-embeds all KPI definitions and dimension values using Vertex AI `text-em
 | `Corrected_dataset.csv` missing | Raw data not present | Obtain from team lead; place in project root |
 | Vector search slow | Cold start, BQ initialization | Normal — first query takes ~5s; subsequent queries are fast |
 | `frammer.duckdb` read error | Stale DB from different schema version | Delete `frammer.duckdb` and re-run `data/schema.py` |
+| Chronos first-run is slow (~30s) | Model download from HuggingFace Hub | Downloads once, cached in `~/.cache/huggingface/`. Subsequent calls use the cached `lru_cache` pipeline. |
+
+---
+
+## 11. Production Deployment
+
+The recommended production path is **Docker → Google Cloud Run** since the project already uses GCP (Vertex AI, BigQuery).
+
+### 11.1 Dockerfile
+
+Create `Dockerfile` at the project root:
+
+```dockerfile
+FROM python:3.11-slim
+
+# System deps for WeasyPrint and Chronos
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libcairo2 libpango-1.0-0 libpangocairo-1.0-0 libgdk-pixbuf2.0-0 \
+    libffi-dev shared-mime-info fonts-liberation curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install uv
+RUN pip install uv
+
+# Copy dependency files and install
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev
+
+# Copy source
+COPY . .
+
+# Copy pre-built frontend (run `npm run build` before docker build)
+# frontend/dist/ must exist at build time
+COPY frontend/dist ./frontend/dist
+
+# Expose port
+EXPOSE 8080
+
+# Entrypoint: build DB then serve
+CMD ["sh", "-c", "uv run python data/enrich.py && uv run python data/shift_dates.py && uv run python data/schema.py && uv run uvicorn api.main:app --host 0.0.0.0 --port 8080"]
+```
+
+### 11.2 Build and push
+
+```bash
+# 1. Build frontend first (baked into the Docker image)
+cd frontend && npm run build && cd ..
+
+# 2. Set your GCP project
+export PROJECT_ID=agrowise-192e3
+export REGION=us-central1
+export IMAGE=gcr.io/$PROJECT_ID/frammer-dashboard:latest
+
+# 3. Build Docker image
+docker build -t $IMAGE .
+
+# 4. Push to Google Container Registry
+gcloud auth configure-docker
+docker push $IMAGE
+```
+
+### 11.3 Deploy to Cloud Run
+
+```bash
+gcloud run deploy frammer-dashboard \
+  --image $IMAGE \
+  --region $REGION \
+  --platform managed \
+  --allow-unauthenticated \
+  --memory 4Gi \
+  --cpu 2 \
+  --timeout 300 \
+  --set-secrets GOOGLE_APPLICATION_CREDENTIALS_JSON=frammer-sa-key:latest
+```
+
+> **Secret setup:** Store the service account JSON as a GCP Secret Manager secret named `frammer-sa-key`. The app reads it via the `GOOGLE_APPLICATION_CREDENTIALS` env var. Cloud Run auto-injects it to the filesystem.
+
+Alternatively, attach a service account to the Cloud Run service directly:
+
+```bash
+gcloud run services update frammer-dashboard \
+  --service-account frammer-sa@agrowise-192e3.iam.gserviceaccount.com \
+  --region $REGION
+```
+
+This removes the need to inject a key file — the service account identity is used automatically.
+
+### 11.4 DuckDB persistence caveat
+
+Cloud Run instances are **ephemeral** — the DuckDB file is rebuilt on every cold start (`CMD` in Dockerfile). This is fine for a demo with a fixed dataset. For a production system with live data, move the DB to one of:
+
+| Option | How |
+|--------|-----|
+| **Cloud Storage** | Mount GCS bucket as FUSE filesystem, point DuckDB at it |
+| **MotherDuck** | Replace `frammer.duckdb` local path with `md:frammer` connection string |
+| **Cloud SQL (PG)** | Replace DuckDB queries with SQLAlchemy + Postgres (larger effort) |
+
+MotherDuck is the lowest-friction path — DuckDB-compatible, zero schema change, cloud-native.
+
+### 11.5 Chronos model caching
+
+The Chronos-Bolt-Tiny model is downloaded from HuggingFace on first startup. On Cloud Run, use a pre-built layer or cache the model in the Docker image:
+
+```dockerfile
+# Pre-download Chronos into the image layer (avoids cold-start download)
+RUN uv run python -c "from chronos import BaseChronosPipeline; import torch; BaseChronosPipeline.from_pretrained('amazon/chronos-bolt-tiny', device_map='cpu', dtype=torch.float32)"
+```
+
+### 11.6 Alternative: Railway / Render
+
+Both support Docker deployments with environment variable injection — no GCP account needed for hosting:
+
+```bash
+# Railway
+railway up --dockerfile Dockerfile
+
+# Render: connect GitHub repo, set GOOGLE_APPLICATION_CREDENTIALS_JSON env var,
+# use the Dockerfile as the build target.
+```
+
+Note: You still need GCP credentials for Vertex AI and BigQuery regardless of where the container runs.
