@@ -3,7 +3,7 @@
  *
  * Left:    breadcrumb (current page name)
  * Center:  global search input
- * Right:   COUNT/HOURS toggle · Persona switcher · Alert bell · CLIENT_1 badge
+ * Right:   COUNT/HOURS toggle · Role badge · Alert bell · CLIENT_1 badge
  */
 
 import React, { useState } from 'react'
@@ -43,26 +43,25 @@ const SEVERITY_META = {
   success: { color: '#4caf50', Icon: Activity       },
 }
 
-// ─── Persona Switcher Pill ────────────────────────────────────────────────────
-function PersonaSwitcher() {
-  const persona    = useStore((s) => s.persona)
-  const setPersona = useStore((s) => s.setPersona)
-  const isLeader   = persona === 'leadership'
+// ─── Role Badge (read-only — role is set at login) ───────────────────────────
+function RoleBadge() {
+  const user = useStore((s) => s.user)
+  const role = user?.role || 'leadership'
+  const isLeader = role === 'leadership' || role === 'admin'
 
   return (
-    <button
-      onClick={() => setPersona(isLeader ? 'creator' : 'leadership')}
+    <span
       className={clsx(
         'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold',
-        'border transition-all duration-200',
+        'border select-none',
         isLeader
-          ? 'bg-accent/10 border-accent/30 text-accent hover:bg-accent/20'
-          : 'bg-bg-card border-border-2 text-text-secondary hover:border-border-2 hover:text-white',
+          ? 'bg-accent/10 border-accent/30 text-accent'
+          : 'bg-bg-card border-border-2 text-text-secondary',
       )}
     >
       {isLeader ? <Crown size={11} /> : <Edit3 size={11} />}
-      {isLeader ? 'Leadership' : 'Creator'}
-    </button>
+      {role === 'admin' ? 'Admin' : isLeader ? 'Leadership' : 'Creator'}
+    </span>
   )
 }
 
@@ -247,8 +246,8 @@ export default function TopNav() {
         {/* COUNT / HOURS toggle */}
         <CountHoursToggle />
 
-        {/* Persona switcher */}
-        <PersonaSwitcher />
+        {/* Role badge (read-only) */}
+        <RoleBadge />
 
         {/* Alert bell with inbox dropdown */}
         <AlertBell />
