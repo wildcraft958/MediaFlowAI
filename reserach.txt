@@ -1,6 +1,11 @@
 # Research Notes — Frammer AI Analytics Dashboard
 # Source: Early ideation chat logs (WhatsApp + Claude conversations)
 # Status: Reference only — architecture decisions finalized in agents/PLAN.md
+#
+# ⚠️  DATA CAVEAT: All numbers in this file were computed on the ORIGINAL
+#     Frammer-provided dataset, NOT on data/frammer_dataset.csv (enriched, seed=42).
+#     Before using any specific stat in the dashboard or deck, recompute against
+#     data/frammer_dataset.csv. Architectural insights and qualitative findings remain valid.
 
 ---
 

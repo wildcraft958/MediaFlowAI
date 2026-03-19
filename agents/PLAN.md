@@ -151,6 +151,7 @@ class AgentState(TypedDict):
     client_id: str                  # multi-tenant
     query: str
     intent: str                     # "standard_kpi" | "adhoc_nlq" | "alert_query"
+    vector_hits: list[dict]         # top-k KPI/dim matches from vector search
     filters: dict                   # {workspace, date_range, team, language, ...}
     sql: str
     result: list[dict]
@@ -160,7 +161,7 @@ class AgentState(TypedDict):
     history: list[dict]             # multi-turn session memory
 
 # Graph nodes
-graph.add_node("router",    router_node)      # intent classify, CoT
+graph.add_node("router",    router_node)      # vector search → intent classify
 graph.add_node("interpret", interpret_node)   # schema link, query plan
 graph.add_node("execute",   execute_node)     # run KPI or Text2SQL
 graph.add_node("narrate",   narrate_node)     # plain-English summary + chart spec
@@ -170,7 +171,7 @@ graph.add_conditional_edges(
     "router",
     route_by_intent,
     {
-        "standard_kpi": "execute",    # skip interpret for pre-computed KPIs
+        "standard_kpi": "execute",    # skip interpret — vector search matched a pre-computed KPI
         "adhoc_nlq":    "interpret",  # full Text2SQL pipeline
         "alert_query":  "execute",    # direct threshold check
     }
@@ -178,6 +179,27 @@ graph.add_conditional_edges(
 graph.add_edge("interpret", "execute")
 graph.add_edge("execute",   "narrate")
 graph.set_entry_point("router")
+```
+
+### Router node — vector search first, LLM second
+
+```python
+def router_node(state: AgentState) -> AgentState:
+    # Step 1: semantic search over KPI definitions + dimension values
+    # ChromaDB collection contains: KPI name, description, formula hint, example queries
+    hits = vector_store.query(state["query"], n_results=3)
+    state["vector_hits"] = hits
+
+    # Step 2: LLM intent classifier — uses vector hits as context
+    # If top hit similarity > 0.85 AND maps to a pre-computed KPI → standard_kpi
+    # Otherwise → adhoc_nlq
+    intent = classify_intent(state["query"], hits, state["persona"])
+    state["intent"] = intent
+    return state
+
+# Vector store setup (embed once at startup)
+# Documents: KPI definitions from kpis/KPI_FINAL.md + dimension values from dim_* tables
+# Model: text-embedding-3-small or sentence-transformers/all-MiniLM-L6-v2 (local, free)
 ```
 
 ---
