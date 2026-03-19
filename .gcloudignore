@@ -1,0 +1,42 @@
+# .gcloudignore — controls what gets uploaded to Cloud Build
+# Unlike .gitignore this file is NOT automatically inherited.
+# Intentionally includes: frontend/dist/, *.json (SA key), data/frammer_dataset.csv
+
+# Heavy dev artifacts
+.venv/
+frontend/node_modules/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.egg-info/
+.eggs/
+
+# DuckDB — rebuilt at container startup from frammer_dataset.csv
+frammer.duckdb
+*.db
+*.sqlite
+*.sqlite3
+
+# Raw dataset — not needed (data/frammer_dataset.csv is the enriched version)
+Corrected_dataset.csv
+
+# Dev/editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+.env
+*.env
+
+# Vector store cache
+.chromadb/
+
+# Draft reference files (large PDFs, not needed for runtime)
+draft/
+
+# Project instructions (internal)
+CLAUDE.md
+PPT.md

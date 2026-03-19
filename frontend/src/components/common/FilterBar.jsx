@@ -18,6 +18,7 @@ import {
   CalendarDays,
   X,
   Check,
+  GitCompare,
 } from 'lucide-react'
 import useStore from '../../store/useStore'
 
@@ -259,9 +260,36 @@ function FilterPill({ def, value, onChange }) {
 }
 
 // ---------------------------------------------------------------------------
+// ComparePeriodPill — segment control for the comparison window
+// ---------------------------------------------------------------------------
+function ComparePeriodPill() {
+  const comparePeriod = useStore((s) => s.comparePeriod)
+  const setComparePeriod = useStore((s) => s.setComparePeriod)
+  return (
+    <div className="inline-flex items-center gap-1 pl-2 border-l border-[#2a2a2a]">
+      <GitCompare size={12} className="text-[#555] mr-0.5" />
+      {[7, 30, 90].map((d) => (
+        <button
+          key={d}
+          onClick={() => setComparePeriod(d)}
+          className={[
+            'px-2.5 py-1 text-xs font-medium rounded-full transition-all duration-150 select-none',
+            comparePeriod === d
+              ? 'bg-[#e63946] text-white shadow-[0_0_8px_rgba(230,57,70,0.3)]'
+              : 'text-[#555] hover:text-[#a0a0a0] hover:bg-[#1a1a1a]',
+          ].join(' ')}
+        >
+          {d}d
+        </button>
+      ))}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // FilterBar
 // ---------------------------------------------------------------------------
-export default function FilterBar({ onChange, className = '' }) {
+export default function FilterBar({ onChange, className = '', showComparePeriod = true }) {
   const filters = useStore((s) => s.filters)
   const setFilters = useStore((s) => s.setFilters)
 
@@ -316,6 +344,9 @@ export default function FilterBar({ onChange, className = '' }) {
           </motion.button>
         )}
       </AnimatePresence>
+
+      {/* Comparison period selector */}
+      {showComparePeriod && <ComparePeriodPill />}
     </div>
   )
 }

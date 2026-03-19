@@ -39,6 +39,10 @@ const useStore = create((set, get) => ({
   metric: 'count',             // 'count' | 'hours'
   setMetric: (metric) => set({ metric }),
 
+  // ─── Comparison period ────────────────────────────────────────────────────
+  comparePeriod: 30,           // days: 7 | 30 | 90
+  setComparePeriod: (comparePeriod) => set({ comparePeriod }),
+
   // ─── Active tab ───────────────────────────────────────────────────────────
   activeTab: 'executive',      // matches route ids
   setActiveTab: (activeTab) => set({ activeTab }),

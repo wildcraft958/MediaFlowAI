@@ -187,6 +187,41 @@ def data_quality(f: FilterParams = Depends()):
     }
 
 
+@router.get("/dashboard/billable-split")
+def billable_split(f: FilterParams = Depends()):
+    """
+    Billable vs non-billable analytics (PS §8C).
+    billable_flag='True' = published content = client is billed.
+    """
+    where, params = build_where_clause(f, alias="")
+    df = query_df(
+        f"""SELECT
+            frammer_workspace AS workspace,
+            COUNT(*) AS total,
+            SUM(CASE WHEN billable_flag='True' THEN 1 ELSE 0 END) AS billable,
+            SUM(CASE WHEN billable_flag='False' THEN 1 ELSE 0 END) AS non_billable,
+            ROUND(SUM(CASE WHEN billable_flag='True' THEN 1 ELSE 0 END)*100.0/COUNT(*),1) AS billable_pct,
+            ROUND(SUM(CASE WHEN billable_flag='True' THEN video_duration_sec ELSE 0 END)/3600.0, 2) AS billable_hours,
+            ROUND(SUM(CASE WHEN billable_flag='False' THEN video_duration_sec ELSE 0 END)/3600.0, 2) AS non_billable_hours
+        FROM frammer_dataset {where}
+        GROUP BY frammer_workspace ORDER BY billable DESC""",
+        params,
+    )
+    total = int(df["total"].sum())
+    billable = int(df["billable"].sum())
+    billable_h = round(float(df["billable_hours"].sum()), 2)
+    non_billable_h = round(float(df["non_billable_hours"].sum()), 2)
+    return {
+        "total": total,
+        "billable": billable,
+        "non_billable": total - billable,
+        "billable_pct": round(billable / total * 100, 1) if total > 0 else 0,
+        "billable_hours": billable_h,
+        "non_billable_hours": non_billable_h,
+        "by_workspace": df.to_dict(orient="records"),
+    }
+
+
 @router.get("/dashboard/publish-funnel")
 def publish_funnel(f: FilterParams = Depends()):
     where, params = build_where_clause(f, alias="")

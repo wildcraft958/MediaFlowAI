@@ -662,6 +662,7 @@ export default function UsageTrends() {
   const [loading, setLoading] = useState(true)
   const filters = useStore((s) => s.filters)
   const metric = useStore((s) => s.metric)
+  const comparePeriod = useStore((s) => s.comparePeriod)
 
   useEffect(() => {
     setLoading(true)
@@ -670,7 +671,7 @@ export default function UsageTrends() {
       getCategoryTrends(filters),
       getOutputTypeTrends(filters),
       getExecutiveSummary(filters),
-      getPeriodComparison(filters),
+      getPeriodComparison({ period_days: comparePeriod, ...filters }),
       getForecast(),  // intentionally no filters — sparse series hurt forecast quality
     ])
       .then(([daily, category, outputType, exec, comparison, forecast]) => {
@@ -688,7 +689,7 @@ export default function UsageTrends() {
         setData({ daily: MOCK_DAILY, category: MOCK_CATEGORY, outputType: null, workspacePcr: null, comparison: null, forecast: null })
         setLoading(false)
       })
-  }, [filters])
+  }, [filters, comparePeriod])
 
   const dailyData = data?.daily || MOCK_DAILY
   const categoryData = data?.category ?? MOCK_CATEGORY

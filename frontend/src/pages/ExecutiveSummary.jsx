@@ -14,7 +14,7 @@ import KPICard from '../components/charts/KPICard'
 import FunnelViz from '../components/charts/FunnelViz'
 import FilterBar from '../components/common/FilterBar'
 import useStore from '../store/useStore'
-import { getExecutiveSummary, getPublishFunnel, getPeriodComparison, getDataQuality } from '../api/client'
+import { getExecutiveSummary, getPublishFunnel, getPeriodComparison, getDataQuality, getBillableSplit } from '../api/client'
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
 
@@ -396,6 +396,52 @@ function DataQualityBars({ fields, health, loading }) {
   )
 }
 
+// ── Billable Analytics Panel ───────────────────────────────────────────────────
+
+function BillablePanel({ billable, loading }) {
+  if (loading) return <div className="h-36 animate-pulse bg-[#1a1a1a] rounded-xl" />
+  if (!billable) return null
+  const { total, billable: b, non_billable: nb, billable_pct, billable_hours, non_billable_hours, by_workspace = [] } = billable
+  return (
+    <div className="space-y-4">
+      {/* Headline row */}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { label: 'Billable Videos', value: b.toLocaleString(), pct: `${billable_pct}%`, color: '#4caf50' },
+          { label: 'Non-Billable', value: nb.toLocaleString(), pct: `${(100 - billable_pct).toFixed(1)}%`, color: '#e63946' },
+          { label: 'Billable Hours', value: `${billable_hours.toLocaleString()}h`, pct: `vs ${non_billable_hours.toLocaleString()}h non-bill.`, color: '#ff9800' },
+        ].map((s) => (
+          <div key={s.label} className="p-3 rounded-xl bg-[#0a0a0a] border border-[#1f1f1f]">
+            <p className="text-[10px] text-[#555] uppercase tracking-wide mb-1">{s.label}</p>
+            <p className="text-lg font-bold tabular-nums" style={{ color: s.color }}>{s.value}</p>
+            <p className="text-[10px] text-[#555] mt-0.5">{s.pct}</p>
+          </div>
+        ))}
+      </div>
+      {/* Billable % by workspace */}
+      <div className="space-y-2">
+        {by_workspace.map((ws) => (
+          <div key={ws.workspace} className="space-y-1">
+            <div className="flex justify-between text-xs">
+              <span className="text-[#a0a0a0]">{ws.workspace.replace('WS-', '')}</span>
+              <span className="tabular-nums text-[#555]">{ws.billable.toLocaleString()} / {ws.total.toLocaleString()} · {ws.billable_pct}%</span>
+            </div>
+            <div className="w-full h-1.5 bg-[#1a1a1a] rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full"
+                style={{
+                  width: `${ws.billable_pct}%`,
+                  backgroundColor: ws.billable_pct >= 80 ? '#4caf50' : ws.billable_pct >= 60 ? '#ff9800' : '#e63946',
+                }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function ExecutiveSummary() {
@@ -404,30 +450,32 @@ export default function ExecutiveSummary() {
   const [alertVisible, setAlertVisible] = useState(true)
   const filters = useStore((s) => s.filters)
   const metric = useStore((s) => s.metric)
+  const comparePeriod = useStore((s) => s.comparePeriod)
 
   useEffect(() => {
     setLoading(true)
     Promise.all([
       getExecutiveSummary(filters),
       getPublishFunnel(filters),
-      getPeriodComparison(filters),
+      getPeriodComparison({ period_days: comparePeriod, ...filters }),
       getDataQuality(filters),
+      getBillableSplit(filters),
     ])
-      .then(([summary, funnel, comparison, quality]) => {
+      .then(([summary, funnel, comparison, quality, billable]) => {
         setData({
           summary: summary.data,
           funnel: funnel.data,
           comparison: comparison.data,
           quality: quality.data,
+          billable: billable.data,
         })
         setLoading(false)
       })
       .catch(() => {
-        // Fall back to mock data
-        setData({ summary: null, funnel: MOCK_FUNNEL, comparison: null, quality: null })
+        setData({ summary: null, funnel: MOCK_FUNNEL, comparison: null, quality: null, billable: null })
         setLoading(false)
       })
-  }, [filters])
+  }, [filters, comparePeriod])
 
   const trendData = data?.summary?.trend || MOCK_TREND
   const funnelData = data?.funnel || MOCK_FUNNEL
@@ -616,6 +664,22 @@ export default function ExecutiveSummary() {
             )}
           </div>
         )}
+      </motion.div>
+
+      {/* Billable Analytics */}
+      <motion.div
+        className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-6"
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.53, duration: 0.35 }}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-white">Billable Analytics</h2>
+          <span className="text-xs font-bold border px-2 py-1 rounded-md text-[#4caf50] border-[#4caf50]/40 bg-[#4caf50]/10">
+            PS §8C
+          </span>
+        </div>
+        <BillablePanel billable={data?.billable} loading={loading} />
       </motion.div>
 
       {/* Workspace PCR + Agent Inbox */}

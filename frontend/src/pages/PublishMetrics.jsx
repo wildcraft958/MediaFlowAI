@@ -227,6 +227,7 @@ export default function PublishMetrics() {
   const [hthrPage, setHthrPage] = useState(1)
   const [fscPage, setFscPage] = useState(1)
   const filters = useStore((s) => s.filters)
+  const comparePeriod = useStore((s) => s.comparePeriod)
 
   useEffect(() => {
     setLoading(true)
@@ -236,7 +237,7 @@ export default function PublishMetrics() {
       getCategoryTrends(filters),
       getCrosstab({ d1: 'frammer_output_type', d2: 'published_flag', ...filters }),
       getKPI('HTHR', filters),
-      getPeriodComparison(filters),
+      getPeriodComparison({ period_days: comparePeriod, ...filters }),
     ])
       .then(([funnel, exec, category, xtab, hthr, comparison]) => {
         setData({
@@ -250,7 +251,7 @@ export default function PublishMetrics() {
       })
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [filters])
+  }, [filters, comparePeriod])
 
   // HTHR table columns
   const hthrColumns = [

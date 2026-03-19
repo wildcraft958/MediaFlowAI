@@ -53,6 +53,9 @@ export const getPeriodComparison = (params) =>
 export const getDataQuality = (params) =>
   api.get('/dashboard/data-quality', { params })
 
+export const getBillableSplit = (params) =>
+  api.get('/dashboard/billable-split', { params })
+
 // ─── KPIs ────────────────────────────────────────────────────────────────────
 export const getKPI = (acronym, params) =>
   api.get(`/kpis/${acronym}`, { params })
