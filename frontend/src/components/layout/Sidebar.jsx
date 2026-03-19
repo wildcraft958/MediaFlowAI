@@ -19,7 +19,7 @@ import {
   Users,
   BarChart2,
   Play,
-  Settings,
+  ShieldCheck,
   ChevronLeft,
   ChevronRight,
   Crown,
@@ -45,7 +45,7 @@ const BASE_NAV_ITEMS = [
 ]
 
 const ADMIN_ITEM = {
-  id: 'admin', label: 'Admin', icon: Settings, path: '/admin',
+  id: 'admin', label: 'Admin', icon: ShieldCheck, path: '/admin',
 }
 
 function getNavItems() {

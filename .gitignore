@@ -35,6 +35,18 @@ Thumbs.db
 .env
 *.env
 
+# ChromaDB local store (rebuilt on first run)
+.chromadb/
+
+# GCP service account keys — never commit
+*.json
+!package.json
+!package-lock.json
+!tsconfig*.json
+!vite.config*.json
+!tailwind.config*.json
+!postcss.config*.json
+
 # Frontend build artifacts
 frontend/node_modules/
 frontend/dist/
