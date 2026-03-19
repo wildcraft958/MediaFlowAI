@@ -22,7 +22,7 @@
 │                                                                               │
 │         ┌──────────────────┐          ┌──────────────────────┐               │
 │         │  Dashboard UI    │          │  NLQ Floating Panel  │               │
-│         │  5 tabs          │          │  + Agent Inbox       │               │
+│         │  6 tabs          │          │  + Agent Inbox       │               │
 │         │  COUNT↔HOURS     │          │  (HITL interface)    │               │
 │         │  D1×D2 CrossTab  │          │                      │               │
 │         └────────┬─────────┘          └──────────┬───────────┘               │
@@ -255,7 +255,8 @@ def generate_client_brief(client_id: str, period: str) -> bytes:
 - PDF report: monthly narrative with embedded charts
 
 ### 4.2 Creator (Editor / Uploader)
-- Default tab: Team Activity / Video Explorer
+- Default tab: Executive Summary (same nav order as Leadership)
+- RBAC: role differences apply to KPI cards and chart visuals shown, not page ordering
 - KPIs surfaced: TEU, OPI, ZSP, CPDG, HTHR, DCDR
 - NLQ examples:
   - "Which of my videos has the biggest promise gap?"
@@ -326,7 +327,8 @@ enabled_kpis: [PCR, FSC, GR, OPI, TEU, AIL, AGV, PMI]
 
 ## 6. Chart Agent
 
-All charts rendered via plotly.js from a structured JSON spec.
+All charts rendered via **Apache ECharts** (`echarts-for-react`) from a structured JSON spec.
+The agent produces an ECharts `option` object; the frontend passes it directly to `<ReactECharts option={...} />`.
 
 ```json
 {
