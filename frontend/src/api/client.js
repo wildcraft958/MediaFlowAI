@@ -7,6 +7,22 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  // FastAPI expects repeated params (workspace=A&workspace=B), not brackets
+  paramsSerializer: {
+    serialize: (params) => {
+      const parts = []
+      for (const [key, value] of Object.entries(params)) {
+        if (value == null || value === '' || key === 'dateRange') continue
+        if (Array.isArray(value)) {
+          if (value.length === 0) continue
+          value.forEach((v) => parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(v)}`))
+        } else {
+          parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+        }
+      }
+      return parts.join('&')
+    },
+  },
 })
 
 // ─── Request Interceptor ──────────────────────────────────────────────────────
