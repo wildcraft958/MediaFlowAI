@@ -2,7 +2,8 @@
  * TrendChart — daily upload / publish area trend with DataZoom
  *
  * @param {object}   props
- * @param {Array}    props.data    - Array of { date, uploaded, processed, published, uploaded_hours, published_hours }
+ * @param {Array}    props.data     - Array of { date, uploaded, published, uploaded_hours, published_hours }
+ * @param {object}   [props.forecastData] - { history: [{date,uploaded}], forecast: [{date,low,median,high}] }
  * @param {'count'|'hours'} [props.metric='count'] - Toggle between count and hours view
  * @param {boolean}  [props.loading=false]
  */
@@ -38,9 +39,19 @@ function Skeleton() {
   )
 }
 
-export default function TrendChart({ data = [], metric = 'count', loading = false }) {
+export default function TrendChart({ data = [], forecastData = null, metric = 'count', loading = false }) {
   const option = useMemo(() => {
-    const dates = data.map((d) => fmtDate(d.date))
+    // Historical dates from the main trend data
+    const histDates = data.map((d) => fmtDate(d.date))
+
+    // Forecast extension — only in count mode, only when data is available
+    const hasForecast = metric === 'count' && forecastData?.forecast?.length > 0
+    const fcPoints = hasForecast ? forecastData.forecast : []
+    const fcDates = fcPoints.map((f) => fmtDate(f.date))
+
+    // Combined x-axis
+    const dates = [...histDates, ...fcDates]
+    const histLen = histDates.length
 
     const publishedSeries =
       metric === 'hours'
@@ -52,7 +63,24 @@ export default function TrendChart({ data = [], metric = 'count', loading = fals
         ? data.map((d) => d.uploaded_hours ?? 0)
         : data.map((d) => d.uploaded ?? 0)
 
+    // Pad historical series with null for forecast positions
+    const uploadedPadded = [...uploadedSeries, ...Array(fcDates.length).fill(null)]
+    const publishedPadded = [...publishedSeries, ...Array(fcDates.length).fill(null)]
+
+    // Forecast series: pad with null for historical positions
+    const histPad = Array(histLen).fill(null)
+    const fcLow    = hasForecast ? [...histPad, ...fcPoints.map((f) => f.low)]    : []
+    const fcBand   = hasForecast ? [...histPad, ...fcPoints.map((f) => Math.max(0, f.high - f.low))] : []
+    const fcMedian = hasForecast ? [...histPad, ...fcPoints.map((f) => f.median)] : []
+
     const yLabel = metric === 'hours' ? 'Hours' : 'Videos'
+
+    // Mark area for forecast region
+    const markArea = hasForecast ? {
+      silent: true,
+      itemStyle: { color: 'rgba(255,152,0,0.04)', borderWidth: 0 },
+      data: [[{ xAxis: fcDates[0] }, { xAxis: fcDates[fcDates.length - 1] }]],
+    } : undefined
 
     return {
       backgroundColor: 'transparent',
@@ -128,7 +156,7 @@ export default function TrendChart({ data = [], metric = 'count', loading = fals
         {
           name: 'Published',
           type: 'line',
-          data: publishedSeries,
+          data: publishedPadded,
           smooth: true,
           symbol: 'none',
           lineStyle: { color: '#e63946', width: 2 },
@@ -143,19 +171,56 @@ export default function TrendChart({ data = [], metric = 'count', loading = fals
             },
           },
           z: 3,
+          markArea: markArea,
         },
         {
           name: 'Uploaded',
           type: 'line',
-          data: uploadedSeries,
+          data: uploadedPadded,
           smooth: true,
           symbol: 'none',
           lineStyle: { color: '#666666', width: 1.5, type: 'dashed' },
           z: 2,
         },
+        // ── Forecast confidence band (low baseline, hidden) ────────────────────
+        ...(hasForecast ? [{
+          name: 'Forecast Band',
+          type: 'line',
+          data: fcLow,
+          stack: 'fc_band',
+          symbol: 'none',
+          lineStyle: { opacity: 0 },
+          areaStyle: { opacity: 0 },
+          tooltip: { show: false },
+          legendHoverLink: false,
+          z: 1,
+        }] : []),
+        // ── Forecast confidence band (width = high - low) ─────────────────────
+        ...(hasForecast ? [{
+          name: 'Forecast Band',
+          type: 'line',
+          data: fcBand,
+          stack: 'fc_band',
+          symbol: 'none',
+          lineStyle: { opacity: 0 },
+          areaStyle: { color: 'rgba(255,152,0,0.18)' },
+          tooltip: { show: false },
+          legendHoverLink: false,
+          z: 1,
+        }] : []),
+        // ── Forecast median line ───────────────────────────────────────────────
+        ...(hasForecast ? [{
+          name: 'Forecast (30d)',
+          type: 'line',
+          data: fcMedian,
+          smooth: true,
+          symbol: 'none',
+          lineStyle: { color: '#ff9800', width: 2, type: 'dashed' },
+          z: 4,
+        }] : []),
       ],
     }
-  }, [data, metric])
+  }, [data, forecastData, metric])
 
   if (loading) return <Skeleton />
 

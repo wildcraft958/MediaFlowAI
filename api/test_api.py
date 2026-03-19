@@ -242,3 +242,55 @@ def test_nlq_stub_returns_answer():
     resp = client.post("/api/nlq", json={"question": "Which workspace has lowest PCR?"})
     assert resp.status_code == 200
     assert "answer" in resp.json()
+
+
+# ── Slice 11: Chronos Forecast ────────────────────────────────────────────────
+
+def test_forecast_returns_200():
+    resp = client.get("/api/trends/forecast")
+    assert resp.status_code == 200
+
+
+def test_forecast_has_history_and_forecast_keys():
+    resp = client.get("/api/trends/forecast")
+    data = resp.json()
+    assert "history" in data
+    assert "forecast" in data
+    assert "model" in data
+
+
+def test_forecast_default_horizon_is_30_days():
+    resp = client.get("/api/trends/forecast")
+    assert len(resp.json()["forecast"]) == 30
+
+
+def test_forecast_custom_horizon():
+    resp = client.get("/api/trends/forecast?horizon=14")
+    assert len(resp.json()["forecast"]) == 14
+
+
+def test_forecast_quantiles_are_ordered():
+    resp = client.get("/api/trends/forecast")
+    for fc in resp.json()["forecast"]:
+        assert fc["low"] <= fc["median"], f"low={fc['low']} > median={fc['median']}"
+        assert fc["median"] <= fc["high"], f"median={fc['median']} > high={fc['high']}"
+
+
+def test_forecast_dates_are_sequential_and_future():
+    resp = client.get("/api/trends/forecast")
+    data = resp.json()
+    last_hist_date = data["history"][-1]["date"]
+    first_fc_date = data["forecast"][0]["date"]
+    assert first_fc_date > last_hist_date, "Forecast must start after history ends"
+    # all forecast dates are unique and ascending
+    fc_dates = [fc["date"] for fc in data["forecast"]]
+    assert fc_dates == sorted(set(fc_dates))
+
+
+def test_forecast_history_has_upload_counts():
+    resp = client.get("/api/trends/forecast")
+    h = resp.json()["history"]
+    assert len(h) > 0
+    assert "date" in h[0]
+    assert "uploaded" in h[0]
+    assert isinstance(h[0]["uploaded"], (int, float))

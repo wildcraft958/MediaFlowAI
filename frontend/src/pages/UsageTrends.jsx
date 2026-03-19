@@ -15,7 +15,7 @@ import FilterBar from '../components/common/FilterBar'
 import CountHoursToggle from '../components/common/CountHoursToggle'
 import DataTable from '../components/common/DataTable'
 import useStore from '../store/useStore'
-import { getDailyTrends, getCategoryTrends, getOutputTypeTrends, getExecutiveSummary, getPeriodComparison } from '../api/client'
+import { getDailyTrends, getCategoryTrends, getOutputTypeTrends, getExecutiveSummary, getPeriodComparison, getForecast } from '../api/client'
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
 
@@ -76,7 +76,7 @@ const WORKSPACE_HOURS = [
 
 // ── Sub-tab components ─────────────────────────────────────────────────────────
 
-function TimeAnalysis({ dailyData, categoryData, loading, metric, comparison }) {
+function TimeAnalysis({ dailyData, categoryData, forecastData, loading, metric, comparison }) {
   const totalUploaded = dailyData.reduce((s, d) => s + (d.uploaded || 0), 0)
   const totalHours = dailyData.reduce((s, d) => s + (d.uploaded_hours || 0), 0)
   const d = comparison?.delta
@@ -130,12 +130,34 @@ function TimeAnalysis({ dailyData, categoryData, loading, metric, comparison }) 
         ))}
       </div>
 
+      {/* Upload + Publish Trend with Chronos Forecast */}
+      <motion.div
+        className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-6"
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-semibold text-white">Upload &amp; Publish Trend</h2>
+            {metric === 'count' && forecastData?.forecast?.length > 0 && (
+              <p className="text-xs text-[#ff9800] mt-0.5">
+                + 30-day forecast band (Chronos-Bolt-Tiny, zero-shot)
+              </p>
+            )}
+          </div>
+        </div>
+        <div style={{ height: 320 }}>
+          <TrendChart data={dailyData} forecastData={forecastData} metric={metric} loading={loading} />
+        </div>
+      </motion.div>
+
       {/* Dual Bar Chart */}
       <motion.div
         className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-6"
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.25 }}
+        transition={{ delay: 0.3 }}
       >
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-white">Processing vs Published (90 days)</h2>
@@ -649,19 +671,21 @@ export default function UsageTrends() {
       getOutputTypeTrends(filters),
       getExecutiveSummary(filters),
       getPeriodComparison(filters),
+      getForecast(),  // intentionally no filters — sparse series hurt forecast quality
     ])
-      .then(([daily, category, outputType, exec, comparison]) => {
+      .then(([daily, category, outputType, exec, comparison, forecast]) => {
         setData({
           daily: daily.data,
           category: category.data,
           outputType: outputType.data,
           workspacePcr: exec.data?.workspace_pcr,
           comparison: comparison.data,
+          forecast: forecast.data,
         })
         setLoading(false)
       })
       .catch(() => {
-        setData({ daily: MOCK_DAILY, category: MOCK_CATEGORY, outputType: null, workspacePcr: null, comparison: null })
+        setData({ daily: MOCK_DAILY, category: MOCK_CATEGORY, outputType: null, workspacePcr: null, comparison: null, forecast: null })
         setLoading(false)
       })
   }, [filters])
@@ -735,7 +759,7 @@ export default function UsageTrends() {
           transition={{ duration: 0.2 }}
         >
           {activeSubTab === 'time' && (
-            <TimeAnalysis dailyData={dailyData} categoryData={categoryData} loading={loading} metric={metric} comparison={data?.comparison} />
+            <TimeAnalysis dailyData={dailyData} categoryData={categoryData} forecastData={data?.forecast} loading={loading} metric={metric} comparison={data?.comparison} />
           )}
           {activeSubTab === 'category' && (
             <CategoryBreakdown loading={loading} metric={metric} outputTypeData={outputTypeData} />

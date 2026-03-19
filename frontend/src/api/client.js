@@ -64,6 +64,9 @@ export const getKPIs = (acronyms, params) =>
 export const getDailyTrends = (params) =>
   api.get('/trends/daily', { params })
 
+export const getForecast = (params) =>
+  api.get('/trends/forecast', { params })
+
 export const getCategoryTrends = (params) =>
   api.get('/trends/category', { params })
 
