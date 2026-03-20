@@ -1,4 +1,5 @@
 import json
+import datetime
 from typing import Literal, Optional
 from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
@@ -6,6 +7,15 @@ from pydantic import BaseModel, Field
 from api.models import NLQRequest, NLQResponse, HITLResumeRequest
 
 router = APIRouter()
+
+
+def _safe_json(obj):
+    """json.dumps default handler for datetime, date, Decimal, etc."""
+    if isinstance(obj, (datetime.datetime, datetime.date)):
+        return obj.isoformat()
+    if hasattr(obj, '__float__'):
+        return float(obj)
+    return str(obj)
 
 
 class NLQStreamRequest(BaseModel):
@@ -67,7 +77,7 @@ async def nlq_stream(
                 session_id=session_id,
                 persona=persona,
             ):
-                yield f"data: {json.dumps(event)}\n\n"
+                yield f"data: {json.dumps(event, default=_safe_json)}\n\n"
         except ImportError:
             yield f'data: {json.dumps({"type": "error", "message": "Agent layer unavailable"})}\n\n'
         except Exception as e:
@@ -102,7 +112,7 @@ async def nlq_stream_post(body: NLQStreamRequest):
                 page_context=body.page_context,
                 chart_context=body.chart_context,
             ):
-                yield f"data: {json.dumps(event)}\n\n"
+                yield f"data: {json.dumps(event, default=_safe_json)}\n\n"
         except ImportError:
             yield f'data: {json.dumps({"type": "error", "message": "Agent layer unavailable"})}\n\n'
         except Exception as e:
