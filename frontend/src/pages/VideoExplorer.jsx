@@ -30,11 +30,12 @@ function formatDuration(h, m, s) {
 }
 
 function ZSPBadge({ value }) {
-  if (value >= 1.5)
-    return <span className="font-bold tabular-nums text-[#4caf50]">{value > 0 ? '+' : ''}{value.toFixed(2)}</span>
-  if (value <= -1.5)
-    return <span className="font-bold tabular-nums text-[#e63946]">{value.toFixed(2)}</span>
-  return <span className="tabular-nums text-[#a0a0a0]">{value > 0 ? '+' : ''}{value.toFixed(2)}</span>
+  const v = Number(value ?? 0)
+  if (v >= 1.5)
+    return <span className="font-bold tabular-nums text-[#4caf50]">{v > 0 ? '+' : ''}{v.toFixed(2)}</span>
+  if (v <= -1.5)
+    return <span className="font-bold tabular-nums text-[#e63946]">{v.toFixed(2)}</span>
+  return <span className="tabular-nums text-[#a0a0a0]">{v > 0 ? '+' : ''}{v.toFixed(2)}</span>
 }
 
 function PlatformCell({ platform }) {

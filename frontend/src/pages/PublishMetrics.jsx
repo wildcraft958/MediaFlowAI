@@ -287,9 +287,10 @@ export default function PublishMetrics() {
       label: 'HTHR Score',
       sortable: true,
       render: (v) => {
-        const color = v >= 0.9 ? '#4caf50' : v >= 0.8 ? '#ff9800' : '#a0a0a0'
+        const n = Number(v ?? 0)
+        const color = n >= 0.9 ? '#4caf50' : n >= 0.8 ? '#ff9800' : '#a0a0a0'
         return (
-          <span className="font-bold tabular-nums" style={{ color }}>{v.toFixed(2)}</span>
+          <span className="font-bold tabular-nums" style={{ color }}>{n.toFixed(2)}</span>
         )
       },
     },

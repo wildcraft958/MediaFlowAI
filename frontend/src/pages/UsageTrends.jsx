@@ -220,7 +220,7 @@ function CategoryBreakdown({ loading, metric, outputTypeData = MOCK_OUTPUT_TYPES
       label: 'Avg Watch Hours',
       sortable: true,
       render: (v) => (
-        <span className="text-white font-medium tabular-nums">{v.toFixed(1)}h</span>
+        <span className="text-white font-medium tabular-nums">{Number(v ?? 0).toFixed(1)}h</span>
       ),
     },
     {
