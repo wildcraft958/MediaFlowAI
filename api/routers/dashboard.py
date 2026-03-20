@@ -26,9 +26,9 @@ def executive(f: FilterParams = Depends()):
         params,
     )
     funnel = {
-        "uploaded": int(funnel_row[0]),
-        "processed": int(funnel_row[1]),
-        "published": int(funnel_row[2]),
+        "uploaded": int(funnel_row[0]) if funnel_row else 0,
+        "processed": int(funnel_row[1]) if funnel_row else 0,
+        "published": int(funnel_row[2]) if funnel_row else 0,
     }
 
     # PCR by workspace (includes total_hours for StorageMetrics)
@@ -240,10 +240,21 @@ def publish_funnel(f: FilterParams = Depends()):
         FROM media_dataset {where}""",
         params,
     )
-    uploaded, up_h, processed, pr_h, published, pub_h = row
+    if row is None:
+        return [
+            {"name": "Uploaded",  "count": 0, "hours": 0, "pct": 100.0},
+            {"name": "Processed", "count": 0, "hours": 0, "pct": 0},
+            {"name": "Published", "count": 0, "hours": 0, "pct": 0},
+        ]
+    uploaded = int(row[0] or 0)
+    up_h = float(row[1] or 0)
+    processed = int(row[2] or 0)
+    pr_h = float(row[3] or 0)
+    published = int(row[4] or 0)
+    pub_h = float(row[5] or 0)
     total = uploaded or 1
     return [
-        {"name": "Uploaded",  "count": int(uploaded),  "hours": round(float(up_h),2),  "pct": 100.0},
-        {"name": "Processed", "count": int(processed), "hours": round(float(pr_h),2),  "pct": round(processed/total*100,1)},
-        {"name": "Published", "count": int(published), "hours": round(float(pub_h),2), "pct": round(published/total*100,1)},
+        {"name": "Uploaded",  "count": uploaded,  "hours": round(up_h, 2),  "pct": 100.0},
+        {"name": "Processed", "count": processed, "hours": round(pr_h, 2),  "pct": round(processed / total * 100, 1)},
+        {"name": "Published", "count": published, "hours": round(pub_h, 2), "pct": round(published / total * 100, 1)},
     ]

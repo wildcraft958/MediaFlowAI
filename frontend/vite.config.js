@@ -13,15 +13,22 @@ export default defineConfig({
     }
   },
   build: {
-    chunkSizeWarningLimit: 800,
+    chunkSizeWarningLimit: 1100,
     rollupOptions: {
       output: {
-        manualChunks: {
-          'vendor-react':   ['react', 'react-dom', 'react-router-dom'],
-          'vendor-echarts': ['echarts', 'echarts-for-react'],
-          'vendor-motion':  ['framer-motion'],
-          'vendor-utils':   ['zustand', 'axios', 'date-fns', 'clsx'],
-          'vendor-icons':   ['lucide-react'],
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('echarts') || id.includes('echarts-for-react')) {
+              return 'vendor-echarts';
+            }
+            if (id.includes('react-dom') || id.includes('react-router-dom') || id.includes('/react/')) {
+              return 'vendor-react';
+            }
+            if (id.includes('framer-motion')) {
+              return 'vendor-motion';
+            }
+            return 'vendor';
+          }
         }
       }
     }

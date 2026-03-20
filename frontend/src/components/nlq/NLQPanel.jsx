@@ -433,8 +433,9 @@ function StaticFallback() {
   )
 }
 
-function ChartPreviewArea({ chartData }) {
+function ChartPreviewArea({ chartData, chartCtx }) {
   const hasData = chartData?.chart_spec && chartData.chart_spec.type !== 'none'
+  const hasCtx = !hasData && chartCtx && (chartCtx.image_base64 || chartCtx.data || chartCtx.title)
   return (
     <div className="flex flex-col gap-4 h-full">
       <div className="flex items-center gap-2">
@@ -445,7 +446,10 @@ function ChartPreviewArea({ chartData }) {
             {chartData.sql.trim().slice(0, 60)}…
           </span>
         )}
-        {!hasData && (
+        {hasCtx && (
+          <span className="text-[10px] text-[#64b5f6] ml-auto uppercase tracking-wider">Dropped chart loaded</span>
+        )}
+        {!hasData && !hasCtx && (
           <span className="text-[10px] text-[#333] ml-auto uppercase tracking-wider">Ask a question to see results</span>
         )}
       </div>
@@ -482,6 +486,38 @@ function ChartPreviewArea({ chartData }) {
               </>
             )}
           </div>
+        </div>
+      ) : hasCtx ? (
+        <div className="flex-1 flex flex-col gap-3 min-h-0 overflow-y-auto">
+          {/* Dropped chart title */}
+          {chartCtx.title && (
+            <div className="bg-[#111] border border-[#1e2a1e] rounded-xl p-4">
+              <p className="text-[10px] font-semibold text-[#64b5f6] mb-1.5 uppercase tracking-wider">Attached Chart</p>
+              <p className="text-xs text-[#a0a0a0] leading-relaxed">{chartCtx.title}</p>
+            </div>
+          )}
+
+          {/* Dropped chart image */}
+          {chartCtx.image_base64 && (
+            <div className="rounded-xl overflow-hidden border border-[#222]">
+              <img src={chartCtx.image_base64} alt={chartCtx.title || 'Dropped chart'} className="max-h-60 w-full object-contain bg-[#111]" />
+            </div>
+          )}
+
+          {/* Dropped chart data as table */}
+          {chartCtx.data && Array.isArray(chartCtx.data) && chartCtx.data.length > 0 && (
+            <div className="bg-[#111] border border-[#222] rounded-xl p-4 flex-1">
+              <p className="text-xs font-semibold text-[#888] mb-3 uppercase tracking-wider">
+                Attached Data ({chartCtx.data.length} rows)
+              </p>
+              <DynamicTable spec={{ data: chartCtx.data }} />
+            </div>
+          )}
+
+          {/* Hint */}
+          <p className="text-[10px] text-[#444] text-center mt-1">
+            Ask a question about this data to get AI analysis
+          </p>
         </div>
       ) : (
         <StaticFallback />
@@ -1037,12 +1073,7 @@ export default function NLQPanel({ className = '' }) {
             {/* Charts / visual column */}
             <div className="flex-1 overflow-y-auto px-6 py-5 bg-[#090909]">
               <ChartDropZone onDrop={(ctx) => { setChartCtx(ctx); setInput('Analyze this chart') }} />
-              {chartCtx?.image_base64 && (
-                <div className="mb-3 rounded-xl overflow-hidden border border-[#222]">
-                  <img src={chartCtx.image_base64} alt="Dropped chart" className="max-h-40 w-full object-contain bg-[#111]" />
-                </div>
-              )}
-              <ChartPreviewArea chartData={chartData} />
+              <ChartPreviewArea chartData={chartData} chartCtx={chartCtx} />
             </div>
           </div>
         </div>

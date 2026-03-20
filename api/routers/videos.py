@@ -50,10 +50,11 @@ def videos(
     where, params = _build_video_where(f, search)
     offset = (page - 1) * limit
 
-    total = query_one(
+    total_row = query_one(
         f"SELECT COUNT(*) FROM media_dataset fd {where}",
         params,
-    )[0]
+    )
+    total = int(total_row[0]) if total_row and total_row[0] is not None else 0
 
     df = query_df(
         f"SELECT {_VIDEO_COLS} {_BASE_QUERY} {where} "
@@ -82,7 +83,7 @@ def videos(
 
     return {
         "data": records,
-        "total": int(total),
+        "total": total,
         "page": page,
         "pageSize": limit,
     }

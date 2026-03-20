@@ -1,13 +1,18 @@
 """
 DuckDB singleton — read-only connection for all query endpoints.
-Admin endpoints that need DDL open a separate short-lived RW connection.
+
+Uses a threading Lock so concurrent async requests (uvicorn thread-pool)
+don't hit the same connection simultaneously, which causes SIGSEGV on
+Cloud Run.  Admin endpoints use a separate short-lived RW connection.
 """
 import pathlib
+import threading
 import duckdb
 
 DB_PATH = pathlib.Path(__file__).parents[1] / "analytics.duckdb"
 
 _conn: duckdb.DuckDBPyConnection | None = None
+_lock = threading.Lock()
 
 
 def get_db() -> duckdb.DuckDBPyConnection:
@@ -19,12 +24,14 @@ def get_db() -> duckdb.DuckDBPyConnection:
 
 def query_df(sql: str, params: list | None = None):
     """Execute SQL and return a pandas DataFrame."""
-    return get_db().execute(sql, params or []).df()
+    with _lock:
+        return get_db().execute(sql, params or []).df()
 
 
 def query_one(sql: str, params: list | None = None):
-    """Execute SQL and return the first row as a tuple."""
-    return get_db().execute(sql, params or []).fetchone()
+    """Execute SQL and return the first row as a tuple, or None."""
+    with _lock:
+        return get_db().execute(sql, params or []).fetchone()
 
 
 def rw_execute(sql: str, params: list | None = None):
