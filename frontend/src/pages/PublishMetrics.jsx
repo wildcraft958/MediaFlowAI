@@ -19,6 +19,7 @@ import RoleGate from '../components/common/RoleGate'
 import useStore from '../store/useStore'
 import { getPublishFunnel, getExecutiveSummary, getCategoryTrends, getOutputTypeTrends, getKPI, getPeriodComparison } from '../api/client'
 import { humanize, stripWs } from '../utils/format'
+import DraggableChart from '../components/common/DraggableChart'
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
 
@@ -253,7 +254,10 @@ export default function PublishMetrics() {
           comparison: comparison.data,
         })
       })
-      .catch(() => { setError('Failed to load data') })
+      .catch((err) => {
+        console.error('[PublishMetrics] Data fetch failed:', err.message)
+        setError(`Failed to load data: ${err.message}`)
+      })
       .finally(() => setLoading(false))
   }, [filters, comparePeriod])
 
@@ -369,10 +373,10 @@ export default function PublishMetrics() {
   })) ?? FSC_DATA
 
   const inputTypeMix = data?.category?.map((c, i) => ({
-    name: c.type.replace(/_/g, ' '),
+    name: humanize(c.type),
     value: c.count,
     color: COLORS[i % COLORS.length],
-  })) ?? INPUT_TYPE_MIX.map((item) => ({ name: item.name.replace(/_/g, ' '), value: item.value, color: item.color }))
+  })) ?? INPUT_TYPE_MIX.map((item) => ({ name: humanize(item.name), value: item.value, color: item.color }))
 
   const scatterData = data?.category?.map((c, i) => ({
     type: c.type,
@@ -517,6 +521,7 @@ export default function PublishMetrics() {
           </div>
         </div>
 
+        <DraggableChart title="Publish Conversion by Workspace" data={fscData}>
         <div className="space-y-4">
           {[...fscData].sort((a, b) => b.processToPublish - a.processToPublish).map((ws, i) => {
             const pcr   = ws.processToPublish
@@ -566,6 +571,7 @@ export default function PublishMetrics() {
             )
           })}
         </div>
+        </DraggableChart>
 
         <div className="mt-4 flex items-center gap-4 text-xs text-[#555]">
           <div className="flex items-center gap-1.5">

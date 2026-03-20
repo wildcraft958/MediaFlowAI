@@ -18,6 +18,7 @@ import RoleGate from '../components/common/RoleGate'
 import useStore from '../store/useStore'
 import { getExecutiveSummary, getPublishFunnel, getPeriodComparison, getDataQuality, getBillableSplit } from '../api/client'
 import { humanize, stripWs } from '../utils/format'
+import DraggableChart from '../components/common/DraggableChart'
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
 
@@ -479,9 +480,10 @@ export default function ExecutiveSummary() {
         })
         setLoading(false)
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error('[ExecutiveSummary] Data fetch failed:', err.message)
         setData({ summary: null, funnel: MOCK_FUNNEL, comparison: null, quality: null, billable: null })
-        setError('Failed to load data')
+        setError(`Failed to load data: ${err.message}`)
         setLoading(false)
       })
   }, [filters, comparePeriod])
@@ -721,9 +723,11 @@ export default function ExecutiveSummary() {
               PCR
             </span>
           </div>
-          {workspaces.map((ws, i) => (
-            <WorkspacePCRBar key={ws.name} {...ws} delay={0.55 + i * 0.08} />
-          ))}
+          <DraggableChart title="Workspace PCR" data={workspaces}>
+            {workspaces.map((ws, i) => (
+              <WorkspacePCRBar key={ws.name} {...ws} delay={0.55 + i * 0.08} />
+            ))}
+          </DraggableChart>
           <div className="mt-4 p-3 rounded-xl bg-[#0a0a0a] border border-[#1f1f1f]">
             <p className="text-xs text-[#a0a0a0]">
               <span className="text-[#e63946] font-semibold">WS-SPORTS-LIVE</span> at 38% is

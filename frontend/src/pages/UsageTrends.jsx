@@ -17,6 +17,7 @@ import DataTable from '../components/common/DataTable'
 import useStore from '../store/useStore'
 import { getDailyTrends, getCategoryTrends, getOutputTypeTrends, getExecutiveSummary, getPeriodComparison, getForecast, getCrosstab } from '../api/client'
 import { humanize } from '../utils/format'
+import DraggableChart from '../components/common/DraggableChart'
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
 
@@ -148,9 +149,11 @@ function TimeAnalysis({ dailyData, categoryData, forecastData, loading, metric, 
             )}
           </div>
         </div>
-        <div style={{ height: 320 }}>
-          <TrendChart data={dailyData} forecastData={forecastData} metric={metric} loading={loading} />
-        </div>
+        <DraggableChart title="Upload & Publish Trend" data={dailyData}>
+          <div style={{ height: 320 }}>
+            <TrendChart data={dailyData} forecastData={forecastData} metric={metric} loading={loading} />
+          </div>
+        </DraggableChart>
       </motion.div>
 
       {/* Dual Bar Chart */}
@@ -688,9 +691,10 @@ export default function UsageTrends() {
         })
         setLoading(false)
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error('[UsageTrends] Data fetch failed:', err.message)
         setData({ daily: MOCK_DAILY, category: MOCK_CATEGORY, outputType: null, workspacePcr: null, comparison: null, forecast: null, langCrosstab: null, platformCrosstab: null })
-        setError('Failed to load data')
+        setError(`Failed to load data: ${err.message}`)
         setLoading(false)
       })
   }, [filters, comparePeriod])

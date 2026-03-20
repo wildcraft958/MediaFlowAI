@@ -205,6 +205,19 @@ function ChartDropZone({ onDrop }) {
   const handleDrop = (e) => {
     e.preventDefault()
     setDragging(false)
+
+    // Handle chart JSON dragged from dashboard chart wrappers
+    const jsonStr = e.dataTransfer.getData('application/json')
+    if (jsonStr) {
+      try {
+        const chartMeta = JSON.parse(jsonStr)
+        if (chartMeta.title || chartMeta.data) {
+          onDrop(chartMeta)
+          return
+        }
+      } catch { /* fall through to file handling */ }
+    }
+
     const file = e.dataTransfer.files?.[0]
     if (!file) return
 
@@ -241,7 +254,7 @@ function ChartDropZone({ onDrop }) {
       ].join(' ')}
     >
       <p className="text-[11px] font-medium">
-        {dragging ? 'Drop chart image or CSV here' : 'Drag & drop a chart image or CSV for AI analysis'}
+        {dragging ? 'Drop chart here' : 'Drag a dashboard chart, image, or CSV for AI analysis'}
       </p>
     </div>
   )
@@ -530,17 +543,8 @@ function sanitizeAnswer(text) {
 // ---------------------------------------------------------------------------
 // Placeholder bot response
 // ---------------------------------------------------------------------------
-const PLACEHOLDER_RESPONSE = {
-  role: 'bot',
-  text:
-    "I'm the MediaFlow AI analytics agent. The full LangGraph pipeline (Router > Interpret > Execute > Narrate) integrates in Step 5.\n\nOnce wired I can:\n• Query live KPIs from DuckDB\n• Break down PCR by workspace, team, or time\n• Detect anomalies in the publish pipeline\n• Run SQL-of-Thought with chain-of-thought reasoning",
-  thoughts: [
-    'Query classified as analytics intent',
-    'Schema linked to fact_video_events + v_pcr view',
-    'Agent pipeline pending Step 5 integration',
-    'Returning placeholder with roadmap context',
-  ],
-}
+const FALLBACK_ERROR_TEXT =
+  'Something went wrong — the analytics agent is unavailable. Please try again later.'
 
 // ---------------------------------------------------------------------------
 // Shared chat input bar
@@ -718,7 +722,12 @@ export default function NLQPanel({ className = '' }) {
         } else if (event.type === 'error') {
           setMessages((prev) => [
             ...prev,
-            { ...PLACEHOLDER_RESPONSE, ts: formatTime(new Date()) },
+            {
+              role: 'bot',
+              text: event.message || FALLBACK_ERROR_TEXT,
+              thoughts: ['Agent returned an error'],
+              ts: formatTime(new Date()),
+            },
           ])
           setLiveThoughts([])
           setLoading(false)
@@ -787,10 +796,15 @@ export default function NLQPanel({ className = '' }) {
               })
             }
           })
-          .catch(() => {
+          .catch((err) => {
             setMessages((prev) => [
               ...prev,
-              { ...PLACEHOLDER_RESPONSE, ts: formatTime(new Date()) },
+              {
+                role: 'bot',
+                text: err.message || FALLBACK_ERROR_TEXT,
+                thoughts: ['Request failed'],
+                ts: formatTime(new Date()),
+              },
             ])
           })
           .finally(() => {

@@ -8,16 +8,33 @@
  * end of flex row — their `position:fixed` is unaffected by layout.
  */
 
-import React from 'react'
+import React, { useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import TopNav from './TopNav'
 import NLQButton from '../nlq/NLQButton'
 import NLQPanel from '../nlq/NLQPanel'
+import useStore from '../../store/useStore'
+
+const PATH_TO_TAB = {
+  '/executive': 'executive',
+  '/trends': 'trends',
+  '/team': 'team',
+  '/publish': 'publish',
+  '/explorer': 'explorer',
+  '/admin': 'admin',
+  '/': 'executive',
+}
 
 export default function Layout({ children }) {
   const { pathname } = useLocation()
   const showNLQ = pathname !== '/admin'
+  const setActiveTab = useStore((s) => s.setActiveTab)
+
+  useEffect(() => {
+    const tab = PATH_TO_TAB[pathname]
+    if (tab) setActiveTab(tab)
+  }, [pathname, setActiveTab])
   return (
     <div className="flex h-screen overflow-hidden bg-[#0a0a0a] text-white">
 

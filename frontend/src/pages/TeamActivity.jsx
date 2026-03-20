@@ -19,6 +19,7 @@ import RoleGate from '../components/common/RoleGate'
 import useStore from '../store/useStore'
 import { getCrosstab, getKPI, getExecutiveSummary, getUserActivity } from '../api/client'
 import { humanize, stripWs } from '../utils/format'
+import DraggableChart from '../components/common/DraggableChart'
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
 
@@ -430,7 +431,10 @@ export default function TeamActivity() {
           opi: opi.data?.data,
         })
       })
-      .catch(() => { setError('Failed to load data') })
+      .catch((err) => {
+        console.error('[TeamActivity] Data fetch failed:', err.message)
+        setError(`Failed to load data: ${err.message}`)
+      })
       .finally(() => setLoading(false))
   }, [filters])
 
@@ -638,7 +642,9 @@ export default function TeamActivity() {
               <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-[#3a0a0a] border border-[#e63946]" /> &lt;60%</span>
             </div>
           </div>
-          <TreemapViz data={treemapData} loading={loading} metric={metric} />
+          <DraggableChart title="Team Contribution" data={treemapData}>
+            <TreemapViz data={treemapData} loading={loading} metric={metric} />
+          </DraggableChart>
         </motion.div>
 
         <motion.div
