@@ -64,7 +64,7 @@ function saveInbox(messages) {
 const useStore = create((set, get) => ({
   // ─── Auth ──────────────────────────────────────────────────────────────────
   isLoggedIn: false,
-  user: null, // { name, email, role: 'admin'|'leadership'|'creator', persona }
+  user: null, // { name, email, role: 'admin'|'cxo'|'manager'|'analyst', persona }
   setUser: (user) => set({
     user,
     persona: user?.persona || 'leadership',

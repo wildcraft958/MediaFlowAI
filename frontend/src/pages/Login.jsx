@@ -25,7 +25,7 @@ const ROLE_COLORS = {
 }
 
 function RoleBadge({ role }) {
-  const c = ROLE_COLORS[role] || ROLE_COLORS.leadership
+  const c = ROLE_COLORS[role] || ROLE_COLORS.cxo
   return (
     <span
       className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full"
