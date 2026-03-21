@@ -135,7 +135,7 @@ function LiveThoughtDisplay({ steps }) {
             <span>
               <span className="text-[#a0a0a0]">[{step.node}]</span>{' '}
               <span className="text-[#666]">{step.action}</span>
-              {step.detail && <span className="text-[#444]"> — {step.detail}</span>}
+              {step.detail && <span className="text-[#444]"> - {step.detail}</span>}
             </span>
           </motion.div>
         ))}
@@ -553,8 +553,8 @@ const OFF_TOPIC_SIGNALS = [
 
 const OFF_TOPIC_REPLY = {
   role: 'bot',
-  text: "I can only answer questions about the MediaFlow AI analytics dashboard — KPIs, workspace performance, publish funnels, video trends, and team activity.\n\nTry asking:\n• \"Which workspace has the lowest PCR?\"\n• \"Show upload vs publish trend for WS-SPORTS-LIVE\"\n• \"What is the LPI score for Hindi content?\"",
-  thoughts: ['Query scoped outside analytics domain', 'Guardrail triggered — off-topic request', 'Returning scoped guidance without API call'],
+  text: "I can only answer questions about the MediaFlow AI analytics dashboard: KPIs, workspace performance, publish funnels, video trends, and team activity.\n\nTry asking:\n- \"Which workspace has the lowest PCR?\"\n- \"Show upload vs publish trend for WS-SPORTS-LIVE\"\n- \"What is the LPI score for Hindi content?\"",
+  thoughts: ['Query scoped outside analytics domain', 'Guardrail triggered: off-topic request', 'Returning scoped guidance without API call'],
   filters: [],
 }
 
@@ -580,7 +580,7 @@ function sanitizeAnswer(text) {
 // Placeholder bot response
 // ---------------------------------------------------------------------------
 const FALLBACK_ERROR_TEXT =
-  'Something went wrong — the analytics agent is unavailable. Please try again later.'
+  'Something went wrong - the analytics agent is unavailable. Please try again later.'
 
 // ---------------------------------------------------------------------------
 // Shared chat input bar
@@ -743,7 +743,7 @@ export default function NLQPanel({ className = '' }) {
         } else if (event.type === 'final') {
           const answerText = sanitizeAnswer(event.answer)
           const thoughts = (event.thought_steps ?? []).map(
-            (s) => `[${s.node}] ${s.action} — ${s.detail ?? ''}`
+            (s) => `[${s.node}] ${s.action} - ${s.detail ?? ''}`
           )
           setMessages((prev) => [
             ...prev,
@@ -813,7 +813,7 @@ export default function NLQPanel({ className = '' }) {
             const d = res.data
             const answerText = sanitizeAnswer(d.answer)
             const thoughts = d.thought_process
-              ? d.thought_process.split('\n').filter(Boolean).map((l) => l.split(' — ').pop() ?? l)
+              ? d.thought_process.split('\n').filter(Boolean).map((l) => l.split(' - ').pop() ?? l)
               : []
             setMessages((prev) => [
               ...prev,

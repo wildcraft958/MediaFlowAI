@@ -156,7 +156,7 @@ export default function VideoExplorer() {
       a.download = 'mediaflow_videos.csv'
       a.click()
       URL.revokeObjectURL(url)
-      setExportError('Full export unavailable — downloaded current page data instead.')
+      setExportError('Full export unavailable - downloaded current page data instead.')
     } finally {
       setExporting(false)
     }

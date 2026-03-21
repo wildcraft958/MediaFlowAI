@@ -131,7 +131,7 @@ class MediaFlowInputGuardrail:
                 "error": "Query blocked: off-topic.",
                 "narrative": (
                     "I can only answer questions about the MediaFlow AI analytics dashboard "
-                    "— KPIs, workspace performance, publish funnels, video trends, and team activity.\n\n"
+                    "- KPIs, workspace performance, publish funnels, video trends, and team activity.\n\n"
                     "Try asking:\n"
                     '- "Which workspace has the lowest PCR?"\n'
                     '- "Show upload vs publish trend for WS-SPORTS-LIVE"\n'
