@@ -186,7 +186,25 @@ Published (published_flag=True): 3,188
 - [x] Null guard on `inputTypeMix` mapping in PublishMetrics (uses `humanize()`)
 - [x] Comprehensive null-safety & error handling: NaN-safe `_safe_int`/`_safe_float` in dashboard.py, try/except for missing KPI views, `?? 0` / `?? ''` across all 4 frontend page files (~66 fixes)
 - [x] DuckDB cursor-per-request concurrency fix — eliminates 503 errors under parallel frontend requests
-- [x] KPI data shape fixes: HTHR aggregated by input_type (was 3,188 raw rows), LPI field names aligned (`lpi_score`, `pcr`, `count`), OPI aggregated by workspace (was 16 rows)
+- [x] KPI data shape fixes: HTHR aggregated by input_type (was 3,188 raw rows), LPI field names aligned (`lpi_score`, `pcr`, `count`)
+- [x] Extended RBAC: 4 roles (admin/cxo/manager/analyst) with per-KPI visibility from PDF role table
+- [x] Company filter (Company_A/Company_B) + CLIENT_2.yaml multi-tenant support (PS Section 3A)
+- [x] OPI dropped, CRM (Content-to-Reach Multiplier) KPI added with v_crm view
+- [x] 14 KPI name mismatches fixed in Admin MOCK_KPIS to match metric_registry.yaml
+- [x] Video Explorer sorting wired to API (sort_by/sort_dir with column whitelist)
+- [x] Zero watch hours fixed in output-type endpoint (uses total_watch_time_hours)
+- [x] Video duration decimal places reduced (Math.round + ROUND SQL)
+- [x] KPI Registry edit button with inline edit modal
+- [x] Notifications persist across re-login via localStorage
+- [x] NLQ guardrail: off-topic blocking + KPI definition lookup
+- [x] CPDG scatter chart fetches real aggregated data from kpi_cpdg JOIN
+- [x] NLQ agent: Annotated state fields fix INVALID_CONCURRENT_GRAPH_UPDATE for all queries
+- [x] NLQ chart_spec returned in both streaming and non-streaming endpoints
+- [x] MCP tool text wrapper unwrapped in _infer_chart_spec for proper chart rendering
+- [x] KPI hover tooltips on dashboard cards (title attribute)
+- [x] All em dashes replaced with hyphens in user-facing text
+- [x] NaN/Inf sanitization in KPI endpoint responses
+- [x] Forecast tests skip gracefully when torch unavailable (local dev)
 - [ ] Platform Connector Settings modal (extensibility demo)
 
 ### Step 6b — Deployment ✅
