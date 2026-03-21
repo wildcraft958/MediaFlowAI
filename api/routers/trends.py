@@ -58,7 +58,7 @@ def output_type_trends(f: FilterParams = Depends()):
             COUNT(*) AS total,
             SUM(CASE WHEN published_flag=true THEN 1 ELSE 0 END) AS published,
             ROUND(SUM(CASE WHEN published_flag=true THEN 1 ELSE 0 END)*100.0/COUNT(*),2) AS pcr,
-            ROUND(AVG(avg_view_duration_sec)/3600.0,4) AS avgWatchHours,
+            ROUND(AVG(CASE WHEN published_flag=true THEN total_watch_time_hours END),2) AS avgWatchHours,
             ROUND(SUM(subscribers_gained),0) AS subscribers,
             ROUND(SUM(TRY_CAST(impressions AS DOUBLE)),0) AS impressions
         FROM media_dataset
