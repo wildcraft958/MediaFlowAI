@@ -1,6 +1,6 @@
 /**
  * Login.jsx - Email/password login form with test credentials display
- * Full RBAC: admin / leadership / creator roles
+ * Full RBAC: admin / cxo / manager / analyst roles
  */
 
 import React, { useState, useRef } from 'react'
