@@ -423,7 +423,7 @@ export default function VideoExplorer() {
         <p className="text-xs text-[#a0a0a0]">
           <span className="text-[#ff9800] font-semibold">390 videos</span>{' '}
           have no upload_date (shown as "missing" in red). These are included in total counts but
-          excluded from funnel stage 1 and OPI calculations. Primarily affects WS-SPORTS-LIVE.
+          excluded from funnel stage 1 calculations. Primarily affects WS-SPORTS-LIVE.
         </p>
       </div>
     </motion.div>

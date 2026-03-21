@@ -82,7 +82,7 @@ function InsightsPanel() {
       type: 'warning',
       icon: AlertTriangle,
       title: 'Data quality gap',
-      body: '390 videos (8.5%) are missing upload_date - impacts MCI and OPI calculations.',
+      body: '390 videos (8.5%) are missing upload_date - impacts MCI calculations.',
       color: '#ff9800',
     },
   ]
@@ -654,7 +654,7 @@ export default function ExecutiveSummary() {
             <span className="text-[#ff9800] font-semibold">
               {data?.quality ? (data.quality.fields.find(f => f.field === 'upload_date')?.null ?? 390) : 390} videos
             </span> have no upload_date
-            - data quality gap visible in MCI / OPI KPIs.
+            - data quality gap visible in MCI / DCDR KPIs.
             100% of uploaded videos are processed by MediaFlow AI.
           </p>
         </div>

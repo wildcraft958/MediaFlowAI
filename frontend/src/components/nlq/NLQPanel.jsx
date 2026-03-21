@@ -532,7 +532,7 @@ function ChartPreviewArea({ chartData, chartCtx }) {
 
 // Keywords that signal an analytics / media-ops query
 const ANALYTICS_SIGNALS = [
-  'pcr', 'fsc', 'lpi', 'teu', 'opi', 'mci', 'zsp', 'hthr', 'tsqi', 'pig', 'agv', 'pmi',
+  'pcr', 'fsc', 'lpi', 'teu', 'crm', 'mci', 'zsp', 'hthr', 'tsqi', 'pig', 'agv', 'pmi',
   'kpi', 'metric', 'trend', 'upload', 'publish', 'process', 'workspace', 'team', 'user',
   'video', 'mediaflow', 'funnel', 'channel', 'platform', 'youtube', 'instagram', 'shorts', 'reels',
   'interview', 'news', 'speech', 'debate', 'special', 'report', 'discussion',
