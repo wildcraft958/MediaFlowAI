@@ -264,7 +264,7 @@ function KPIChat() {
   )
 }
 
-function KPIRegistryList({ kpis, onDelete, onToggle }) {
+function KPIRegistryList({ kpis, onDelete, onToggle, onEdit }) {
   const typeColor = { sql: '#2196f3', python: '#ff9800' }
   const pageColor = {
     executive: '#e63946', publish: '#ff8fa3', trends: '#4caf50',
@@ -319,7 +319,11 @@ function KPIRegistryList({ kpis, onDelete, onToggle }) {
                 <ToggleLeft size={18} />
               )}
             </button>
-            <button className="text-[#555] hover:text-[#a0a0a0] transition-colors">
+            <button
+              onClick={() => onEdit?.(kpi)}
+              className="text-[#555] hover:text-[#a0a0a0] transition-colors"
+              title="Edit KPI"
+            >
               <Edit2 size={13} />
             </button>
             <button
@@ -335,9 +339,42 @@ function KPIRegistryList({ kpis, onDelete, onToggle }) {
   )
 }
 
+function KPIEditModal({ kpi, onSave, onClose }) {
+  const [name, setName] = useState(kpi.name)
+  const [description, setDescription] = useState(kpi.description)
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+      <div className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-sm font-semibold text-white mb-4">Edit KPI: {kpi.acronym}</h3>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs text-[#555] mb-1">Name</label>
+            <input value={name} onChange={(e) => setName(e.target.value)}
+              className="w-full bg-[#0a0a0a] border border-[#2a2a2a] text-sm text-white rounded-xl px-3 py-2 focus:outline-none focus:border-[#e63946]/50" />
+          </div>
+          <div>
+            <label className="block text-xs text-[#555] mb-1">Description</label>
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3}
+              className="w-full bg-[#0a0a0a] border border-[#2a2a2a] text-sm text-white rounded-xl px-3 py-2 focus:outline-none focus:border-[#e63946]/50 resize-none" />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 mt-4">
+          <button onClick={onClose} className="px-3 py-1.5 text-xs text-[#555] hover:text-[#a0a0a0] rounded-lg border border-[#1f1f1f]">Cancel</button>
+          <button onClick={() => onSave({ ...kpi, name, description })}
+            className="px-3 py-1.5 text-xs font-semibold text-white bg-[#e63946] rounded-lg hover:bg-[#c62828] inline-flex items-center gap-1">
+            <Save size={11} /> Save
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function KPIConfigurator() {
   const [kpis, setKpis] = useState(MOCK_KPIS)
   const [registryLoading, setRegistryLoading] = useState(false)
+  const [editingKpi, setEditingKpi] = useState(null)
 
   useEffect(() => {
     setRegistryLoading(true)
@@ -358,6 +395,13 @@ function KPIConfigurator() {
 
   const handleToggle = (id) => {
     setKpis((prev) => prev.map((k) => k.id === id ? { ...k, enabled: !k.enabled } : k))
+  }
+
+  const handleEdit = (kpi) => setEditingKpi(kpi)
+
+  const handleSaveEdit = (updated) => {
+    setKpis((prev) => prev.map((k) => k.id === updated.id ? updated : k))
+    setEditingKpi(null)
   }
 
   return (
@@ -401,8 +445,9 @@ function KPIConfigurator() {
             ))}
           </div>
         ) : (
-          <KPIRegistryList kpis={kpis} onDelete={handleDelete} onToggle={handleToggle} />
+          <KPIRegistryList kpis={kpis} onDelete={handleDelete} onToggle={handleToggle} onEdit={handleEdit} />
         )}
+        {editingKpi && <KPIEditModal kpi={editingKpi} onSave={handleSaveEdit} onClose={() => setEditingKpi(null)} />}
       </div>
     </div>
   )
