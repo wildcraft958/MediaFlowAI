@@ -25,8 +25,9 @@ const TEAMS = ['Digital_News', 'Entertainment', 'Tech_Analysis', 'Sports_Live', 
 // ── Helper components ─────────────────────────────────────────────────────────
 
 function formatDuration(h, m, s) {
-  if (h > 0) return `${h}h ${m}m`
-  return `${m}:${String(s).padStart(2, '0')}`
+  const hh = h ?? 0, mm = m ?? 0, ss = s ?? 0
+  if (hh > 0) return `${hh}h ${mm}m`
+  return `${mm}:${String(ss).padStart(2, '0')}`
 }
 
 function ZSPBadge({ value }) {
@@ -115,12 +116,14 @@ export default function VideoExplorer() {
       input_type: filterInput || undefined,
       output_type: filterOutput || undefined,
       team: filterTeam || undefined,
+      sort_by: sortState.key || undefined,
+      sort_dir: sortState.dir || undefined,
       ...dateParams,
     })
       .then((res) => { setApiData(res.data); setError(null) })
       .catch(() => { setApiData(null); setError('Failed to load data') })
       .finally(() => setLoading(false))
-  }, [filters, page, search, filterWs, filterInput, filterOutput, filterTeam, filterDate])
+  }, [filters, page, search, filterWs, filterInput, filterOutput, filterTeam, filterDate, sortState])
 
   const pageData = apiData?.data ?? []
   const totalCount = apiData?.total ?? 0
@@ -142,8 +145,8 @@ export default function VideoExplorer() {
       // Fallback: generate CSV from current page data
       const headers = ['ID', 'Headline', 'Workspace', 'Input Type', 'Output Type', 'Published', 'Platform', 'Uploaded By', 'Upload Date', 'ZSP Score']
       const rows = pageData.map((v) =>
-        [v.id, `"${v.headline}"`, v.workspace, v.inputType, v.outputType,
-         v.published ? 'Yes' : 'No', v.platform || '-', v.uploadedBy, v.uploadDate || '-', v.zsp].join(',')
+        [v?.id ?? '', `"${(v?.headline ?? '').replace(/"/g, '""')}"`, v?.workspace ?? '', v?.inputType ?? '', v?.outputType ?? '',
+         v?.published ? 'Yes' : 'No', v?.platform || '-', v?.uploadedBy ?? '', v?.uploadDate || '-', v?.zsp ?? ''].join(',')
       )
       const csv = [headers.join(','), ...rows].join('\n')
       const blob = new Blob([csv], { type: 'text/csv' })
@@ -167,10 +170,10 @@ export default function VideoExplorer() {
       width: 280,
       render: (v, row) => (
         <div className="max-w-[260px]">
-          <p className="text-xs font-medium text-white truncate" title={v}>
-            {(v || '').length > 44 ? (v || '').slice(0, 41) + '…' : v}
+          <p className="text-xs font-medium text-white truncate" title={v ?? ''}>
+            {(v ?? '').length > 44 ? (v ?? '').slice(0, 41) + '…' : (v ?? '')}
           </p>
-          <p className="text-[10px] text-[#555] mt-0.5 font-mono">{row.id}</p>
+          <p className="text-[10px] text-[#555] mt-0.5 font-mono">{row?.id ?? ''}</p>
         </div>
       ),
     },
@@ -178,7 +181,7 @@ export default function VideoExplorer() {
       key: 'workspace',
       label: 'Workspace',
       sortable: true,
-      render: (v) => <Badge variant="workspace">{v}</Badge>,
+      render: (v) => <Badge variant="workspace">{v ?? '-'}</Badge>,
     },
     {
       key: 'inputType',
@@ -202,7 +205,7 @@ export default function VideoExplorer() {
       sortable: true,
       render: (v, row) => (
         <span className="text-xs tabular-nums text-[#a0a0a0]">
-          {formatDuration(row.durationH, row.durationM, row.durationSec)}
+          {formatDuration(row?.durationH, row?.durationM, row?.durationSec)}
         </span>
       ),
     },
@@ -221,7 +224,7 @@ export default function VideoExplorer() {
       key: 'uploadedBy',
       label: 'Uploaded By',
       sortable: true,
-      render: (v) => <span className="text-xs font-mono text-[#ff8fa3]">{v}</span>,
+      render: (v) => <span className="text-xs font-mono text-[#ff8fa3]">{v ?? '-'}</span>,
     },
     {
       key: 'uploadDate',
