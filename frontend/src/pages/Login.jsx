@@ -9,17 +9,19 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Eye, EyeOff, ChevronDown, ChevronUp, Copy, Check, LogIn } from 'lucide-react'
 import useStore from '../store/useStore'
 
-// Test users for competition demo
+// Test users for competition demo — 4 roles matching PS §2 personas
 const TEST_USERS = [
-  { email: 'admin@mediaflow.ai',  password: 'Admin@123',   name: 'Admin',       role: 'admin',      persona: 'leadership', defaultPage: '/admin' },
-  { email: 'ceo@mediaflow.ai',    password: 'Leader@123',  name: 'Sam Wilson',  role: 'leadership', persona: 'leadership', defaultPage: '/executive' },
-  { email: 'editor@mediaflow.ai', password: 'Creator@123', name: 'Alex Taylor', role: 'creator',    persona: 'creator',    defaultPage: '/explorer' },
+  { email: 'admin@mediaflow.ai',   password: 'Admin@123',   name: 'Admin',       role: 'admin',   persona: 'leadership', defaultPage: '/admin' },
+  { email: 'cxo@mediaflow.ai',     password: 'CXO@123',     name: 'Sam Wilson',  role: 'cxo',     persona: 'leadership', defaultPage: '/executive' },
+  { email: 'manager@mediaflow.ai',  password: 'Manager@123', name: 'Jordan Lee',  role: 'manager', persona: 'leadership', defaultPage: '/executive' },
+  { email: 'analyst@mediaflow.ai',  password: 'Analyst@123', name: 'Alex Taylor', role: 'analyst', persona: 'creator',    defaultPage: '/explorer' },
 ]
 
 const ROLE_COLORS = {
-  admin:      { bg: 'rgba(230,57,70,0.15)',  border: 'rgba(230,57,70,0.4)',  text: '#ff8fa3'  },
-  leadership: { bg: 'rgba(33,150,243,0.15)', border: 'rgba(33,150,243,0.4)', text: '#64b5f6'  },
-  creator:    { bg: 'rgba(76,175,80,0.15)',  border: 'rgba(76,175,80,0.4)',  text: '#81c784'  },
+  admin:   { bg: 'rgba(230,57,70,0.15)',  border: 'rgba(230,57,70,0.4)',  text: '#ff8fa3' },
+  cxo:     { bg: 'rgba(33,150,243,0.15)', border: 'rgba(33,150,243,0.4)', text: '#64b5f6' },
+  manager: { bg: 'rgba(255,152,0,0.15)',  border: 'rgba(255,152,0,0.4)',  text: '#ffb74d' },
+  analyst: { bg: 'rgba(76,175,80,0.15)',  border: 'rgba(76,175,80,0.4)',  text: '#81c784' },
 }
 
 function RoleBadge({ role }) {

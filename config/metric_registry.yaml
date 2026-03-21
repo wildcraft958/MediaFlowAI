@@ -8,6 +8,7 @@ metrics:
     ps_section: 6C
     phase: 1
     personas: [leadership, creator]
+    roles: [cxo, manager]
     description: "% of uploaded videos that get published per workspace"
 
   FSC:
@@ -19,6 +20,7 @@ metrics:
     ps_section: 6C
     phase: 1
     personas: [leadership, creator]
+    roles: [cxo, manager]
     description: "Upload→Process and Process→Publish conversion rates per workspace"
 
   GR:
@@ -30,6 +32,7 @@ metrics:
     ps_section: 6A
     phase: 1
     personas: [leadership]
+    roles: [cxo, manager]
     description: "Month-over-month upload volume growth rate"
 
   OPI:
@@ -41,6 +44,7 @@ metrics:
     ps_section: 6C
     phase: 1
     personas: [leadership, creator]
+    roles: [cxo, manager]
     description: "Processed videos unpublished for >30 days — stuck in pipeline"
 
   TEU:
@@ -52,6 +56,7 @@ metrics:
     ps_section: 6D
     phase: 1
     personas: [leadership, creator]
+    roles: [manager]
     description: "Average gap (hours) between consecutive uploads per user"
 
   AIL:
@@ -63,6 +68,7 @@ metrics:
     ps_section: 6B
     phase: 1
     personas: [leadership]
+    roles: [cxo]
     description: "Impressions generated per source hour, by AI output type"
 
   CPDG:
@@ -74,6 +80,7 @@ metrics:
     ps_section: 6B
     phase: 1
     personas: [creator]
+    roles: [manager, analyst]
     description: "Clickbait score: high CTR vs low watch % = promise gap (0=hidden gem, 1=severe clickbait)"
 
   SAC:
@@ -85,6 +92,7 @@ metrics:
     ps_section: 6D
     phase: 1
     personas: [creator]
+    roles: [manager, analyst]
     description: "Watch minutes required to gain one subscriber, by input type"
 
   AHY:
@@ -96,6 +104,7 @@ metrics:
     ps_section: 6B
     phase: 1
     personas: [creator]
+    roles: [cxo, manager, analyst]
     description: "Watch hours generated per source second, by AI output type"
 
   EDR:
@@ -107,6 +116,7 @@ metrics:
     ps_section: 6B
     phase: 1
     personas: [creator]
+    roles: [manager, analyst]
     description: "% of impressions that resulted in active engagement (likes+comments+shares)"
 
   HTHR:
@@ -118,6 +128,7 @@ metrics:
     ps_section: 6B
     phase: 1
     personas: [creator]
+    roles: [manager, analyst]
     description: "CTR × retention × log(impressions) — titles that hook AND hold"
 
   ZSP:
@@ -129,6 +140,7 @@ metrics:
     ps_section: 6B
     phase: 1
     personas: [creator]
+    roles: [manager, analyst]
     description: "Impression z-score within company group (>1.5=top, <-1.5=underperformer)"
 
   TSQI:
@@ -140,6 +152,7 @@ metrics:
     ps_section: 6A
     phase: 1
     personas: [leadership, creator]
+    roles: [manager, analyst]
     description: "Which traffic sources drive highest watch time and subscriber gain"
 
   PIG:
@@ -151,6 +164,7 @@ metrics:
     ps_section: 6D
     phase: 1
     personas: [leadership]
+    roles: [manager, analyst]
     description: "Average impressions, CTR, and retention by distribution platform"
 
   AGV:
@@ -162,6 +176,7 @@ metrics:
     ps_section: 6A
     phase: 1
     personas: [leadership]
+    roles: [cxo, manager]
     description: "MoM subscriber growth rate per company"
 
   PMI:
@@ -173,6 +188,7 @@ metrics:
     ps_section: 6A
     phase: 1
     personas: [leadership]
+    roles: [cxo, manager, analyst]
     description: "WoW impression growth rate per workspace"
 
   LPI:
@@ -184,6 +200,7 @@ metrics:
     ps_section: 6D
     phase: 1
     personas: [leadership, creator]
+    roles: [cxo, manager, analyst]
     description: "Underrepresented but high-performing language segments (positive LPI = opportunity)"
 
   MCI:
@@ -195,6 +212,7 @@ metrics:
     ps_section: 6E
     phase: 1
     personas: [leadership]
+    roles: [analyst]
     description: "% of published videos with complete metadata fields per workspace"
 
   DCDR:
@@ -206,4 +224,5 @@ metrics:
     ps_section: 6E
     phase: 1
     personas: [leadership]
+    roles: [analyst]
     description: "% of records that appear to be same-day duplicate headline submissions"

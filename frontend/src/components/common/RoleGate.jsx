@@ -14,6 +14,7 @@ import useStore from '../../store/useStore'
 
 export default function RoleGate({ allowed = [], children, fallback = null }) {
   const role = useStore((s) => s.user?.role)
-  if (!role || !allowed.includes(role)) return fallback
-  return children
+  if (!role) return fallback
+  if (role === 'admin' || allowed.includes(role)) return children
+  return fallback
 }
