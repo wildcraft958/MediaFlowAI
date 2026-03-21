@@ -668,7 +668,7 @@ function ClientSettings() {
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <NumberInput label="OPI Threshold" field="opi_threshold_hours" suffix="hours" />
+          <NumberInput label="Processing Backlog Threshold" field="opi_threshold_hours" suffix="hours" />
           <NumberInput label="AGV Drop %" field="agv_drop_pct" suffix="%" />
           <NumberInput label="ZScore Anomaly Level" field="zscore_anomaly_level" suffix="σ" />
           <NumberInput label="PCR Minimum %" field="pcr_minimum_pct" suffix="%" />
