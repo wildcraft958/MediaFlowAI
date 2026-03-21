@@ -46,8 +46,8 @@ const SEVERITY_META = {
 // ─── Role Badge (read-only — role is set at login) ───────────────────────────
 function RoleBadge() {
   const user = useStore((s) => s.user)
-  const role = user?.role || 'leadership'
-  const isLeader = role === 'leadership' || role === 'admin'
+  const role = user?.role || 'cxo'
+  const isLeader = role === 'cxo' || role === 'admin' || role === 'manager'
 
   return (
     <span

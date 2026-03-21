@@ -31,9 +31,10 @@ import clsx from 'clsx'
 
 // Role badge color mapping
 const ROLE_COLORS = {
-  admin:      { bg: 'rgba(230,57,70,0.15)',  border: 'rgba(230,57,70,0.35)',  text: '#ff8fa3'  },
-  leadership: { bg: 'rgba(33,150,243,0.12)', border: 'rgba(33,150,243,0.3)',  text: '#64b5f6'  },
-  creator:    { bg: 'rgba(76,175,80,0.12)',  border: 'rgba(76,175,80,0.3)',   text: '#81c784'  },
+  admin:   { bg: 'rgba(230,57,70,0.15)',  border: 'rgba(230,57,70,0.35)', text: '#ff8fa3' },
+  cxo:     { bg: 'rgba(33,150,243,0.12)', border: 'rgba(33,150,243,0.3)', text: '#64b5f6' },
+  manager: { bg: 'rgba(255,152,0,0.12)',  border: 'rgba(255,152,0,0.3)',  text: '#ffb74d' },
+  analyst: { bg: 'rgba(76,175,80,0.12)',  border: 'rgba(76,175,80,0.3)',  text: '#81c784' },
 }
 
 const BASE_NAV_ITEMS = [
@@ -141,12 +142,12 @@ export default function Sidebar() {
   const logout        = useStore((s) => s.logout)
   const navigate      = useNavigate()
 
-  const role    = user?.role || 'leadership'
+  const role    = user?.role || 'cxo'
   const isAdmin = role === 'admin'
 
   const navItems    = getNavItems()
-  const AvatarIcon  = role === 'creator' ? Edit3 : Crown
-  const avatarColor = ROLE_COLORS[role] || ROLE_COLORS.leadership
+  const AvatarIcon  = role === 'analyst' ? Edit3 : Crown
+  const avatarColor = ROLE_COLORS[role] || ROLE_COLORS.cxo
 
   const handleLogout = () => {
     logout()
