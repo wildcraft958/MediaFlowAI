@@ -1,9 +1,24 @@
+import math
 from fastapi import APIRouter, HTTPException, Depends
 from api.db import query_df
 from api.config import METRIC_REGISTRY
 from api.filters import FilterParams
 
 router = APIRouter()
+
+
+def _sanitize_records(records):
+    """Replace NaN/Inf with None for JSON compliance."""
+    clean = []
+    for row in records:
+        r = {}
+        for k, v in row.items():
+            if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
+                r[k] = None
+            else:
+                r[k] = v
+        clean.append(r)
+    return clean
 
 # KPIs that need aggregation before serving to the frontend
 _AGGREGATED_QUERIES = {
@@ -61,9 +76,9 @@ def get_kpi(acronym: str, f: FilterParams = Depends()):
             df = query_df(agg_sql)
         except Exception as e:
             raise HTTPException(status_code=404, detail=f"KPI aggregation failed: {e}")
-        return {"acronym": acronym.upper(), "data": df.to_dict(orient="records")}
+        return {"acronym": acronym.upper(), "data": _sanitize_records(df.to_dict(orient="records"))}
 
-    # View/table name comes from trusted YAML — never user input
+    # View/table name comes from trusted YAML - never user input
     source = kpi.get("view") or kpi.get("table")
     if not source:
         raise HTTPException(status_code=500, detail="KPI has no view or table defined")
@@ -72,7 +87,7 @@ def get_kpi(acronym: str, f: FilterParams = Depends()):
         df = query_df(f"SELECT * FROM {source}")
     except Exception as e:
         raise HTTPException(status_code=404, detail=f"KPI source '{source}' not available: {e}")
-    return {"acronym": acronym.upper(), "data": df.to_dict(orient="records")}
+    return {"acronym": acronym.upper(), "data": _sanitize_records(df.to_dict(orient="records"))}
 
 
 @router.get("/kpis")
