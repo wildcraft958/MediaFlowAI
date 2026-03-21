@@ -7,6 +7,18 @@ router = APIRouter()
 
 # KPIs that need aggregation before serving to the frontend
 _AGGREGATED_QUERIES = {
+    "CPDG": """
+        SELECT
+            m.input_type,
+            COUNT(*) AS count,
+            ROUND(AVG(c.cpdg), 4) AS avg_cpdg,
+            ROUND(AVG(m.ctr_percentage), 2) AS ctr_percentage,
+            ROUND(AVG(m.avg_view_percentage), 2) AS avg_view_percentage
+        FROM kpi_cpdg c
+        JOIN media_dataset m ON c.video_id = m.video_id
+        GROUP BY m.input_type
+        ORDER BY avg_cpdg DESC
+    """,
     "HTHR": """
         SELECT
             input_type,

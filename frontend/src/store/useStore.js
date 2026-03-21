@@ -121,7 +121,7 @@ const useStore = create((set, get) => ({
   setPageContext: (ctx) => set({ pageContext: ctx }),
 
   // ─── Agent Inbox ──────────────────────────────────────────────────────────
-  agentInboxCount: 2,
+  agentInboxCount: (loadInbox() ?? DEFAULT_AGENT_MESSAGES).filter((m) => !m.read).length,
   setAgentInboxCount: (agentInboxCount) => set({ agentInboxCount }),
 
   agentMessages: loadInbox() ?? [...DEFAULT_AGENT_MESSAGES],

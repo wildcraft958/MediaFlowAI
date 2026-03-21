@@ -1,5 +1,5 @@
 /**
- * PublishMetrics.jsx — Tab 4: Publish Metrics + Funnel
+ * PublishMetrics.jsx - Tab 4: Publish Metrics + Funnel
  * FunnelViz · Input Type Donut · PCR by Output Type · CPDG scatter · HTHR leaderboard · FSC table
  */
 
@@ -384,23 +384,15 @@ export default function PublishMetrics() {
     color: COLORS[i % COLORS.length],
   })) ?? INPUT_TYPE_MIX.map((item) => ({ name: humanize(item.name), value: item.value, color: item.color }))
 
-  // Aggregate CPDG per-video data by input_type for scatter
+  // CPDG data from aggregated API (grouped by input_type)
   const scatterData = (() => {
     const cpdgRows = data?.cpdg
     if (cpdgRows && cpdgRows.length > 0) {
-      const byType = {}
-      cpdgRows.forEach((r) => {
-        const t = r.input_type ?? 'unknown'
-        if (!byType[t]) byType[t] = { ctr: [], viewPct: [], count: 0 }
-        byType[t].ctr.push(r.ctr_percentage ?? 0)
-        byType[t].viewPct.push(r.avg_view_percentage ?? 0)
-        byType[t].count++
-      })
-      return Object.entries(byType).map(([type, v], i) => ({
-        type,
-        ctr: +(v.ctr.reduce((a, b) => a + b, 0) / v.ctr.length).toFixed(1),
-        viewPct: +(v.viewPct.reduce((a, b) => a + b, 0) / v.viewPct.length).toFixed(1),
-        count: v.count,
+      return cpdgRows.map((r, i) => ({
+        type: r.input_type ?? '',
+        ctr: r.ctr_percentage ?? 0,
+        viewPct: r.avg_view_percentage ?? 0,
+        count: r.count ?? 0,
         color: COLORS[i % COLORS.length],
       }))
     }
@@ -538,7 +530,7 @@ export default function PublishMetrics() {
           <div>
             <h2 className="text-lg font-semibold text-white">Publish Conversion by Workspace</h2>
             <p className="text-xs text-[#555] mt-0.5">
-              Upload to Published rate (PCR) per workspace — sorted by conversion
+              Upload to Published rate (PCR) per workspace - sorted by conversion
             </p>
           </div>
           <div className="flex items-center gap-4 text-xs text-[#555]">
@@ -611,7 +603,7 @@ export default function PublishMetrics() {
             <span>70% target line</span>
           </div>
           <span className="text-[#e63946] font-medium">
-            WS-SPORTS-LIVE 38% is 32pp below target — 557 videos unpublished
+            WS-SPORTS-LIVE 38% is 32pp below target - 557 videos unpublished
           </span>
         </div>
       </motion.div>
@@ -659,7 +651,7 @@ export default function PublishMetrics() {
         </motion.div>
       </div>
 
-      {/* CPDG Scatter — Manager/Analyst per PDF role table */}
+      {/* CPDG Scatter - Manager/Analyst per PDF role table */}
       <RoleGate allowed={['manager', 'analyst']}>
         <motion.div
           className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-6"
@@ -682,7 +674,7 @@ export default function PublishMetrics() {
         </motion.div>
       </RoleGate>
 
-      {/* HTHR Leaderboard — Operations-focused (all roles, Creator badge) */}
+      {/* HTHR Leaderboard - Operations-focused (all roles, Creator badge) */}
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
