@@ -23,6 +23,7 @@ def list_admin_kpis():
             "page": kpi.get("dashboard_page", ""),
             "enabled": True,
             "description": kpi.get("description", ""),
+            "roles": kpi.get("roles", []),
         })
     return result
 
@@ -78,7 +79,7 @@ total_watch_time_hours, traffic_source, published_url,
 workspace (VARCHAR), uploaded_by, team_name, language,
 input_type, output_type, ai_output_type, published_platform, company
 
-KPI views: v_pcr, v_fsc, v_gr, v_opi, v_teu, v_ail, v_sac, v_ahy,
+KPI views: v_pcr, v_fsc, v_gr, v_crm, v_teu, v_ail, v_sac, v_ahy,
            v_edr, v_hthr, v_tsqi, v_pig, v_agv, v_pmi, v_mci, v_dcdr
 KPI tables: kpi_cpdg, kpi_zsp, kpi_lpi
 Always use TRY_CAST(upload_date AS TIMESTAMP) — never ::TIMESTAMP cast.
@@ -95,7 +96,7 @@ KPI YAML format (metric_registry.yaml):
     dashboard_page: executive_summary | funnel | team_activity | publish_metrics | usage_trends | video_explorer | data_quality
     ps_section: 6A       # PS section reference
     phase: 2
-    personas: [leadership, creator]
+    roles: [cxo, manager, analyst]  # who can see this KPI
     description: "One-line description"
 """
 
