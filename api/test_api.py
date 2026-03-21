@@ -300,11 +300,24 @@ def test_nlq_rejects_oversized_context():
 
 # ── Slice 11: Chronos Forecast ────────────────────────────────────────────────
 
+import pytest
+
+try:
+    import torch
+    _HAS_TORCH = True
+except ImportError:
+    _HAS_TORCH = False
+
+_skip_no_torch = pytest.mark.skipif(not _HAS_TORCH, reason="torch not installed (Docker-only)")
+
+
+@_skip_no_torch
 def test_forecast_returns_200():
     resp = client.get("/api/trends/forecast")
     assert resp.status_code == 200
 
 
+@_skip_no_torch
 def test_forecast_has_history_and_forecast_keys():
     resp = client.get("/api/trends/forecast")
     data = resp.json()
@@ -313,16 +326,19 @@ def test_forecast_has_history_and_forecast_keys():
     assert "model" in data
 
 
+@_skip_no_torch
 def test_forecast_default_horizon_is_30_days():
     resp = client.get("/api/trends/forecast")
     assert len(resp.json()["forecast"]) == 30
 
 
+@_skip_no_torch
 def test_forecast_custom_horizon():
     resp = client.get("/api/trends/forecast?horizon=14")
     assert len(resp.json()["forecast"]) == 14
 
 
+@_skip_no_torch
 def test_forecast_quantiles_are_ordered():
     resp = client.get("/api/trends/forecast")
     for fc in resp.json()["forecast"]:
@@ -330,6 +346,7 @@ def test_forecast_quantiles_are_ordered():
         assert fc["median"] <= fc["high"], f"median={fc['median']} > high={fc['high']}"
 
 
+@_skip_no_torch
 def test_forecast_dates_are_sequential_and_future():
     resp = client.get("/api/trends/forecast")
     data = resp.json()
@@ -341,6 +358,7 @@ def test_forecast_dates_are_sequential_and_future():
     assert fc_dates == sorted(set(fc_dates))
 
 
+@_skip_no_torch
 def test_forecast_history_has_upload_counts():
     resp = client.get("/api/trends/forecast")
     h = resp.json()["history"]
