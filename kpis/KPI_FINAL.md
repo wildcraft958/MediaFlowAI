@@ -8,27 +8,27 @@
 
 ## Quick Reference
 
-| # | KPI | Acronym | Type | Dashboard Page | PS Section |
-|---|-----|---------|------|----------------|------------|
-| 1 | Publish Conversion Rate | PCR | SQL | Funnel | 6C |
-| 2 | Funnel Stage Conversion | FSC | SQL | Funnel | 6C |
-| 3 | MoM / WoW Growth Rate | GR | SQL | Executive Summary | 6A |
-| 4 | Orphaned Processing Index | OPI | SQL | Funnel | 6C |
-| 5 | Time Efficiency of User | TEU | SQL | Team Activity | 6D |
-| 6 | AI Output Leverage | AIL | SQL | Executive Summary | 6B |
-| 7 | Content Promise vs Delivery Gap | CPDG | PY | Publish Metrics | 6B |
-| 8 | Subscriber Attention Cost | SAC | SQL | Publish Metrics | 6D |
-| 9 | Attention Harvest Yield | AHY | SQL | Publish Metrics | 6B |
-| 10 | Engagement Depth Rate | EDR | SQL | Publish Metrics | 6B |
-| 11 | Hook-to-Hold Resonance Score | HTHR | SQL | Publish Metrics | 6B |
-| 12 | Z-Score Performance | ZSP | PY | Video Explorer | 6B |
-| 13 | Traffic Source Quality Index | TSQI | SQL | Usage Trends | 6A |
-| 14 | Platform Impression Gap | PIG | SQL | Usage Trends | 6D |
-| 15 | Audience Growth Velocity | AGV | SQL | Executive Summary | 6A |
-| 16 | Performance Momentum Index | PMI | SQL | Executive Summary | 6A |
-| 17 | Language Performance Index | LPI | PY | Team Activity | 6D |
-| 18 | Metadata Completeness Index | MCI | SQL | Data Quality | 6E |
-| 19 | Duplicate Detection Rate | DCDR | SQL | Data Quality | 6E |
+| # | KPI | Acronym | Type | Dashboard Page | PS Section | Roles |
+|---|-----|---------|------|----------------|------------|-------|
+| 1 | Publish Conversion Rate | PCR | SQL | Funnel | 6C | CXO, Manager |
+| 2 | Funnel Stage Conversion | FSC | SQL | Funnel | 6C | CXO, Manager |
+| 3 | MoM / WoW Growth Rate | GR | SQL | Executive Summary | 6A | CXO, Manager |
+| 4 | Content-to-Reach Multiplier | CRM | SQL | Executive Summary | 6B | CXO, Manager |
+| 5 | Time Efficiency of User | TEU | SQL | Team Activity | 6D | Manager |
+| 6 | AI Output Leverage | AIL | SQL | Executive Summary | 6B | CXO |
+| 7 | Content Promise vs Delivery Gap | CPDG | PY | Publish Metrics | 6B | Manager, Analyst |
+| 8 | Subscriber Attention Cost | SAC | SQL | Publish Metrics | 6D | Manager, Analyst |
+| 9 | Attention Harvest Yield | AHY | SQL | Publish Metrics | 6B | CXO, Manager, Analyst |
+| 10 | Engagement Depth Rate | EDR | SQL | Publish Metrics | 6B | Manager, Analyst |
+| 11 | Hook-to-Hold Resonance Score | HTHR | SQL | Publish Metrics | 6B | Manager, Analyst |
+| 12 | Z-Score Performance | ZSP | PY | Video Explorer | 6B | Manager, Analyst |
+| 13 | Traffic Source Quality Index | TSQI | SQL | Usage Trends | 6A | Manager, Analyst |
+| 14 | Platform Impression Gap | PIG | SQL | Usage Trends | 6D | Manager, Analyst |
+| 15 | Audience Growth Velocity | AGV | SQL | Executive Summary | 6A | CXO, Manager |
+| 16 | Performance Momentum Index | PMI | SQL | Executive Summary | 6A | CXO, Manager, Analyst |
+| 17 | Language Performance Index | LPI | PY | Team Activity | 6D | CXO, Manager, Analyst |
+| 18 | Metadata Completeness Index | MCI | SQL | Data Quality | 6E | Analyst |
+| 19 | Duplicate Detection Rate | DCDR | SQL | Data Quality | 6E | Analyst |
 
 ---
 
@@ -80,20 +80,22 @@ ORDER BY 1
 
 ---
 
-### 4. Orphaned Processing Index (OPI)
+### 4. Content-to-Reach Multiplier (CRM)
 ```sql
 SELECT
     workspace,
-    team_name,
-    input_type,
-    COUNT(*) AS orphaned_count,
-    ROUND(SUM(video_duration_sec / 3600.0), 2) AS orphaned_hours
+    ROUND(SUM(TRY_CAST(impressions AS DOUBLE)), 0) AS total_impressions,
+    ROUND(SUM(video_duration_sec) / 3600.0, 2) AS source_duration_hours,
+    ROUND(
+        SUM(TRY_CAST(impressions AS DOUBLE))
+        / NULLIF(SUM(video_duration_sec) / 3600.0, 0)
+    , 2) AS crm
 FROM media_dataset
-WHERE published_flag = false
-  AND TRY_CAST(upload_date AS TIMESTAMP) < NOW() - INTERVAL '30 days'
-GROUP BY workspace, team_name, input_type
-ORDER BY orphaned_hours DESC
+WHERE published_flag = true
+GROUP BY workspace
+ORDER BY crm DESC
 ```
+**Interpretation:** Impressions per hour of raw source content. Rising CRM = AI + editorial getting more efficient. Benchmark: 1 hour news content = 20-50 lakh impressions for large Indian news channels.
 
 ---
 
@@ -367,7 +369,7 @@ FROM (
 |-------------|--------|------------------|
 | Business understanding & KPI design | 20 | All 19 — breadth across operational + performance + quality |
 | Analytical depth + NL query | 20 | CPDG, ZSP, LPI, HTHR, TSQI, AGV, PMI — trend + multi-dim |
-| Data quality checks | 15 | MCI, DCDR, OPI (orphaned data signal) |
+| Data quality checks | 15 | MCI, DCDR, CRM (content ROI signal) |
 | Dashboard UX | 20 | All — each KPI maps to a specific dashboard page |
 | Scalability | 15 | SQL-first, DuckDB views — add new KPIs without schema change |
 | Presentation | 10 | CPDG, HTHR, AGV, LPI are story-worthy insights |

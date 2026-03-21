@@ -18,7 +18,7 @@ Full problem statement: `draft/IIT_MediaFlow_ProblemStatement.pdf`
 | `agents/` | Architecture plan, agent implementations, MCP servers |
 | `config/` | YAML metric registry, client configs, dimension registry |
 | `api/` | FastAPI backend |
-| `frontend/` | Next.js + Tailwind dashboard |
+| `frontend/` | React (Vite) + Tailwind dashboard |
 | `draft/` | Reference only — original data, mockups, SQL-of-Thought impl |
 
 | File | Purpose |
@@ -34,10 +34,15 @@ Full problem statement: `draft/IIT_MediaFlow_ProblemStatement.pdf`
 | `config/metric_registry.yaml` | All 19 KPIs: type, view/table, page, persona, description |
 | `config/dimensions.yaml` | Dimension registry with values, cardinality, API params |
 | `config/clients/CLIENT_1.yaml` | CLIENT_1 thresholds, enabled KPIs, alert channels |
+| `config/clients/CLIENT_2.yaml` | CLIENT_2 (Company_B) thresholds, enabled KPIs |
 | `agents/PLAN.md` | Full architecture diagram + LangGraph state machine + build order |
 | `Agent.md` | Agent system design, tool layer, personas, extensibility |
 | `draft/IIT_MediaFlow_ProblemStatement.pdf` | Original PS |
 | `draft/SQL-of-Thought-main/` | Reference implementation (arXiv:2509.00581) |
+| `Dockerfile` | Cloud Run deployment — pre-built artifacts, no data pipeline at build time |
+| `.dockerignore` | Docker build context exclusions |
+| `.gcloudignore` | Cloud Build upload exclusions (includes analytics.duckdb + frontend/dist/) |
+| `DEPLOYMENT.md` | Full deployment guide (dev, demo, Cloud Run) |
 
 ---
 
@@ -109,7 +114,7 @@ Published (published_flag=True): 3,188
 - [x] `data/schema.py`: loads CSV, creates star schema, all KPI views, agg tables → `analytics.duckdb`
 - [x] `fact_video_events` view (29 cols, TRY_CAST on all date fields)
 - [x] 9 dimension tables (dim_workspace, dim_user, dim_team, dim_language, dim_input_type, dim_output_type, dim_ai_output_type, dim_platform, dim_date)
-- [x] 16 SQL KPI views (v_pcr, v_fsc, v_gr, v_opi, v_teu, v_ail, v_sac, v_ahy, v_edr, v_hthr, v_tsqi, v_pig, v_agv, v_pmi, v_mci, v_dcdr)
+- [x] 16 SQL KPI views (v_pcr, v_fsc, v_gr, v_crm, v_teu, v_ail, v_sac, v_ahy, v_edr, v_hthr, v_tsqi, v_pig, v_agv, v_pmi, v_mci, v_dcdr)
 - [x] 3 Python KPI tables (kpi_cpdg, kpi_zsp, kpi_lpi)
 - [x] 4 pre-aggregated tables (agg_daily_summary, agg_channel_funnel, agg_output_type_summary, agg_user_activity)
 - [x] `config/metric_registry.yaml` — 19 KPIs with metadata
@@ -121,7 +126,7 @@ Published (published_flag=True): 3,188
 ### Step 4 — Backend API ✅
 > PS requirement: web-accessible dashboard, filterable endpoints
 - [x] `api/main.py` — FastAPI app, CORS (localhost:5173), lifespan DB warm-up
-- [x] `api/db.py` — read-only DuckDB singleton + `query_df()` / `query_one()` helpers
+- [x] `api/db.py` — read-only DuckDB singleton, cursor-per-request concurrency (threading.Lock on cursor creation only), `query_df()` / `query_one()` helpers
 - [x] `api/config.py` — YAML loaders (metric_registry, dimensions, CLIENT_1)
 - [x] `api/filters.py` — `FilterParams` (Depends) + `build_where_clause()` (zero interpolation)
 - [x] `api/models.py` — Pydantic response shapes
@@ -134,7 +139,7 @@ Published (published_flag=True): 3,188
 - [x] `api/routers/videos.py` — GET /api/videos (paginated, filterable) + GET /api/videos/export (CSV)
 - [x] `api/routers/admin.py` — KPI CRUD + KPI chatbot (Gemini via Vertex AI) + config read/write
 - [x] `api/routers/nlq.py` — POST /api/nlq (delegates to agents.qna_agent)
-- [x] `api/test_api.py` — 32 TDD tests, all pass
+- [x] `api/test_api.py` — 44 TDD tests, all pass
 
 ### Step 5 — Agent Layer ✅
 > PS requirement: prompt-based querying, vector search / semantic retrieval, show filters/dims applied
@@ -179,7 +184,16 @@ Published (published_flag=True): 3,188
 - [x] NLQ error display: shows actual agent error instead of stale placeholder; guardrail blocks flow via `final` SSE event
 - [x] Dashboard charts draggable into NLQ panel (`DraggableChart` wrapper + ChartDropZone JSON accept)
 - [x] Null guard on `inputTypeMix` mapping in PublishMetrics (uses `humanize()`)
+- [x] Comprehensive null-safety & error handling: NaN-safe `_safe_int`/`_safe_float` in dashboard.py, try/except for missing KPI views, `?? 0` / `?? ''` across all 4 frontend page files (~66 fixes)
+- [x] DuckDB cursor-per-request concurrency fix — eliminates 503 errors under parallel frontend requests
+- [x] KPI data shape fixes: HTHR aggregated by input_type (was 3,188 raw rows), LPI field names aligned (`lpi_score`, `pcr`, `count`), OPI aggregated by workspace (was 16 rows)
 - [ ] Platform Connector Settings modal (extensibility demo)
+
+### Step 6b — Deployment ✅
+- [x] Dockerfile: pre-built artifacts only (no data pipeline at build time)
+- [x] `.dockerignore` + `.gcloudignore`: include `analytics.duckdb` and `frontend/dist/`
+- [x] Deploy via `gcloud run deploy --source .` (no local Docker required)
+- [x] DEPLOYMENT.md updated with build-locally-deploy-remotely workflow
 
 ### Step 7 — Insights Deck 🔲 *(mandatory, 10 marks — team deliverable)*
 > PS requirement Section 7.3: PDF/PPT 8–12 slides
@@ -200,10 +214,10 @@ Published (published_flag=True): 3,188
 | Criteria | Weight | Our Answer |
 |----------|--------|------------|
 | Business understanding & KPI design | 20 | 19 Phase-1 KPIs across 5 PS sections; funnel PCR/FSC/OPI; YAML metric registry |
-| Dashboard UX & navigability | 20 | 5 tabs; COUNT↔HOURS toggle; D1×D2 CrossTab; persona modes; filter chips |
-| Analytical depth + NL query | 20 | 4-node LangGraph; SQL-of-Thought; vector search; multi-turn memory; thought process panel |
-| Data quality checks | 15 | MCI, DCDR, OPI; 390 null upload_date rows; workspace publish variance as data story |
-| Scalability / extensibility | 15 | YAML metric registry; config-driven clients; live connector modal |
+| Dashboard UX & navigability | 20 | 6 tabs; COUNT↔HOURS toggle; D1×D2 CrossTab; persona modes; filter chips; Chronos forecast band |
+| Analytical depth + NL query | 20 | 4-node LangGraph; SQL-of-Thought; vector search; multi-turn memory; SSE thought streaming; HITL alerts |
+| Data quality checks | 15 | MCI, DCDR, OPI; 390 null upload_date rows; workspace publish variance as data story; 119 TDD tests (32+44+43) |
+| Scalability / extensibility | 15 | YAML metric registry; config-driven clients; multi-tenant CLIENT configs; BigQuery vector store |
 | Presentation & communication | 10 | Workspace PCR variance story; underperforming channel insight; funnel drop-off narrative |
 
 ---
@@ -288,9 +302,11 @@ WS-SPORTS-LIVE (Sports_Live, Company_A)
 
 **Multi-tenant:** CLIENT_1 is one tenant; YAML configs support CLIENT_2, CLIENT_3 without code change
 
-**Personas (PS Section 2):**
-- Leadership (CEO/Manager/Client Success) → default tab: Executive Summary
-- Creator (Editor/Uploader/Production) → same nav order; RBAC affects KPI/chart visuals only (not page ordering)
+**Roles (PS Section 2 + PDF role table):**
+- Admin → sees everything, default tab: Admin
+- CXO (Founders/Leadership) → default tab: Executive Summary; sees PCR, FSC, GR, CRM, AIL, AGV, PMI, AHY, LPI
+- Manager (Client Success/Operations) → default tab: Executive Summary; sees all except AIL-only and Analyst-only KPIs
+- Analyst (Editorial/Tech/Product) → default tab: Video Explorer; sees CPDG, SAC, EDR, HTHR, ZSP, TSQI, PIG, PMI, AHY, LPI, MCI, DCDR
 
 ---
 

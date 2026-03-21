@@ -53,12 +53,13 @@ Process→Publish= publish_count / process_count × 100
 
 ---
 
-### A4. Orphaned Processing Index (OPI) ✅ `SQL`
-**Definition:** Total duration (hours) of content that has been processed but remains unpublished beyond 30 days.
-**Formula:** `SUM(video_duration_sec / 3600) WHERE published_flag = False AND upload_date < today - 30`
-**Dimensions:** workspace, team, input_type
-**Roles:** Operations, Head of Content
-**PS Section:** 6C — Drop-off identification
+### A4. Content-to-Reach Multiplier (CRM) ✅ `SQL`
+**Definition:** Impressions generated per hour of raw source content — measures AI leverage ROI.
+**Formula:** `SUM(impressions) / SUM(video_duration_sec / 3600) WHERE published_flag = true`
+**Dimensions:** workspace
+**Roles:** CXO, Manager
+**PS Section:** 6B — Content efficiency
+**Interpretation:** Rising CRM = AI + editorial getting more efficient. Benchmark: 1 hour news content = 20-50 lakh impressions for large Indian news channels.
 
 ---
 
