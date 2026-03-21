@@ -46,6 +46,21 @@ const DEFAULT_AGENT_MESSAGES = [
   },
 ]
 
+// Persist/restore agent messages from localStorage
+const INBOX_STORAGE_KEY = 'mediaflow_agent_inbox'
+function loadInbox() {
+  try {
+    const raw = localStorage.getItem(INBOX_STORAGE_KEY)
+    if (raw) return JSON.parse(raw)
+  } catch { /* ignore */ }
+  return null
+}
+function saveInbox(messages) {
+  try {
+    localStorage.setItem(INBOX_STORAGE_KEY, JSON.stringify(messages))
+  } catch { /* ignore */ }
+}
+
 const useStore = create((set, get) => ({
   // ─── Auth ──────────────────────────────────────────────────────────────────
   isLoggedIn: false,
@@ -55,18 +70,21 @@ const useStore = create((set, get) => ({
     persona: user?.persona || 'leadership',
     isLoggedIn: !!user,
   }),
-  logout: () => set({
-    isLoggedIn: false,
-    user: null,
-    persona: 'leadership',
-    filters: { ...EMPTY_FILTERS },
-    nlqOpen: false,
-    nlqSessionId: 'default',
-    agentInboxCount: 2,
-    agentMessages: [...DEFAULT_AGENT_MESSAGES],
-    metric: 'count',
-    comparePeriod: 30,
-  }),
+  logout: () => {
+    const inbox = get().agentMessages
+    set({
+      isLoggedIn: false,
+      user: null,
+      persona: 'leadership',
+      filters: { ...EMPTY_FILTERS },
+      nlqOpen: false,
+      nlqSessionId: 'default',
+      agentInboxCount: inbox.filter((m) => !m.read).length,
+      agentMessages: inbox,
+      metric: 'count',
+      comparePeriod: 30,
+    })
+  },
 
   // ─── Persona ──────────────────────────────────────────────────────────────
   persona: 'leadership',       // 'leadership' | 'creator'
@@ -106,17 +124,22 @@ const useStore = create((set, get) => ({
   agentInboxCount: 2,
   setAgentInboxCount: (agentInboxCount) => set({ agentInboxCount }),
 
-  agentMessages: [...DEFAULT_AGENT_MESSAGES],
+  agentMessages: loadInbox() ?? [...DEFAULT_AGENT_MESSAGES],
   markMessageRead: (id) =>
-    set((state) => ({
-      agentMessages: state.agentMessages.map((m) =>
+    set((state) => {
+      const updated = state.agentMessages.map((m) =>
         m.id === id ? { ...m, read: true } : m
-      ),
-      agentInboxCount: state.agentMessages.filter((m) => !m.read && m.id !== id).length,
-    })),
+      )
+      saveInbox(updated)
+      return {
+        agentMessages: updated,
+        agentInboxCount: updated.filter((m) => !m.read).length,
+      }
+    }),
   dismissMessage: (id) =>
     set((state) => {
       const next = state.agentMessages.filter((m) => m.id !== id)
+      saveInbox(next)
       return {
         agentMessages: next,
         agentInboxCount: next.filter((m) => !m.read).length,
