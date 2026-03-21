@@ -246,10 +246,10 @@ def router_node(
                 "intent": "kpi_definition",
                 "thought_steps": thought_steps,
                 "_matched_acronym": None,
+                "_kpi_definition": kpi_def,
                 "error": None,
                 "result": None,
                 "sql": None,
-                "narrative": kpi_def,
                 "chart_spec": None,
                 "hitl_pending": False,
                 "hitl_payload": None,
@@ -673,6 +673,22 @@ def narrate_node(state: AgentState) -> AgentState:
     page_context = state.get("page_context")
     chart_context = state.get("chart_context")
     web_search_results = state.get("web_search_results")
+
+    # KPI definition path (set by router via _kpi_definition field)
+    pre_narrative = state.get("_kpi_definition")
+    if pre_narrative and not result and not error:
+        thought_steps.append({
+            "node": "Narrate",
+            "action": "passthrough",
+            "detail": "narrative pre-set by router",
+        })
+        history.append({"query": query, "answer": pre_narrative, "sql": ""})
+        return {
+            **state,
+            "narrative": pre_narrative,
+            "thought_steps": thought_steps,
+            "history": history[-20:],
+        }
 
     # Context-aware path: answer based on page/chart context (no SQL result needed)
     if state.get("intent") == "context_aware" and not result:

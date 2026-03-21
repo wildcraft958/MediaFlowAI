@@ -19,6 +19,7 @@ class AgentState(TypedDict, total=False):
     history: list[dict]         # multi-turn memory [{query, answer, sql}]
     error: Optional[str]
     _matched_acronym: Optional[str]  # set by Router, consumed by Analytics
+    _kpi_definition: Optional[str]   # set by Router for KPI definition queries
 
     # HITL fields — set when alert needs human approval
     hitl_pending: bool
