@@ -1,8 +1,8 @@
 /**
- * NLQPanel — two-stage AI analytics panel
+ * NLQPanel - two-stage AI analytics panel
  *
  * Stage 1 (compact): floating bottom-right panel (NOT full-height sidebar)
- *   - No backdrop — page stays interactive
+ *   - No backdrop - page stays interactive
  *   - Positioned above the FAB button
  * Stage 2 (expanded): large centered modal with chart area + backdrop
  */
@@ -108,7 +108,7 @@ function ThoughtProcess({ steps }) {
 }
 
 // ---------------------------------------------------------------------------
-// Live thought display (streaming — shows steps as they arrive)
+// Live thought display (streaming - shows steps as they arrive)
 // ---------------------------------------------------------------------------
 function LiveThoughtDisplay({ steps }) {
   if (!steps || steps.length === 0) return null
@@ -305,7 +305,7 @@ function MessageBubble({ msg }) {
 }
 
 // ---------------------------------------------------------------------------
-// Chart preview area (expanded mode only) — dynamic from agent response
+// Chart preview area (expanded mode only) - dynamic from agent response
 // ---------------------------------------------------------------------------
 
 // Render a dynamic bar chart from chart_spec.type === 'bar'
@@ -369,7 +369,7 @@ function DynamicTable({ spec }) {
             <tr key={i} className="border-b border-[#111] hover:bg-[#111]">
               {cols.map((c) => (
                 <td key={c} className="py-2 pr-3 text-[#a0a0a0] tabular-nums">
-                  {String(row[c] ?? '—')}
+                  {String(row[c] ?? '-')}
                 </td>
               ))}
             </tr>
@@ -380,7 +380,7 @@ function DynamicTable({ spec }) {
   )
 }
 
-// Static fallback — shown before any query is made
+// Static fallback - shown before any query is made
 function StaticFallback() {
   return (
     <div className="flex-1 flex flex-col gap-3 min-h-0">
@@ -542,7 +542,7 @@ const ANALYTICS_SIGNALS = [
   'summary', 'executive', 'weekly', 'daily', 'monthly', 'growth', 'drop', 'peak',
 ]
 
-// Topics clearly outside the analytics domain — graceful block
+// Topics clearly outside the analytics domain - graceful block
 const OFF_TOPIC_SIGNALS = [
   'recipe', 'cook', 'weather', 'poem', 'song', 'story', 'joke', 'travel',
   'history', 'geography', 'capital of', 'translate', 'math problem',
@@ -560,7 +560,7 @@ const OFF_TOPIC_REPLY = {
 
 function isOffTopic(query) {
   const lower = query.toLowerCase()
-  // Allow if any analytics signal is present — check FIRST so 'language performance' is not blocked
+  // Allow if any analytics signal is present - check FIRST so 'language performance' is not blocked
   if (ANALYTICS_SIGNALS.some((s) => lower.includes(s))) return false
   // Block if any off-topic signal matches
   if (OFF_TOPIC_SIGNALS.some((s) => lower.includes(s))) return true
@@ -630,7 +630,7 @@ function ChatInput({ input, setInput, loading, onSend, inputRef }) {
 // ---------------------------------------------------------------------------
 // NLQPanel
 // ---------------------------------------------------------------------------
-// Stable per-browser session ID — persists across page reloads, unique per device
+// Stable per-browser session ID - persists across page reloads, unique per device
 function getSessionId() {
   const KEY = 'nlq_session_id'
   let id = localStorage.getItem(KEY)
@@ -650,7 +650,7 @@ export default function NLQPanel({ className = '' }) {
   const persona    = useStore((s) => s.persona)
   const setPageContext = useStore((s) => s.setPageContext)
 
-  // Stable session ID — wires multi-turn history in the backend agent
+  // Stable session ID - wires multi-turn history in the backend agent
   const sessionId = useRef(getSessionId())
 
   // Sync session ID into store on mount for HITL wiring
@@ -715,7 +715,7 @@ export default function NLQPanel({ className = '' }) {
       setMessages((prev) => [...prev, { role: 'user', text: query, ts: formatTime(new Date()) }])
       setInput('')
 
-      // Input guardrail — block off-topic queries before hitting the API
+      // Input guardrail - block off-topic queries before hitting the API
       if (isOffTopic(query)) {
         setMessages((prev) => [...prev, { ...OFF_TOPIC_REPLY, ts: formatTime(new Date()) }])
         return
@@ -905,7 +905,7 @@ export default function NLQPanel({ className = '' }) {
       {/* Context banner */}
       <ContextBanner pageContext={currentPageCtx} chartContext={chartCtx} onClearChart={() => setChartCtx(null)} />
 
-      {/* Quick prompts — context-aware */}
+      {/* Quick prompts - context-aware */}
       <div className="flex-shrink-0 px-4 py-2.5 border-b border-[#1a1a1a] bg-[#0d0d0d]">
         <div className="flex flex-wrap gap-1.5">
           {(chartCtx
@@ -967,7 +967,7 @@ export default function NLQPanel({ className = '' }) {
   // ── Expanded modal (stage 2): large centered, WITH backdrop ──────────────
   const ExpandedModal = (
     <>
-      {/* Backdrop — only for expanded modal */}
+      {/* Backdrop - only for expanded modal */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -1025,7 +1025,7 @@ export default function NLQPanel({ className = '' }) {
           {/* Context banner (expanded) */}
           <ContextBanner pageContext={currentPageCtx} chartContext={chartCtx} onClearChart={() => setChartCtx(null)} />
 
-          {/* Quick prompts — context-aware */}
+          {/* Quick prompts - context-aware */}
           <div className="flex-shrink-0 flex items-center gap-2 px-6 py-3 border-b border-[#1a1a1a] bg-[#0a0a0a]">
             <span className="text-[10px] text-[#555] uppercase tracking-wider flex-shrink-0">Try:</span>
             {(chartCtx ? CONTEXT_PROMPTS.chart_dropped : CONTEXT_PROMPTS[activeTab] || QUICK_PROMPTS).map((p) => (
@@ -1040,7 +1040,7 @@ export default function NLQPanel({ className = '' }) {
             ))}
           </div>
 
-          {/* Body — split: chat (left) + charts (right) */}
+          {/* Body - split: chat (left) + charts (right) */}
           <div className="flex-1 flex min-h-0">
             {/* Chat column */}
             <div className="flex flex-col w-[480px] flex-shrink-0 border-r border-[#1e1e1e] min-h-0">
@@ -1083,12 +1083,12 @@ export default function NLQPanel({ className = '' }) {
 
   return (
     <>
-      {/* Compact panel — no backdrop so page stays interactive */}
+      {/* Compact panel - no backdrop so page stays interactive */}
       <AnimatePresence>
         {nlqOpen && !expanded && CompactPanel}
       </AnimatePresence>
 
-      {/* Expanded modal — with backdrop */}
+      {/* Expanded modal - with backdrop */}
       <AnimatePresence>
         {nlqOpen && expanded && ExpandedModal}
       </AnimatePresence>

@@ -1,5 +1,5 @@
 /**
- * Admin.jsx — Tab 6: Admin Panel
+ * Admin.jsx - Tab 6: Admin Panel
  * Sub-tabs: KPI Configurator | Access Requests | Client Settings
  */
 
@@ -24,11 +24,11 @@ const MOCK_KPIS = [
   { id: 7, acronym: 'SAC',  name: 'Subscriber Attention Cost',     type: 'sql',    page: 'publish',    enabled: true,  description: 'Watch minutes required to gain one subscriber, by input type' },
   { id: 8, acronym: 'AHY',  name: 'Attention Harvest Yield',       type: 'sql',    page: 'publish',    enabled: true,  description: 'Watch hours generated per source second, by AI output type' },
   { id: 9, acronym: 'EDR',  name: 'Engagement Depth Rate',         type: 'sql',    page: 'publish',    enabled: true,  description: '% of impressions that resulted in active engagement (likes+comments+shares)' },
-  { id: 10, acronym: 'HTHR', name: 'Hook-to-Hold Resonance Score', type: 'sql',    page: 'publish',    enabled: true,  description: 'CTR × retention × log(impressions) — titles that hook AND hold' },
+  { id: 10, acronym: 'HTHR', name: 'Hook-to-Hold Resonance Score', type: 'sql',    page: 'publish',    enabled: true,  description: 'CTR × retention × log(impressions) - titles that hook AND hold' },
   { id: 11, acronym: 'TSQI', name: 'Traffic Source Quality Index',  type: 'sql',    page: 'trends',     enabled: true,  description: 'Which traffic sources drive highest watch time and subscriber gain' },
   { id: 12, acronym: 'PIG',  name: 'Platform Impression Gap',      type: 'sql',    page: 'trends',     enabled: true,  description: 'Average impressions, CTR, and retention by distribution platform' },
   { id: 13, acronym: 'AGV',  name: 'Audience Growth Velocity',     type: 'sql',    page: 'executive',  enabled: true,  description: 'Subscriber growth rate' },
-  { id: 14, acronym: 'CRM',  name: 'Content-to-Reach Multiplier',  type: 'sql',    page: 'executive',  enabled: true,  description: 'Impressions per hour of raw source content — AI leverage ROI' },
+  { id: 14, acronym: 'CRM',  name: 'Content-to-Reach Multiplier',  type: 'sql',    page: 'executive',  enabled: true,  description: 'Impressions per hour of raw source content - AI leverage ROI' },
   { id: 15, acronym: 'PMI',  name: 'Performance Momentum Index',   type: 'sql',    page: 'executive',  enabled: true,  description: 'WoW impression growth rate per workspace' },
   { id: 15, acronym: 'MCI',  name: 'Metadata Completeness Index',  type: 'sql',    page: 'executive',  enabled: true,  description: '% of published videos with complete metadata fields per workspace' },
   { id: 16, acronym: 'DCDR', name: 'Duplicate Detection Rate',     type: 'sql',    page: 'executive',  enabled: true,  description: '% of records that appear to be same-day duplicate headline submissions' },
@@ -107,7 +107,7 @@ function ChatBubble({ msg, onAddKpi }) {
         {msg.yaml ? (
           <div>
             <p className="text-[#a0a0a0] mb-3 whitespace-pre-wrap">{msg.text}</p>
-            {/* Friendly summary card — no raw code */}
+            {/* Friendly summary card - no raw code */}
             <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-xl p-3 mb-2">
               <div className="flex items-center gap-2 mb-1.5">
                 {kpiAcronym && (
@@ -122,7 +122,7 @@ function ChatBubble({ msg, onAddKpi }) {
                 Ready to add · will appear on the dashboard once activated
               </p>
             </div>
-            {/* Collapsible technical details — for power users only */}
+            {/* Collapsible technical details - for power users only */}
             <button
               onClick={() => setShowDetails((p) => !p)}
               className="text-[10px] text-[#444] hover:text-[#a0a0a0] transition-colors flex items-center gap-1 mb-1"
@@ -243,7 +243,7 @@ function KPIChat() {
         <div ref={bottomRef} />
       </div>
 
-      {/* Input — always anchored to bottom */}
+      {/* Input - always anchored to bottom */}
       <div className="flex-shrink-0 flex gap-2 pt-3 border-t border-[#1f1f1f]">
         <input
           value={input}

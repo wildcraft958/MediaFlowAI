@@ -31,7 +31,7 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 )
 
-// ─── Response Interceptor — normalize errors ──────────────────────────────────
+// ─── Response Interceptor - normalize errors ──────────────────────────────────
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -43,7 +43,7 @@ api.interceptors.response.use(
       return Promise.reject(new Error(message))
     } else if (error.request) {
       return Promise.reject(
-        new Error('Network error — backend unreachable. Is FastAPI running on :8000?')
+        new Error('Network error - backend unreachable. Is FastAPI running on :8000?')
       )
     }
     return Promise.reject(error)
@@ -106,7 +106,7 @@ export const exportVideos = (params) =>
 // ─── Dimensions ──────────────────────────────────────────────────────────────
 export const getDimensions = () => api.get('/dimensions')
 
-// ─── Admin — KPI Registry ────────────────────────────────────────────────────
+// ─── Admin - KPI Registry ────────────────────────────────────────────────────
 export const getAdminKPIs = () => api.get('/admin/kpis')
 
 export const createKPI = (data) => api.post('/admin/kpis', data)
@@ -115,10 +115,10 @@ export const updateKPI = (acronym, data) => api.put(`/admin/kpis/${acronym}`, da
 
 export const deleteKPI = (acronym) => api.delete(`/admin/kpis/${acronym}`)
 
-// ─── Admin — KPI Chat Agent ──────────────────────────────────────────────────
+// ─── Admin - KPI Chat Agent ──────────────────────────────────────────────────
 export const kpiChat = (data) => api.post('/admin/kpi-chat', data)
 
-// ─── Admin — Client Config ────────────────────────────────────────────────────
+// ─── Admin - Client Config ────────────────────────────────────────────────────
 export const getAdminConfig = () => api.get('/admin/config')
 
 export const updateAdminConfig = (data) => api.put('/admin/config', data)
@@ -127,11 +127,11 @@ export const updateAdminConfig = (data) => api.put('/admin/config', data)
 export const postNLQ = (data) => api.post('/nlq', data)
 
 /**
- * openNLQStream — open an SSE connection to GET /api/nlq/stream
+ * openNLQStream - open an SSE connection to GET /api/nlq/stream
  *
  * @param {object} params  { question, session_id?, persona? }
  * @param {function} onEvent  called with each parsed event object
- * @returns EventSource instance — caller can .close() to cancel
+ * @returns EventSource instance - caller can .close() to cancel
  *
  * Event types: thought_step | sql_ready | final | error | done
  */
@@ -165,7 +165,7 @@ export function openNLQStream(params, onEvent) {
 }
 
 /**
- * postNLQStream — POST to /api/nlq/stream with JSON body (supports context).
+ * postNLQStream - POST to /api/nlq/stream with JSON body (supports context).
  * Uses fetch + ReadableStream to parse SSE events.
  *
  * @param {object} body  { question, session_id, persona, page_context?, chart_context? }

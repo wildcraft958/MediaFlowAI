@@ -1,5 +1,5 @@
 /**
- * LandingPage.jsx — Public marketing landing page for MediaFlow AI Analytics Dashboard
+ * LandingPage.jsx - Public marketing landing page for MediaFlow AI Analytics Dashboard
  *
  * Dark theme (#0a0a0a bg, #e63946 accent), framer-motion scroll animations,
  * lucide-react icons, react-router-dom navigation.
@@ -108,7 +108,7 @@ const suiteCards = [
   },
   {
     label: 'Natural Language Interface',
-    desc: 'Ask questions in plain English — the SQL-of-Thought agent translates, executes, and narrates results.',
+    desc: 'Ask questions in plain English - the SQL-of-Thought agent translates, executes, and narrates results.',
     stat: 'Gemini 2.0 Flash · multi-turn',
     icon: MessageSquare,
     accent: '#6366f1',
@@ -173,7 +173,7 @@ export default function LandingPage() {
           height: '60px',
         }}
       >
-        {/* Left — logo */}
+        {/* Left - logo */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
           <div
             style={{
@@ -197,7 +197,7 @@ export default function LandingPage() {
           </span>
         </div>
 
-        {/* Center — nav links (hidden on narrow viewports) */}
+        {/* Center - nav links (hidden on narrow viewports) */}
         <div
           className="hidden md:flex"
           style={{ gap: '2rem' }}
@@ -221,7 +221,7 @@ export default function LandingPage() {
           ))}
         </div>
 
-        {/* Right — CTA buttons */}
+        {/* Right - CTA buttons */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <button
             onClick={() => navigate('/login')}
@@ -503,7 +503,7 @@ export default function LandingPage() {
               }}
             >
               <div style={{ fontSize: 11, color: '#555', marginBottom: '0.75rem', textAlign: 'left' }}>
-                Daily Upload Volume — Last 24 days
+                Daily Upload Volume - Last 24 days
               </div>
               <div
                 style={{
@@ -548,7 +548,7 @@ export default function LandingPage() {
             Analytics for Every Stage
           </h2>
           <p style={{ color: '#666', fontSize: 15, maxWidth: 500, margin: '0 auto' }}>
-            From upload to publish — every step of your production pipeline,
+            From upload to publish - every step of your production pipeline,
             visualised and quantified.
           </p>
         </motion.div>
