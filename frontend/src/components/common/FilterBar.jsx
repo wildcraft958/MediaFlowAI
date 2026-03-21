@@ -10,6 +10,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   ChevronDown,
+  Building2,
   Layers,
   Users,
   Globe,
@@ -60,8 +61,17 @@ const DATE_RANGE_OPTIONS = [
   'Custom range',
 ]
 
+const COMPANY_OPTIONS = ['Company_A', 'Company_B']
+
 // Filter definitions — each describes one pill
 const FILTER_DEFS = [
+  {
+    key: 'company',
+    label: 'Company',
+    icon: Building2,
+    options: COMPANY_OPTIONS,
+    multi: true,
+  },
   {
     key: 'workspace',
     label: 'Workspace',

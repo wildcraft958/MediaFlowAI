@@ -1,0 +1,29 @@
+client_id: CLIENT_2
+display_name: MediaFlow Client 2
+company: Company_B
+workspaces:
+  - WS-DIGITAL-NEWS
+
+thresholds:
+  AGV_drop_pct: 10
+  ZScore_anomaly: 2.0
+  publish_rate_min_pct: 0.6
+  MCI_min_pct: 85
+
+alert_channels:
+  email: ops@client2.example.com
+  slack_webhook: ""
+
+enabled_kpis:
+  - PCR
+  - FSC
+  - GR
+  - TEU
+  - AGV
+  - CRM
+  - PMI
+  - MCI
+  - DCDR
+
+default_persona: leadership
+date_range_default_days: 90

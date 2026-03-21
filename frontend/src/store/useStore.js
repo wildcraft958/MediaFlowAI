@@ -6,6 +6,7 @@
 import { create } from 'zustand'
 
 const EMPTY_FILTERS = {
+  company:              [],    // string[]
   workspace:            [],    // string[]
   team:                 [],    // string[]
   language:             null,  // string | null
