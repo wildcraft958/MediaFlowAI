@@ -510,6 +510,7 @@ export default function ExecutiveSummary() {
       trendLabel: 'vs prev 30d',
       icon: Upload,
       subtitle: '91.5% data completeness',
+      tooltip: 'Total videos with a valid upload_date across all workspaces',
       loading,
     },
     {
@@ -521,6 +522,7 @@ export default function ExecutiveSummary() {
       trendLabel: 'vs prev 30d',
       icon: CheckCircle,
       subtitle: 'YouTube Shorts + Instagram Reels',
+      tooltip: 'Videos successfully published to YouTube Shorts or Instagram Reels',
       loading,
     },
     {
@@ -532,7 +534,8 @@ export default function ExecutiveSummary() {
       trendLabel: 'vs prev 30d',
       icon: BarChart2,
       accent: true,
-      subtitle: 'Ranges 38%–92% by workspace',
+      subtitle: 'Ranges 38%-92% by workspace',
+      tooltip: 'Publish Conversion Rate: Published / Total Uploaded x 100. Higher = efficient pipeline, low = bottlenecks.',
       loading,
     },
     {
@@ -543,7 +546,8 @@ export default function ExecutiveSummary() {
       trendValue: d?.avg_processing_pct != null ? Math.abs(d.avg_processing_pct) : null,
       trendLabel: 'vs prev 30d',
       icon: Clock,
-      subtitle: 'Upload → MediaFlow AI processed',
+      subtitle: 'Upload to MediaFlow AI processed',
+      tooltip: 'Average hours from upload_date to processed_date across all videos',
       loading,
     },
   ]

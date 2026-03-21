@@ -160,6 +160,7 @@ export default function KPICard({
   accent = false,
   loading = false,
   subtitle,
+  tooltip,
 }) {
   const animatedValue = useCountUp(value, 1200)
   const { rotateX, rotateY, handleMouse, handleLeave } = useTilt()
@@ -179,6 +180,7 @@ export default function KPICard({
 
   return (
     <motion.div
+      title={tooltip || undefined}
       style={{ rotateX, rotateY, transformPerspective: 800, transformStyle: 'preserve-3d' }}
       onMouseMove={handleMouse}
       onMouseLeave={handleLeave}

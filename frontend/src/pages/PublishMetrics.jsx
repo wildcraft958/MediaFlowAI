@@ -479,6 +479,7 @@ export default function PublishMetrics() {
             icon: BarChart2,
             accent: true,
             subtitle: `${data?.workspacePcr?.reduce((s, w) => s + (w.published ?? 0), 0) ?? 3188} published of ${data?.workspacePcr?.reduce((s, w) => s + (w.total ?? 0), 0) ?? 4569} total`,
+            tooltip: 'PCR: Percentage of uploaded videos that are successfully published. Higher = efficient pipeline.',
             loading,
           },
           {
@@ -487,9 +488,10 @@ export default function PublishMetrics() {
             unit: '%',
             trend: 'down',
             trendValue: null,
-            trendLabel: 'process → publish gap',
+            trendLabel: 'process to publish gap',
             icon: TrendingDown,
-            subtitle: 'Processing → Published drop',
+            subtitle: 'Processing to Published drop',
+            tooltip: 'Gap between processing and publishing stages. Lower is better.',
             loading,
           },
           {
