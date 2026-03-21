@@ -33,15 +33,6 @@ _AGGREGATED_QUERIES = {
         GROUP BY language
         ORDER BY lpi_score DESC
     """,
-    "OPI": """
-        SELECT
-            workspace,
-            SUM(orphaned_count) AS orphaned_count,
-            ROUND(SUM(orphaned_hours), 1) AS orphaned_hours
-        FROM v_opi
-        GROUP BY workspace
-        ORDER BY orphaned_count DESC
-    """,
 }
 
 

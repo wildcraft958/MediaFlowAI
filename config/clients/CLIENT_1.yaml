@@ -22,10 +22,10 @@ enabled_kpis:
   - PCR
   - FSC
   - GR
-  - OPI
   - TEU
   - AIL
   - AGV
+  - CRM
   - PMI
   - MCI
   - DCDR

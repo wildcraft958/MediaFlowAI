@@ -35,18 +35,6 @@ metrics:
     roles: [cxo, manager]
     description: "Month-over-month upload volume growth rate"
 
-  OPI:
-    name: Orphaned Processing Index
-    acronym: OPI
-    type: sql
-    view: v_opi
-    dashboard_page: funnel
-    ps_section: 6C
-    phase: 1
-    personas: [leadership, creator]
-    roles: [cxo, manager]
-    description: "Processed videos unpublished for >30 days — stuck in pipeline"
-
   TEU:
     name: Time Efficiency of User
     acronym: TEU
@@ -178,6 +166,18 @@ metrics:
     personas: [leadership]
     roles: [cxo, manager]
     description: "MoM subscriber growth rate per company"
+
+  CRM:
+    name: Content-to-Reach Multiplier
+    acronym: CRM
+    type: sql
+    view: v_crm
+    dashboard_page: executive_summary
+    ps_section: 6B
+    phase: 1
+    personas: [leadership]
+    roles: [cxo, manager]
+    description: "Impressions generated per hour of raw source content — measures AI leverage ROI"
 
   PMI:
     name: Performance Momentum Index

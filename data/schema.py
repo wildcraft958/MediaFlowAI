@@ -379,6 +379,23 @@ def create_kpi_views(con):
         ORDER BY company, month
     """)
 
+    # CRM — Content-to-Reach Multiplier
+    con.execute("""
+        CREATE OR REPLACE VIEW v_crm AS
+        SELECT
+            workspace,
+            ROUND(SUM(TRY_CAST(impressions AS DOUBLE)), 0) AS total_impressions,
+            ROUND(SUM(video_duration_sec) / 3600.0, 2) AS source_duration_hours,
+            ROUND(
+                SUM(TRY_CAST(impressions AS DOUBLE))
+                / NULLIF(SUM(video_duration_sec) / 3600.0, 0)
+            , 2) AS crm
+        FROM media_dataset
+        WHERE published_flag = true
+        GROUP BY workspace
+        ORDER BY crm DESC
+    """)
+
     # PMI — Performance Momentum Index
     con.execute("""
         CREATE OR REPLACE VIEW v_pmi AS
