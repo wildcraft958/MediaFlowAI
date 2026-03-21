@@ -44,6 +44,7 @@ async def nlq(body: NLQRequest):
             answer=result.get("narrative", ""),
             sql=result.get("sql"),
             data=result.get("result"),
+            chart_spec=result.get("chart_spec"),
             thought_process=_fmt_thought_steps(result.get("thought_steps", [])),
         )
     except ImportError:

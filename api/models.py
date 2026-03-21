@@ -99,6 +99,7 @@ class NLQResponse(BaseModel):
     answer: str
     sql: Optional[str] = None
     data: Optional[Any] = None
+    chart_spec: Optional[dict] = None
     thought_process: Optional[str] = None
 
 

@@ -812,14 +812,25 @@ def _generate_context_narrative(
 def _infer_chart_spec(result: list[dict], sql: str) -> dict:
     if not result:
         return {"type": "none"}
-    first = result[0]
+    # Unwrap MCP tool response format: [{type: "text", text: "[...]"}]
+    data = result
+    if len(data) == 1 and isinstance(data[0], dict) and data[0].get("type") == "text":
+        try:
+            parsed = json.loads(data[0]["text"])
+            if isinstance(parsed, list):
+                data = parsed
+        except (json.JSONDecodeError, KeyError):
+            pass
+    if not data:
+        return {"type": "none"}
+    first = data[0]
     keys = list(first.keys())
-    if len(result) > 1 and len(keys) >= 2:
+    if len(data) > 1 and len(keys) >= 2:
         x_key = keys[0]
         y_keys = [k for k in keys[1:] if isinstance(first.get(k), (int, float))]
         if y_keys:
-            return {"type": "bar", "x": x_key, "y": y_keys, "data": result[:50]}
-    return {"type": "table", "data": result[:50]}
+            return {"type": "bar", "x": x_key, "y": y_keys, "data": data[:50]}
+    return {"type": "table", "data": data[:50]}
 
 
 _NARRATE_SYSTEM_RULES = (
