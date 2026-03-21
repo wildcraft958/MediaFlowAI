@@ -600,11 +600,12 @@ export default function TeamActivity() {
             title: 'Top Workspace',
             value: topWs?.pcr ?? 92,
             unit: '%',
-            trend: 'up',
+            trend: 'neutral',
             trendLabel: topWs?.workspace ?? 'WS-DIGITAL-NEWS',
             icon: BarChart2,
             accent: true,
             subtitle: 'Highest PCR',
+            tooltip: 'Workspace with the highest Publish Conversion Rate',
             loading,
           },
           {

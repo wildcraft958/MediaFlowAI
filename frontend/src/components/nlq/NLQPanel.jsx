@@ -530,45 +530,8 @@ function ChartPreviewArea({ chartData, chartCtx }) {
 // Guardrails
 // ---------------------------------------------------------------------------
 
-// Keywords that signal an analytics / media-ops query
-const ANALYTICS_SIGNALS = [
-  'pcr', 'fsc', 'lpi', 'teu', 'crm', 'mci', 'zsp', 'hthr', 'tsqi', 'pig', 'agv', 'pmi',
-  'kpi', 'metric', 'trend', 'upload', 'publish', 'process', 'workspace', 'team', 'user',
-  'video', 'mediaflow', 'funnel', 'channel', 'platform', 'youtube', 'instagram', 'shorts', 'reels',
-  'interview', 'news', 'speech', 'debate', 'special', 'report', 'discussion',
-  'digital', 'entertainment', 'sports', 'lifestyle', 'analysis', 'analytics',
-  'dashboard', 'data', 'count', 'hour', 'rate', 'score', 'index', 'performance',
-  'bottleneck', 'gap', 'anomaly', 'deviation', 'breakdown', 'compare', 'top', 'best', 'worst',
-  'summary', 'executive', 'weekly', 'daily', 'monthly', 'growth', 'drop', 'peak',
-]
-
-// Topics clearly outside the analytics domain - graceful block
-const OFF_TOPIC_SIGNALS = [
-  'recipe', 'cook', 'weather', 'poem', 'song', 'story', 'joke', 'travel',
-  'history', 'geography', 'capital of', 'translate', 'math problem',
-  'calculate 2', 'who is', 'what is the meaning', 'define ', 'synonym', 'antonym',
-  'movie review', 'game', 'sport score', 'stock price', 'crypto', 'bitcoin',
-  'politics', 'election', 'news headline', 'hello world', 'hi there', 'how are you',
-]
-
-const OFF_TOPIC_REPLY = {
-  role: 'bot',
-  text: "I can only answer questions about the MediaFlow AI analytics dashboard: KPIs, workspace performance, publish funnels, video trends, and team activity.\n\nTry asking:\n- \"Which workspace has the lowest PCR?\"\n- \"Show upload vs publish trend for WS-SPORTS-LIVE\"\n- \"What is the LPI score for Hindi content?\"",
-  thoughts: ['Query scoped outside analytics domain', 'Guardrail triggered: off-topic request', 'Returning scoped guidance without API call'],
-  filters: [],
-}
-
-function isOffTopic(query) {
-  const lower = query.toLowerCase()
-  // Allow if any analytics signal is present - check FIRST so 'language performance' is not blocked
-  if (ANALYTICS_SIGNALS.some((s) => lower.includes(s))) return false
-  // Block if any off-topic signal matches
-  if (OFF_TOPIC_SIGNALS.some((s) => lower.includes(s))) return true
-  // Block if query is very short
-  if (lower.length < 8) return true
-  // For ambiguous queries (no clear signal either way), let them through to the agent
-  return false
-}
+// Domain relevance is handled by the backend LLM guardrail.
+// No client-side regex filtering - all queries go to the agent for classification.
 
 function sanitizeAnswer(text) {
   if (!text || typeof text !== 'string') return 'No response received.'
@@ -714,12 +677,6 @@ export default function NLQPanel({ className = '' }) {
 
       setMessages((prev) => [...prev, { role: 'user', text: query, ts: formatTime(new Date()) }])
       setInput('')
-
-      // Input guardrail - block off-topic queries before hitting the API
-      if (isOffTopic(query)) {
-        setMessages((prev) => [...prev, { ...OFF_TOPIC_REPLY, ts: formatTime(new Date()) }])
-        return
-      }
 
       // Close any existing SSE connection
       if (activeSourceRef.current) {

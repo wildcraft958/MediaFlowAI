@@ -1,19 +1,9 @@
 """
-MediaFlow AI agent middleware — input, output, and tool-call guardrails.
+MediaFlow AI agent middleware - input, output, and tool-call guardrails.
 
-These classes follow the AgentMiddleware pattern (before_agent / after_agent /
-wrap_tool_call hooks) but are invoked directly from LangGraph nodes rather than
-via create_agent. This allows them to be:
-  - Unit-tested directly (no graph needed)
-  - Composed into StateGraph as input/output guard nodes
-  - Extended or wrapped around future create_agent agents
-
-DOs:
-  - Return a new dict (state copy + updates) — never mutate state in-place
-  - Keep checks synchronous (regex/dict lookups) — no I/O in hooks
-
-Architecture note: LangGraph Command(goto="narrate") is used for hard blocks
-so the pre-set narrative is picked up by narrate_node without re-generating.
+Input guardrail uses LLM classification for domain relevance (not regex).
+PII and injection checks remain regex-based (appropriate for pattern matching).
+Output guardrail uses regex for PII/tech-name redaction (post-processing).
 """
 from __future__ import annotations
 import re
@@ -30,7 +20,14 @@ _INJECTION_RE = re.compile(
     re.IGNORECASE,
 )
 
-# ── Tech name leakage patterns ───────────────────────────────────────────────
+# ── Sensitive content patterns (hard block, no LLM needed) ───────────────────
+_SENSITIVE_RE = re.compile(
+    r"\b(password|credit\s*card|ssn|social\s*security|bank\s*account|"
+    r"delete\s+database|drop\s+table)\b",
+    re.IGNORECASE,
+)
+
+# ── Tech name leakage patterns (output guardrail) ───────────────────────────
 _TECH_NAME_RE = re.compile(
     r"\b(DuckDB|LangChain|LangGraph|Vertex\s*AI|Gemini|FastMCP|BigQuery|"
     r"ChromaDB|FastAPI|uvicorn|Python|pandas|numpy)\b",
@@ -62,30 +59,59 @@ def _redact_tech_names(text: str) -> str:
         return _TECH_REPLACEMENTS.get(key, "our analytics engine")
     return _TECH_NAME_RE.sub(_replace, text)
 
-# ── Out-of-scope hard-block patterns ─────────────────────────────────────────
-_OUT_OF_SCOPE_RE = re.compile(
-    r"\b(password|credit\s*card|ssn|social\s*security|bank\s*account|"
-    r"delete\s+database|drop\s+table)\b",
-    re.IGNORECASE,
+
+# ── LLM-based domain relevance classifier ───────────────────────────────────
+
+_CLASSIFY_SYSTEM = (
+    "You are a query classifier for a media analytics dashboard called MediaFlow AI.\n"
+    "The dashboard tracks: video uploads, processing, publishing, KPIs (PCR, FSC, CRM, CPDG, etc.), "
+    "workspace/channel performance, team activity, content trends, and data quality.\n\n"
+    "Classify the user's query into exactly one of:\n"
+    "- RELEVANT: The query is about media analytics, dashboard features, KPIs, data, metrics, "
+    "content performance, workspace comparisons, user activity, publishing funnels, trends, "
+    "or how to use/understand the dashboard. This includes questions about how KPIs are calculated, "
+    "what metrics mean, requests to explain charts, summarize data, compare workspaces, etc.\n"
+    "- OFF_TOPIC: The query has nothing to do with media analytics (e.g., recipes, weather, "
+    "general knowledge, coding help, personal advice).\n\n"
+    "Respond with ONLY the single word: RELEVANT or OFF_TOPIC"
 )
 
-# ── Domain-relevance signal words ────────────────────────────────────────────
-_DOMAIN_SIGNALS_RE = re.compile(
-    r"\b(video|upload|publish|workspace|channel|team|user|kpi|pcr|fsc|cpdg|"
-    r"crm|sac|ahy|edr|hthr|tsqi|pig|agv|pmi|lpi|mci|dcdr|zsp|teu|ail|opi|gr|"
-    r"mediaflow|frammer|media|content|impression|subscriber|watch|view|"
-    r"duration|platform|youtube|instagram|shorts|reels|funnel|trend|"
-    r"analytics|dashboard|metric|performance|engagement|language|"
-    r"report|data|chart|graph|compare|filter|workspace|editor|"
-    r"process|published|uploaded|billable|headline)\b",
-    re.IGNORECASE,
+
+def _is_relevant_query(query: str) -> bool:
+    """Use LLM to classify if query is relevant to the analytics domain."""
+    try:
+        from api.llm import complete
+        result = complete(
+            prompt=f"User query: {query}",
+            system=_CLASSIFY_SYSTEM,
+            temperature=0.0,
+            max_tokens=10,
+        ).strip().upper()
+        return "OFF_TOPIC" not in result
+    except Exception:
+        # If LLM is unavailable, allow the query through (fail-open)
+        return True
+
+
+_OFF_TOPIC_NARRATIVE = (
+    "I can only answer questions about the MediaFlow AI analytics dashboard: "
+    "KPIs, workspace performance, publish funnels, video trends, and team activity.\n\n"
+    "Try asking:\n"
+    '- "Which workspace has the lowest PCR?"\n'
+    '- "Show upload vs publish trend for WS-SPORTS-LIVE"\n'
+    '- "What is the LPI score for Hindi content?"'
 )
 
 
 class MediaFlowInputGuardrail:
     """
     Before-agent hook: validates and sanitizes inbound user query.
-    Checks: PII detection/redaction, prompt injection, out-of-scope requests.
+
+    Checks (in order):
+    1. PII detection/redaction (regex - appropriate for pattern matching)
+    2. Prompt injection detection (regex - flag only)
+    3. Sensitive content hard-block (regex - passwords, SSN, etc.)
+    4. Domain relevance classification (LLM - handles ambiguous queries)
 
     Returns updated state dict. On hard block, sets 'error' and 'narrative'
     so the graph can jump straight to narrate.
@@ -95,14 +121,14 @@ class MediaFlowInputGuardrail:
         return self._check(state)
 
     async def abefore_agent(self, state: AgentState) -> AgentState:
-        return self._check(state)  # sync regex check is fine
+        return self._check(state)
 
     def _check(self, state: AgentState) -> AgentState:
         query = state.get("query", "")
         violations: list[str] = []
         sanitized = query
 
-        # PII redaction
+        # 1. PII redaction (regex)
         if _EMAIL_RE.search(query):
             sanitized = _EMAIL_RE.sub("[EMAIL]", sanitized)
             violations.append("pii:email_redacted")
@@ -110,33 +136,26 @@ class MediaFlowInputGuardrail:
             sanitized = _PHONE_RE.sub("[PHONE]", sanitized)
             violations.append("pii:phone_redacted")
 
-        # Injection detection (flag but don't hard-block — let downstream decide)
+        # 2. Injection detection (regex, flag only)
         if _INJECTION_RE.search(query):
             violations.append("injection:prompt_injection_detected")
 
-        # Out-of-scope patterns — hard block, return immediately
-        if _OUT_OF_SCOPE_RE.search(query):
+        # 3. Sensitive content hard block (regex)
+        if _SENSITIVE_RE.search(query):
             return {
                 **state,
-                "error": "Query blocked: out-of-scope or sensitive content detected.",
+                "error": "Query blocked: sensitive content detected.",
                 "narrative": "I can only answer questions about MediaFlow AI analytics data.",
                 "input_guardrail_violations": violations + ["scope:blocked"],
                 "pii_redacted": bool(violations),
             }
 
-        # Domain-relevance check — block queries with no media/analytics signals
-        if not _DOMAIN_SIGNALS_RE.search(query) and len(query.split()) > 3:
+        # 4. Domain relevance classification (LLM)
+        if len(query.split()) > 2 and not _is_relevant_query(query):
             return {
                 **state,
                 "error": "Query blocked: off-topic.",
-                "narrative": (
-                    "I can only answer questions about the MediaFlow AI analytics dashboard "
-                    "- KPIs, workspace performance, publish funnels, video trends, and team activity.\n\n"
-                    "Try asking:\n"
-                    '- "Which workspace has the lowest PCR?"\n'
-                    '- "Show upload vs publish trend for WS-SPORTS-LIVE"\n'
-                    '- "What is the LPI score for Hindi content?"'
-                ),
+                "narrative": _OFF_TOPIC_NARRATIVE,
                 "input_guardrail_violations": violations + ["scope:off_topic"],
                 "pii_redacted": bool(violations),
             }
@@ -152,7 +171,8 @@ class MediaFlowInputGuardrail:
 class MediaFlowOutputGuardrail:
     """
     After-agent hook: validates agent narrative output.
-    Checks: PII leakage in output, empty response.
+    Checks: PII leakage in output, tech name leakage, empty response.
+    Regex is appropriate here (post-processing redaction).
     """
 
     def after_agent(self, state: AgentState) -> AgentState:
@@ -173,7 +193,7 @@ class MediaFlowOutputGuardrail:
             narrative = _PHONE_RE.sub("[PHONE]", narrative)
             violations.append("output_pii:phone_leaked")
 
-        # Tech name leakage detection + redaction
+        # Tech name leakage redaction
         if _TECH_NAME_RE.search(narrative):
             narrative = _redact_tech_names(narrative)
             violations.append("output:tech_name_leaked")
