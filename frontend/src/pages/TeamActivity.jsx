@@ -423,14 +423,12 @@ export default function TeamActivity() {
       getExecutiveSummary(filters),
       getKPI('LPI', filters),
       getUserActivity(filters),
-      getKPI('OPI', filters),
     ])
-      .then(([exec, lpi, users, opi]) => {
+      .then(([exec, lpi, users]) => {
         setData({
           workspacePcr: exec.data?.workspace_pcr,
           lpi: lpi.data?.data,
           users: users.data,
-          opi: opi.data?.data,
         })
       })
       .catch((err) => {
@@ -682,50 +680,8 @@ export default function TeamActivity() {
         />
       </motion.div>
 
-      {/* LPI + CrossTab — Manager/Analyst per PDF role table */}
-      <RoleGate allowed={['cxo', 'manager', 'analyst']}>
-        <motion.div
-          className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-6"
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.45 }}
-        >
-          <div className="flex items-center justify-between mb-5">
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-lg font-semibold text-white">Orphaned Processing Index (OPI)</h2>
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#4caf50]/10 border border-[#4caf50]/30 text-[#81c784]">
-                  Operations
-                </span>
-              </div>
-              <p className="text-xs text-[#555] mt-0.5">
-                Videos processed but unpublished &gt;30 days — potential backlog for your team
-              </p>
-            </div>
-          </div>
-          <div className="grid grid-cols-5 gap-3">
-            {(data?.opi?.map((r) => {
-              const orphaned = r.orphaned_count ?? r.orphaned ?? 0
-              const color = orphaned <= 10 ? '#4caf50' : orphaned <= 60 ? '#ff9800' : '#e63946'
-              return { ws: r.workspace ?? '', orphaned, hours: +(r.orphaned_hours ?? 0).toFixed(1), color }
-            }) ?? [
-              { ws: 'WS-DIGITAL-NEWS',   orphaned: 5,   hours: 2.1,  color: '#4caf50' },
-              { ws: 'WS-ENTERTAINMENT',  orphaned: 12,  hours: 5.4,  color: '#4caf50' },
-              { ws: 'WS-TECH-ANALYSIS',  orphaned: 48,  hours: 21.6, color: '#ff9800' },
-              { ws: 'WS-LIFESTYLE',      orphaned: 64,  hours: 28.8, color: '#ff9800' },
-              { ws: 'WS-SPORTS-LIVE',    orphaned: 261, hours: 117.4, color: '#e63946' },
-            ]).map((ws) => (
-              <div key={ws.ws} className="p-3 rounded-xl border text-center" style={{ background: `${ws.color}08`, borderColor: `${ws.color}25` }}>
-                <p className="text-[9px] text-[#555] uppercase tracking-wide mb-2 truncate">{stripWs(ws.ws)}</p>
-                <p className="text-xl font-black tabular-nums" style={{ color: ws.color }}>{ws.orphaned}</p>
-                <p className="text-[10px] text-[#555] mt-0.5">{ws.hours}h backlog</p>
-              </div>
-            ))}
-          </div>
-        </motion.div>
-      </RoleGate>
-
       {/* CrossTab Drill-Down */}
+      <RoleGate allowed={['cxo', 'manager', 'analyst']}>
       <motion.div
         className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-6"
         initial={{ opacity: 0, y: 16 }}
