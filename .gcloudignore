@@ -15,14 +15,17 @@ __pycache__/
 *.egg-info/
 .eggs/
 
-# DuckDB — rebuilt at Docker build time from dataset.csv
-analytics.duckdb
+# DuckDB — pre-built locally, included in upload for zero-build deploy
+# analytics.duckdb is intentionally NOT excluded
 *.db
 *.sqlite
 *.sqlite3
 
 # Raw dataset — not needed (data/dataset.csv is the enriched version)
 Corrected_dataset.csv
+
+# Claude worktrees (git worktrees from agents)
+.claude/
 
 # Dev/editor noise
 .DS_Store
