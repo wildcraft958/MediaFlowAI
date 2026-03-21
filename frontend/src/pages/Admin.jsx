@@ -246,10 +246,11 @@ function KPIChat() {
       {/* Input - always anchored to bottom */}
       <div className="flex-shrink-0 flex gap-2 pt-3 border-t border-[#1f1f1f]">
         <input
+          data-chat-input
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Describe a KPI you want to track…"
+          placeholder="Describe a KPI you want to track..."
           className="flex-1 bg-[#1a1a1a] border border-[#2a2a2a] text-sm text-white placeholder-[#555] rounded-xl px-4 py-3 focus:outline-none focus:border-[#e63946]/50 hover:border-[#333] transition-colors"
         />
         <button
@@ -432,7 +433,10 @@ function KPIConfigurator() {
               </span>
             </h3>
           </div>
-          <button className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[#e63946]/15 text-[#e63946] border border-[#e63946]/30 hover:bg-[#e63946]/25 transition-colors">
+          <button
+            onClick={() => document.querySelector('[data-chat-input]')?.focus()}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[#e63946]/15 text-[#e63946] border border-[#e63946]/30 hover:bg-[#e63946]/25 transition-colors"
+          >
             <Plus size={11} />
             Add Custom KPI
           </button>

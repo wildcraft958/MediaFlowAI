@@ -2,7 +2,7 @@
  * RoleGate — conditionally renders children based on user role.
  *
  * Usage:
- *   <RoleGate allowed={['admin', 'leadership']}>
+ *   <RoleGate allowed={['cxo', 'manager']}>
  *     <BillablePanel />
  *   </RoleGate>
  *
