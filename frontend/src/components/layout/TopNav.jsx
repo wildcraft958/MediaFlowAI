@@ -60,7 +60,7 @@ function RoleBadge() {
       )}
     >
       {isLeader ? <Crown size={11} /> : <Edit3 size={11} />}
-      {role === 'admin' ? 'Admin' : isLeader ? 'Leadership' : 'Creator'}
+      {{ admin: 'Admin', cxo: 'CXO', manager: 'Manager', analyst: 'Analyst' }[role] || role}
     </span>
   )
 }
