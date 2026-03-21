@@ -778,6 +778,7 @@ export default function TeamActivity() {
           })}
         </div>
       </motion.div>
+      </RoleGate>
     </motion.div>
   )
 }
