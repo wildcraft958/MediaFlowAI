@@ -14,6 +14,7 @@ import DonutChart from '../components/charts/DonutChart'
 import FilterBar from '../components/common/FilterBar'
 import CountHoursToggle from '../components/common/CountHoursToggle'
 import DataTable from '../components/common/DataTable'
+import RoleGate from '../components/common/RoleGate'
 import useStore from '../store/useStore'
 import { getDailyTrends, getCategoryTrends, getOutputTypeTrends, getExecutiveSummary, getPeriodComparison, getForecast, getCrosstab } from '../api/client'
 import { humanize } from '../utils/format'
@@ -228,7 +229,7 @@ function CategoryBreakdown({ loading, metric, outputTypeData = MOCK_OUTPUT_TYPES
       label: 'Subscribers Gained',
       sortable: true,
       render: (v) => (
-        <span className="tabular-nums text-[#a0a0a0]">{v.toLocaleString()}</span>
+        <span className="tabular-nums text-[#a0a0a0]">{Number(v ?? 0).toLocaleString()}</span>
       ),
     },
     {
@@ -236,7 +237,7 @@ function CategoryBreakdown({ loading, metric, outputTypeData = MOCK_OUTPUT_TYPES
       label: 'Impressions',
       sortable: true,
       render: (v) => (
-        <span className="tabular-nums text-[#a0a0a0]">{v.toLocaleString()}</span>
+        <span className="tabular-nums text-[#a0a0a0]">{Number(v ?? 0).toLocaleString()}</span>
       ),
     },
     {
@@ -244,11 +245,12 @@ function CategoryBreakdown({ loading, metric, outputTypeData = MOCK_OUTPUT_TYPES
       label: 'PCR',
       sortable: true,
       render: (v) => {
-        const c = v >= 70 ? '#4caf50' : v >= 65 ? '#ff9800' : '#e63946'
-        const flag = v <= 65
+        const n = Number(v ?? 0)
+        const c = n >= 70 ? '#4caf50' : n >= 65 ? '#ff9800' : '#e63946'
+        const flag = n <= 65
         return (
           <span className="font-bold tabular-nums" style={{ color: c }}>
-            {v}%
+            {n}%
             {flag && <span className="ml-1 text-[10px] text-[#e63946]">▼ Lowest</span>}
           </span>
         )
@@ -324,6 +326,7 @@ function CategoryBreakdown({ loading, metric, outputTypeData = MOCK_OUTPUT_TYPES
           </div>
         </motion.div>
 
+        <RoleGate allowed={['manager', 'analyst']}>
         <motion.div
           className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-6"
           initial={{ opacity: 0, y: 16 }}
@@ -341,6 +344,7 @@ function CategoryBreakdown({ loading, metric, outputTypeData = MOCK_OUTPUT_TYPES
             loading={loading}
           />
         </motion.div>
+        </RoleGate>
       </div>
     </div>
   )
@@ -427,7 +431,8 @@ function StorageMetrics({ loading, metric, workspaceHours = WORKSPACE_HOURS, wee
 
 // ── Inline chart helpers ───────────────────────────────────────────────────────
 
-function HorizontalBarChart({ data, loading, height = 240 }) {
+function HorizontalBarChart({ data: _data, loading, height = 240 }) {
+  const data = _data || []
   const option = {
     backgroundColor: 'transparent',
     tooltip: {
@@ -502,11 +507,12 @@ function HorizontalBarChart({ data, loading, height = 240 }) {
   )
 }
 
-function OutputTypeGroupedBar({ metric, loading, data = MOCK_OUTPUT_TYPES }) {
+function OutputTypeGroupedBar({ metric, loading, data: _data = MOCK_OUTPUT_TYPES }) {
+  const data = _data || MOCK_OUTPUT_TYPES
   const types = data.map((o) => humanize(o.type))
-  const totalVals = data.map((o) => o.total)
-  const pubVals = data.map((o) => o.published)
-  const lowestIdx = pubVals.indexOf(Math.min(...pubVals))
+  const totalVals = data.map((o) => o.total ?? 0)
+  const pubVals = data.map((o) => o.published ?? 0)
+  const lowestIdx = pubVals.length > 0 ? pubVals.indexOf(Math.min(...pubVals)) : -1
 
   const option = {
     backgroundColor: 'transparent',
@@ -593,8 +599,9 @@ function OutputTypeGroupedBar({ metric, loading, data = MOCK_OUTPUT_TYPES }) {
   )
 }
 
-function WeeklyHoursChart({ data, metric }) {
-  const vals = data.map((d) => metric === 'hours' ? d.hours : d.count)
+function WeeklyHoursChart({ data: _data, metric }) {
+  const data = _data || []
+  const vals = data.map((d) => metric === 'hours' ? (d.hours ?? 0) : (d.count ?? 0))
   const option = {
     backgroundColor: 'transparent',
     tooltip: {

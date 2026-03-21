@@ -118,12 +118,13 @@ function InsightsPanel() {
 }
 
 function TrendMiniChart({ data, metric }) {
-  const dates = data.map((d) => {
+  const safeData = data || []
+  const dates = safeData.map((d) => {
     const dt = new Date(d.date)
     return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   })
-  const uploaded = data.map((d) => metric === 'hours' ? d.uploaded_hours : d.uploaded)
-  const published = data.map((d) => metric === 'hours' ? d.published_hours : d.published)
+  const uploaded = safeData.map((d) => metric === 'hours' ? (d.uploaded_hours ?? 0) : (d.uploaded ?? 0))
+  const published = safeData.map((d) => metric === 'hours' ? (d.published_hours ?? 0) : (d.published ?? 0))
 
   const option = {
     backgroundColor: 'transparent',
@@ -210,7 +211,10 @@ function TrendMiniChart({ data, metric }) {
   )
 }
 
-function WorkspacePCRBar({ name, pcr, published, total, delay }) {
+function WorkspacePCRBar({ name, pcr: _pcr, published: _published, total: _total, delay }) {
+  const pcr = _pcr ?? 0
+  const published = _published ?? 0
+  const total = _total ?? 0
   const color = pcr >= 80 ? '#4caf50' : pcr >= 60 ? '#ff9800' : '#e63946'
   const shortName = stripWs(name)
   return (
@@ -381,20 +385,20 @@ function DataQualityBars({ fields, health, loading }) {
     <div className="space-y-3">
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm text-[#a0a0a0]">Overall Data Health</span>
-        <span className={`text-lg font-bold ${health >= 80 ? 'text-[#4caf50]' : health >= 60 ? 'text-[#ff9800]' : 'text-[#e63946]'}`}>
-          {health}%
+        <span className={`text-lg font-bold ${(health ?? 0) >= 80 ? 'text-[#4caf50]' : (health ?? 0) >= 60 ? 'text-[#ff9800]' : 'text-[#e63946]'}`}>
+          {health ?? 0}%
         </span>
       </div>
       {fields.map((f) => (
         <div key={f.field} className="space-y-1">
           <div className="flex justify-between text-xs">
             <span className="text-[#a0a0a0]">{humanize(f.field)}</span>
-            <span className="text-[#555]">{f.filled.toLocaleString()} / {(f.filled + f.null).toLocaleString()} ({f.pct}%)</span>
+            <span className="text-[#555]">{(f.filled ?? 0).toLocaleString()} / {((f.filled ?? 0) + (f.null ?? 0)).toLocaleString()} ({f.pct ?? 0}%)</span>
           </div>
           <div className="w-full h-2 bg-[#1a1a1a] rounded-full overflow-hidden">
             <div className="h-full rounded-full" style={{
-              width: `${f.pct}%`,
-              backgroundColor: f.pct >= 90 ? '#4caf50' : f.pct >= 60 ? '#ff9800' : '#e63946',
+              width: `${f.pct ?? 0}%`,
+              backgroundColor: (f.pct ?? 0) >= 90 ? '#4caf50' : (f.pct ?? 0) >= 60 ? '#ff9800' : '#e63946',
             }} />
           </div>
         </div>
@@ -408,15 +412,15 @@ function DataQualityBars({ fields, health, loading }) {
 function BillablePanel({ billable, loading }) {
   if (loading) return <div className="h-36 animate-pulse bg-[#1a1a1a] rounded-xl" />
   if (!billable) return null
-  const { total, billable: b, non_billable: nb, billable_pct, billable_hours, non_billable_hours, by_workspace = [] } = billable
+  const { total = 0, billable: b = 0, non_billable: nb = 0, billable_pct = 0, billable_hours = 0, non_billable_hours = 0, by_workspace = [] } = billable
   return (
     <div className="space-y-4">
       {/* Headline row */}
       <div className="grid grid-cols-3 gap-3">
         {[
-          { label: 'Billable Videos', value: b.toLocaleString(), pct: `${billable_pct}%`, color: '#4caf50' },
-          { label: 'Non-Billable', value: nb.toLocaleString(), pct: `${(100 - billable_pct).toFixed(1)}%`, color: '#e63946' },
-          { label: 'Billable Hours', value: `${billable_hours.toLocaleString()}h`, pct: `vs ${non_billable_hours.toLocaleString()}h non-bill.`, color: '#ff9800' },
+          { label: 'Billable Videos', value: (b ?? 0).toLocaleString(), pct: `${billable_pct ?? 0}%`, color: '#4caf50' },
+          { label: 'Non-Billable', value: (nb ?? 0).toLocaleString(), pct: `${(100 - (billable_pct ?? 0)).toFixed(1)}%`, color: '#e63946' },
+          { label: 'Billable Hours', value: `${(billable_hours ?? 0).toLocaleString()}h`, pct: `vs ${(non_billable_hours ?? 0).toLocaleString()}h non-bill.`, color: '#ff9800' },
         ].map((s) => (
           <div key={s.label} className="p-3 rounded-xl bg-[#0a0a0a] border border-[#1f1f1f]">
             <p className="text-[10px] text-[#555] uppercase tracking-wide mb-1">{s.label}</p>
@@ -431,14 +435,14 @@ function BillablePanel({ billable, loading }) {
           <div key={ws.workspace} className="space-y-1">
             <div className="flex justify-between text-xs">
               <span className="text-[#a0a0a0]">{stripWs(ws.workspace)}</span>
-              <span className="tabular-nums text-[#555]">{ws.billable.toLocaleString()} / {ws.total.toLocaleString()} · {ws.billable_pct}%</span>
+              <span className="tabular-nums text-[#555]">{(ws.billable ?? 0).toLocaleString()} / {(ws.total ?? 0).toLocaleString()} · {ws.billable_pct ?? 0}%</span>
             </div>
             <div className="w-full h-1.5 bg-[#1a1a1a] rounded-full overflow-hidden">
               <div
                 className="h-full rounded-full"
                 style={{
-                  width: `${ws.billable_pct}%`,
-                  backgroundColor: ws.billable_pct >= 80 ? '#4caf50' : ws.billable_pct >= 60 ? '#ff9800' : '#e63946',
+                  width: `${ws.billable_pct ?? 0}%`,
+                  backgroundColor: (ws.billable_pct ?? 0) >= 80 ? '#4caf50' : (ws.billable_pct ?? 0) >= 60 ? '#ff9800' : '#e63946',
                 }}
               />
             </div>
@@ -678,16 +682,16 @@ export default function ExecutiveSummary() {
         />
         {data?.quality && (
           <div className="mt-4 flex items-center justify-between text-xs text-[#555]">
-            <span>{data.quality.total_rows.toLocaleString()} total rows scanned</span>
-            {data.quality.duplicate_pct > 0 && (
-              <span className="text-[#ff9800]">{data.quality.duplicate_pct}% duplicate rate (DCDR)</span>
+            <span>{(data.quality.total_rows ?? 0).toLocaleString()} total rows scanned</span>
+            {(data.quality.duplicate_pct ?? 0) > 0 && (
+              <span className="text-[#ff9800]">{data.quality.duplicate_pct ?? 0}% duplicate rate (DCDR)</span>
             )}
           </div>
         )}
       </motion.div>
 
       {/* Billable Analytics — Leadership/Admin only (CXO financial KPI per catalog) */}
-      <RoleGate allowed={['admin', 'leadership']}>
+      <RoleGate allowed={['cxo', 'manager']}>
         <motion.div
           className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-6"
           initial={{ opacity: 0, y: 16 }}
@@ -777,8 +781,9 @@ export default function ExecutiveSummary() {
                   'WS-SPORTS-LIVE':   { company: 'Company_A', team: 'Sports_Live'   },
                 }
                 const meta = WS_META[ws.name] || { company: '-', team: '-' }
-                const color = ws.pcr >= 80 ? '#4caf50' : ws.pcr >= 60 ? '#ff9800' : '#e63946'
-                const label = ws.pcr >= 80 ? 'Healthy' : ws.pcr >= 60 ? 'Moderate' : 'Review'
+                const pcrVal = ws.pcr ?? 0
+                const color = pcrVal >= 80 ? '#4caf50' : pcrVal >= 60 ? '#ff9800' : '#e63946'
+                const label = pcrVal >= 80 ? 'Healthy' : pcrVal >= 60 ? 'Moderate' : 'Review'
                 return (
                   <tr
                     key={ws.name}
@@ -787,10 +792,10 @@ export default function ExecutiveSummary() {
                     <td className="py-3 pr-4 font-medium text-white text-xs">{ws.name}</td>
                     <td className="py-3 pr-4 text-[#a0a0a0] text-xs">{meta.company}</td>
                     <td className="py-3 pr-4 text-[#a0a0a0] text-xs">{meta.team}</td>
-                    <td className="py-3 pr-4 tabular-nums text-xs text-[#a0a0a0]">{ws.total.toLocaleString()}</td>
-                    <td className="py-3 pr-4 tabular-nums text-xs text-[#a0a0a0]">{ws.total.toLocaleString()}</td>
-                    <td className="py-3 pr-4 tabular-nums text-xs text-[#a0a0a0]">{ws.published.toLocaleString()}</td>
-                    <td className="py-3 pr-4 tabular-nums font-bold text-sm" style={{ color }}>{ws.pcr}%</td>
+                    <td className="py-3 pr-4 tabular-nums text-xs text-[#a0a0a0]">{(ws.total ?? 0).toLocaleString()}</td>
+                    <td className="py-3 pr-4 tabular-nums text-xs text-[#a0a0a0]">{(ws.total ?? 0).toLocaleString()}</td>
+                    <td className="py-3 pr-4 tabular-nums text-xs text-[#a0a0a0]">{(ws.published ?? 0).toLocaleString()}</td>
+                    <td className="py-3 pr-4 tabular-nums font-bold text-sm" style={{ color }}>{pcrVal}%</td>
                     <td className="py-3">
                       <span
                         className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold"

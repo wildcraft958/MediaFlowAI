@@ -105,7 +105,8 @@ function generateCrossTabData(d1, d2) {
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
-function TreemapViz({ data, loading, metric }) {
+function TreemapViz({ data: _data, loading, metric }) {
+  const data = _data || []
   const treeData = data.map((d) => ({
     name: d.name,
     value: d.value,
@@ -139,8 +140,8 @@ function TreemapViz({ data, loading, metric }) {
     animation: true,
     tooltip: {
       formatter(info) {
-        const lines = info.name.split('\n')
-        return `<b style="color:#fff">${lines[0]}</b><br/><span style="color:#a0a0a0">${lines[1] || ''}</span><br/>Uploads: <b>${info.value.toLocaleString()}</b>`
+        const lines = (info.name ?? '').split('\n')
+        return `<b style="color:#fff">${lines[0]}</b><br/><span style="color:#a0a0a0">${lines[1] || ''}</span><br/>Uploads: <b>${(info.value ?? 0).toLocaleString()}</b>`
       },
       backgroundColor: '#1a1a1a',
       borderColor: '#2a2a2a',
@@ -313,8 +314,9 @@ function CrossTabHeatmap({ d1, d2, loading, apiData, metric }) {
       textStyle: { color: '#fff', fontSize: 12 },
       formatter(p) {
         const label = metric === 'hours' ? 'Hours' : metric === 'pcr_pct' ? 'PCR %' : 'Count'
-        return `${yLabels[p.data[1]]} × ${xLabels[p.data[0]]}<br/>${label}: <b>${
-          metric === 'hours' ? p.data[2].toFixed(2) : p.data[2].toLocaleString()
+        const val = p.data[2] ?? 0
+        return `${yLabels[p.data[1]] ?? ''} × ${xLabels[p.data[0]] ?? ''}<br/>${label}: <b>${
+          metric === 'hours' ? val.toFixed(2) : val.toLocaleString()
         }</b>`
       },
     },
@@ -453,24 +455,25 @@ export default function TeamActivity() {
       label: 'User',
       sortable: true,
       render: (v) => (
-        <span className="font-mono text-xs text-[#ff8fa3]">{v}</span>
+        <span className="font-mono text-xs text-[#ff8fa3]">{v ?? '-'}</span>
       ),
     },
     {
       key: 'team',
       label: 'Team',
       sortable: true,
-      render: (v) => <span className="text-[#a0a0a0] text-xs">{v}</span>,
+      render: (v) => <span className="text-[#a0a0a0] text-xs">{v ?? '-'}</span>,
     },
     {
       key: 'teu',
       label: 'TEU Score',
       sortable: true,
       render: (v, row) => {
-        const color = v <= 8 ? '#4caf50' : v <= 13 ? '#ff9800' : '#e63946'
+        const n = Number(v ?? 0)
+        const color = n <= 8 ? '#4caf50' : n <= 13 ? '#ff9800' : '#e63946'
         return (
           <span className="font-bold tabular-nums" style={{ color }}>
-            {v}h
+            {n}h
           </span>
         )
       },
@@ -479,28 +482,29 @@ export default function TeamActivity() {
       key: 'uploaded',
       label: 'Videos Uploaded',
       sortable: true,
-      render: (v) => <span className="tabular-nums text-[#a0a0a0]">{v.toLocaleString()}</span>,
+      render: (v) => <span className="tabular-nums text-[#a0a0a0]">{Number(v ?? 0).toLocaleString()}</span>,
     },
     {
       key: 'published',
       label: 'Published',
       sortable: true,
-      render: (v) => <span className="tabular-nums text-[#a0a0a0]">{v.toLocaleString()}</span>,
+      render: (v) => <span className="tabular-nums text-[#a0a0a0]">{Number(v ?? 0).toLocaleString()}</span>,
     },
     {
       key: 'pcr',
       label: 'PCR',
       sortable: true,
       render: (v) => {
-        const c = v >= 80 ? '#4caf50' : v >= 60 ? '#ff9800' : '#e63946'
-        return <span className="font-bold tabular-nums text-sm" style={{ color: c }}>{v}%</span>
+        const n = Number(v ?? 0)
+        const c = n >= 80 ? '#4caf50' : n >= 60 ? '#ff9800' : '#e63946'
+        return <span className="font-bold tabular-nums text-sm" style={{ color: c }}>{n}%</span>
       },
     },
     {
       key: 'lastActive',
       label: 'Last Active',
       sortable: true,
-      render: (v) => <span className="text-xs text-[#555]">{v}</span>,
+      render: (v) => <span className="text-xs text-[#555]">{v ?? '-'}</span>,
     },
     {
       key: 'status',
@@ -514,9 +518,9 @@ export default function TeamActivity() {
   ]
 
   const treemapData = data?.workspacePcr?.map((ws) => ({
-    name: `${ws.workspace}\n${stripWs(ws.workspace).replace(/-/g, ' ')} · ${ws.pcr}% PCR`,
-    value: ws.total,
-    pcr: ws.pcr,
+    name: `${ws.workspace ?? ''}\n${stripWs(ws.workspace ?? '').replace(/-/g, ' ')} · ${ws.pcr ?? 0}% PCR`,
+    value: ws.total ?? 0,
+    pcr: ws.pcr ?? 0,
   })) ?? TREEMAP_DATA
 
   const lpiRows = data?.lpi ?? []
@@ -678,8 +682,8 @@ export default function TeamActivity() {
         />
       </motion.div>
 
-      {/* OPI Spotlight — Creator/Admin only (Orphaned Processing Index, Operations per KPI catalog) */}
-      <RoleGate allowed={['admin', 'creator']}>
+      {/* LPI + CrossTab — Manager/Analyst per PDF role table */}
+      <RoleGate allowed={['cxo', 'manager', 'analyst']}>
         <motion.div
           className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-6"
           initial={{ opacity: 0, y: 16 }}
@@ -703,7 +707,7 @@ export default function TeamActivity() {
             {(data?.opi?.map((r) => {
               const orphaned = r.orphaned_count ?? r.orphaned ?? 0
               const color = orphaned <= 10 ? '#4caf50' : orphaned <= 60 ? '#ff9800' : '#e63946'
-              return { ws: r.workspace, orphaned, hours: +(r.orphaned_hours ?? 0).toFixed(1), color }
+              return { ws: r.workspace ?? '', orphaned, hours: +(r.orphaned_hours ?? 0).toFixed(1), color }
             }) ?? [
               { ws: 'WS-DIGITAL-NEWS',   orphaned: 5,   hours: 2.1,  color: '#4caf50' },
               { ws: 'WS-ENTERTAINMENT',  orphaned: 12,  hours: 5.4,  color: '#4caf50' },
