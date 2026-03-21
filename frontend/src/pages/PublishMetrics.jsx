@@ -78,8 +78,10 @@ const FSC_DATA = [
 
 // ── Sub-charts ─────────────────────────────────────────────────────────────────
 
-function OutputTypePCRBar({ loading, data = OUTPUT_PCR }) {
-  const minPcr = Math.min(...data.map((o) => o.pcr))
+function OutputTypePCRBar({ loading, data: _data = OUTPUT_PCR }) {
+  const data = _data || OUTPUT_PCR
+  if (!data.length) return null
+  const minPcr = Math.min(...data.map((o) => o.pcr ?? 0))
   const option = {
     backgroundColor: 'transparent',
     tooltip: {
@@ -158,7 +160,7 @@ function CPDGScatter({ loading, data = SCATTER_DATA }) {
       textStyle: { color: '#fff', fontSize: 12 },
       formatter(p) {
         const d = p.data
-        return `<b>${d[3]}</b><br/>CTR: <b>${d[0]}%</b><br/>Avg View %: <b>${d[1]}%</b><br/>Count: <b>${d[2].toLocaleString()}</b>`
+        return `<b>${d[3] ?? ''}</b><br/>CTR: <b>${d[0] ?? 0}%</b><br/>Avg View %: <b>${d[1] ?? 0}%</b><br/>Count: <b>${(d[2] ?? 0).toLocaleString()}</b>`
       },
     },
     legend: {
@@ -243,8 +245,9 @@ export default function PublishMetrics() {
       getOutputTypeTrends(filters),
       getKPI('HTHR', filters),
       getPeriodComparison({ period_days: comparePeriod, ...filters }),
+      getKPI('CPDG', filters).catch(() => ({ data: { data: [] } })),
     ])
-      .then(([funnel, exec, category, outputType, hthr, comparison]) => {
+      .then(([funnel, exec, category, outputType, hthr, comparison, cpdg]) => {
         setData({
           funnel: funnel.data,
           workspacePcr: exec.data?.workspace_pcr,
@@ -252,6 +255,7 @@ export default function PublishMetrics() {
           outputPcr: outputType.data,
           hthr: hthr.data?.data,
           comparison: comparison.data,
+          cpdg: cpdg.data?.data,
         })
       })
       .catch((err) => {
@@ -268,9 +272,9 @@ export default function PublishMetrics() {
       label: 'Rank',
       render: (v) => (
         <span
-          className={`text-sm font-bold tabular-nums ${v <= 3 ? 'text-[#e63946]' : 'text-[#555]'}`}
+          className={`text-sm font-bold tabular-nums ${(v ?? 0) <= 3 ? 'text-[#e63946]' : 'text-[#555]'}`}
         >
-          #{v}
+          #{v ?? 0}
         </span>
       ),
     },
@@ -298,19 +302,19 @@ export default function PublishMetrics() {
       key: 'ctr',
       label: 'CTR %',
       sortable: true,
-      render: (v) => <span className="tabular-nums text-[#a0a0a0]">{v}%</span>,
+      render: (v) => <span className="tabular-nums text-[#a0a0a0]">{Number(v ?? 0)}%</span>,
     },
     {
       key: 'avgView',
       label: 'Avg View %',
       sortable: true,
-      render: (v) => <span className="tabular-nums text-[#a0a0a0]">{v}%</span>,
+      render: (v) => <span className="tabular-nums text-[#a0a0a0]">{Number(v ?? 0)}%</span>,
     },
     {
       key: 'impressions',
       label: 'Impressions',
       sortable: true,
-      render: (v) => <span className="tabular-nums text-[#a0a0a0]">{v.toLocaleString()}</span>,
+      render: (v) => <span className="tabular-nums text-[#a0a0a0]">{Number(v ?? 0).toLocaleString()}</span>,
     },
   ]
 
@@ -324,34 +328,35 @@ export default function PublishMetrics() {
     {
       key: 'uploaded',
       label: 'Uploaded',
-      render: (v) => <span className="tabular-nums text-[#a0a0a0]">{v.toLocaleString()}</span>,
+      render: (v) => <span className="tabular-nums text-[#a0a0a0]">{(v ?? 0).toLocaleString()}</span>,
     },
     {
       key: 'processed',
       label: 'Processed',
-      render: (v) => <span className="tabular-nums text-[#a0a0a0]">{v.toLocaleString()}</span>,
+      render: (v) => <span className="tabular-nums text-[#a0a0a0]">{(v ?? 0).toLocaleString()}</span>,
     },
     {
       key: 'published',
       label: 'Published',
-      render: (v) => <span className="tabular-nums text-[#a0a0a0]">{v.toLocaleString()}</span>,
+      render: (v) => <span className="tabular-nums text-[#a0a0a0]">{(v ?? 0).toLocaleString()}</span>,
     },
     {
       key: 'uploadToProcess',
       label: 'Upload → Process',
       render: (v) => (
-        <span className="font-bold tabular-nums text-[#4caf50]">{v}%</span>
+        <span className="font-bold tabular-nums text-[#4caf50]">{v ?? 0}%</span>
       ),
     },
     {
       key: 'processToPublish',
       label: 'Process → Publish',
       render: (v, row) => {
-        const color = v >= 80 ? '#4caf50' : v >= 60 ? '#ff9800' : '#e63946'
+        const n = Number(v ?? 0)
+        const color = n >= 80 ? '#4caf50' : n >= 60 ? '#ff9800' : '#e63946'
         return (
           <span className="font-bold tabular-nums" style={{ color }}>
-            {v}%
-            {v < 50 && (
+            {n}%
+            {n < 50 && (
               <span className="ml-1.5 text-[10px] text-[#e63946] border border-[#e63946]/30 bg-[#e63946]/10 px-1 rounded">
                 LOW
               </span>
@@ -365,33 +370,54 @@ export default function PublishMetrics() {
   const COLORS = ['#e63946', '#666666', '#444444', '#555555', '#888888', '#aaaaaa', '#cc4444']
 
   const fscData = data?.workspacePcr?.map((ws) => ({
-    ws: ws.workspace,
-    uploaded: ws.total,
-    processed: ws.total,
-    published: ws.published,
+    ws: ws.workspace ?? '',
+    uploaded: ws.total ?? 0,
+    processed: ws.total ?? 0,
+    published: ws.published ?? 0,
     uploadToProcess: 100,
-    processToPublish: Math.round(ws.pcr),
+    processToPublish: Math.round(ws.pcr ?? 0),
   })) ?? FSC_DATA
 
   const inputTypeMix = data?.category?.map((c, i) => ({
     name: humanize(c.type),
-    value: c.count,
+    value: c.count ?? 0,
     color: COLORS[i % COLORS.length],
   })) ?? INPUT_TYPE_MIX.map((item) => ({ name: humanize(item.name), value: item.value, color: item.color }))
 
-  const scatterData = data?.category?.map((c, i) => ({
-    type: c.type,
-    ctr: c.ctr,
-    viewPct: c.avgView,
-    count: c.count,
-    color: COLORS[i % COLORS.length],
-  })) ?? SCATTER_DATA
+  // Aggregate CPDG per-video data by input_type for scatter
+  const scatterData = (() => {
+    const cpdgRows = data?.cpdg
+    if (cpdgRows && cpdgRows.length > 0) {
+      const byType = {}
+      cpdgRows.forEach((r) => {
+        const t = r.input_type ?? 'unknown'
+        if (!byType[t]) byType[t] = { ctr: [], viewPct: [], count: 0 }
+        byType[t].ctr.push(r.ctr_percentage ?? 0)
+        byType[t].viewPct.push(r.avg_view_percentage ?? 0)
+        byType[t].count++
+      })
+      return Object.entries(byType).map(([type, v], i) => ({
+        type,
+        ctr: +(v.ctr.reduce((a, b) => a + b, 0) / v.ctr.length).toFixed(1),
+        viewPct: +(v.viewPct.reduce((a, b) => a + b, 0) / v.viewPct.length).toFixed(1),
+        count: v.count,
+        color: COLORS[i % COLORS.length],
+      }))
+    }
+    return data?.category?.map((c, i) => ({
+      type: c.type ?? '',
+      ctr: c.ctr ?? 0,
+      viewPct: c.avgView ?? 0,
+      count: c.count ?? 0,
+      color: COLORS[i % COLORS.length],
+    })) ?? SCATTER_DATA
+  })()
 
   const outputPcrData = data?.outputPcr?.map((row) => ({
-    type: row.type,
-    total: row.total,
-    published: row.published,
-    pcr: row.pcr,
+    type: row.type ?? '',
+    total: row.total ?? 0,
+    published: row.published ?? 0,
+    pcr: row.pcr ?? 0,
   })).sort((a, b) => b.pcr - a.pcr) ?? OUTPUT_PCR
 
   // HTHR table: from KPI API or fallback to mock
@@ -406,8 +432,11 @@ export default function PublishMetrics() {
 
   // Dynamic KPI card values from API
   const overallPcr = data?.workspacePcr
-    ? +(data.workspacePcr.reduce((s, w) => s + w.published, 0) /
-        data.workspacePcr.reduce((s, w) => s + w.total, 0) * 100).toFixed(1)
+    ? (() => {
+        const totalPub = data.workspacePcr.reduce((s, w) => s + (w.published ?? 0), 0)
+        const totalAll = data.workspacePcr.reduce((s, w) => s + (w.total ?? 0), 0)
+        return totalAll > 0 ? +(totalPub / totalAll * 100).toFixed(1) : 0
+      })()
     : 69.8
   const topOutputPcr = outputPcrData.length ? outputPcrData[0] : { type: 'summary', pcr: 70.9 }
   const pd = data?.comparison?.delta
@@ -449,7 +478,7 @@ export default function PublishMetrics() {
             trendLabel: 'vs prev 30d',
             icon: BarChart2,
             accent: true,
-            subtitle: `${data?.workspacePcr?.reduce((s, w) => s + w.published, 0) ?? 3188} published of ${data?.workspacePcr?.reduce((s, w) => s + w.total, 0) ?? 4569} total`,
+            subtitle: `${data?.workspacePcr?.reduce((s, w) => s + (w.published ?? 0), 0) ?? 3188} published of ${data?.workspacePcr?.reduce((s, w) => s + (w.total ?? 0), 0) ?? 4569} total`,
             loading,
           },
           {
@@ -538,9 +567,9 @@ export default function PublishMetrics() {
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-xs font-medium text-[#a0a0a0] w-36 flex-shrink-0">{short}</span>
                   <div className="flex items-center gap-3 text-xs text-[#555] tabular-nums">
-                    <span>{ws.uploaded.toLocaleString()} uploaded</span>
+                    <span>{(ws.uploaded ?? 0).toLocaleString()} uploaded</span>
                     <span className="text-[#333]">·</span>
-                    <span>{ws.published.toLocaleString()} published</span>
+                    <span>{(ws.published ?? 0).toLocaleString()} published</span>
                     <span
                       className="font-bold w-12 text-right"
                       style={{ color }}
@@ -628,8 +657,8 @@ export default function PublishMetrics() {
         </motion.div>
       </div>
 
-      {/* CPDG Scatter — Leadership/Admin only (CXO/Founder per KPI catalog) */}
-      <RoleGate allowed={['admin', 'leadership']}>
+      {/* CPDG Scatter — Manager/Analyst per PDF role table */}
+      <RoleGate allowed={['manager', 'analyst']}>
         <motion.div
           className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-6"
           initial={{ opacity: 0, y: 16 }}
