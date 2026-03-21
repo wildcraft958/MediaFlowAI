@@ -177,6 +177,34 @@ _CONTEXT_QUERY_SIGNALS = re.compile(
     re.IGNORECASE,
 )
 
+# KPI definition/explanation pattern
+_KPI_DEFINITION_RE = re.compile(
+    r"\b(what\s+is|what(?:'s| is)\s+the\s+meaning\s+of|explain|define|describe)\s+"
+    r"([A-Z]{2,5})\b",
+    re.IGNORECASE,
+)
+
+def _try_kpi_definition(query: str) -> Optional[str]:
+    """If query asks for a KPI definition, return the explanation or None."""
+    m = _KPI_DEFINITION_RE.search(query)
+    if not m:
+        return None
+    acronym = m.group(2).upper()
+    try:
+        from api.config import METRIC_REGISTRY
+        kpi = METRIC_REGISTRY.get(acronym)
+        if kpi:
+            return (
+                f"**{kpi['name']}** ({acronym})\n\n"
+                f"{kpi.get('description', '')}\n\n"
+                f"- **Type:** {kpi.get('type', 'sql')}\n"
+                f"- **Dashboard page:** {kpi.get('dashboard_page', 'N/A')}\n"
+                f"- **Roles:** {', '.join(kpi.get('roles', []))}"
+            )
+    except Exception:
+        pass
+    return None
+
 
 def router_node(
     state: AgentState, *, store: BaseStore
@@ -204,6 +232,32 @@ def router_node(
     thought_steps: list[dict] = []
     intent = "ad_hoc"
     matched_acronym: Optional[str] = None
+
+    # KPI definition lookup: "what is CPDG", "explain PCR", etc.
+    kpi_def = _try_kpi_definition(query)
+    if kpi_def:
+        thought_steps.append({
+            "node": "Router",
+            "action": "classify",
+            "detail": "kpi_definition (matched KPI acronym in definition query)",
+        })
+        return Command(
+            update={
+                "intent": "kpi_definition",
+                "thought_steps": thought_steps,
+                "_matched_acronym": None,
+                "error": None,
+                "result": None,
+                "sql": None,
+                "narrative": kpi_def,
+                "chart_spec": None,
+                "hitl_pending": False,
+                "hitl_payload": None,
+                "hitl_decision": None,
+                "pending_inbox_items": [],
+            },
+            goto="narrate",
+        )
 
     # Context-aware routing: if query references visible page/chart content
     has_context = bool(state.get("page_context") or state.get("chart_context"))

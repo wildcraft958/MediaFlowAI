@@ -69,6 +69,18 @@ _OUT_OF_SCOPE_RE = re.compile(
     re.IGNORECASE,
 )
 
+# ── Domain-relevance signal words ────────────────────────────────────────────
+_DOMAIN_SIGNALS_RE = re.compile(
+    r"\b(video|upload|publish|workspace|channel|team|user|kpi|pcr|fsc|cpdg|"
+    r"crm|sac|ahy|edr|hthr|tsqi|pig|agv|pmi|lpi|mci|dcdr|zsp|teu|ail|opi|gr|"
+    r"mediaflow|frammer|media|content|impression|subscriber|watch|view|"
+    r"duration|platform|youtube|instagram|shorts|reels|funnel|trend|"
+    r"analytics|dashboard|metric|performance|engagement|language|"
+    r"report|data|chart|graph|compare|filter|workspace|editor|"
+    r"process|published|uploaded|billable|headline)\b",
+    re.IGNORECASE,
+)
+
 
 class MediaFlowInputGuardrail:
     """
@@ -109,6 +121,23 @@ class MediaFlowInputGuardrail:
                 "error": "Query blocked: out-of-scope or sensitive content detected.",
                 "narrative": "I can only answer questions about MediaFlow AI analytics data.",
                 "input_guardrail_violations": violations + ["scope:blocked"],
+                "pii_redacted": bool(violations),
+            }
+
+        # Domain-relevance check — block queries with no media/analytics signals
+        if not _DOMAIN_SIGNALS_RE.search(query) and len(query.split()) > 3:
+            return {
+                **state,
+                "error": "Query blocked: off-topic.",
+                "narrative": (
+                    "I can only answer questions about the MediaFlow AI analytics dashboard "
+                    "— KPIs, workspace performance, publish funnels, video trends, and team activity.\n\n"
+                    "Try asking:\n"
+                    '- "Which workspace has the lowest PCR?"\n'
+                    '- "Show upload vs publish trend for WS-SPORTS-LIVE"\n'
+                    '- "What is the LPI score for Hindi content?"'
+                ),
+                "input_guardrail_violations": violations + ["scope:off_topic"],
                 "pii_redacted": bool(violations),
             }
 
