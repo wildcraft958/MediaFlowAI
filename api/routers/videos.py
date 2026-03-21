@@ -13,7 +13,7 @@ _VIDEO_COLS = """
     fd.input_type        AS inputType,
     fd.output_type       AS outputType,
     ROUND(fd.video_duration_sec / 60.0, 2)  AS durationMin,
-    fd.video_duration_sec                    AS durationSec,
+    ROUND(fd.video_duration_sec, 0)          AS durationSec,
     FLOOR(fd.video_duration_sec / 3600)      AS durationH,
     FLOOR((fd.video_duration_sec % 3600) / 60) AS durationM,
     fd.published_flag    AS published,

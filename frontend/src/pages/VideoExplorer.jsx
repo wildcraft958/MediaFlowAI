@@ -25,7 +25,7 @@ const TEAMS = ['Digital_News', 'Entertainment', 'Tech_Analysis', 'Sports_Live', 
 // ── Helper components ─────────────────────────────────────────────────────────
 
 function formatDuration(h, m, s) {
-  const hh = h ?? 0, mm = m ?? 0, ss = s ?? 0
+  const hh = Math.round(h ?? 0), mm = Math.round(m ?? 0), ss = Math.round(s ?? 0)
   if (hh > 0) return `${hh}h ${mm}m`
   return `${mm}:${String(ss).padStart(2, '0')}`
 }
