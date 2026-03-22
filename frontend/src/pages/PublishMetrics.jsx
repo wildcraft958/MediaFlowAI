@@ -260,7 +260,7 @@ export default function PublishMetrics() {
         setError(`Failed to load data: ${err.message}`)
       })
       .finally(() => setLoading(false))
-  }, [filters, comparePeriod])
+  }, [filters, comparePeriod, role])
 
   // HTHR table columns
   const hthrColumns = [

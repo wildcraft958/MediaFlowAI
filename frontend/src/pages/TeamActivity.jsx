@@ -437,7 +437,7 @@ export default function TeamActivity() {
         setError(`Failed to load data: ${err.message}`)
       })
       .finally(() => setLoading(false))
-  }, [filters])
+  }, [filters, role])
 
   useEffect(() => {
     setCrossTabLoading(true)

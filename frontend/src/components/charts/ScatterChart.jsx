@@ -69,8 +69,8 @@ export default function ScatterChart({ data = [], loading = false }) {
     const yMin = Math.max(0, (Math.min(...ys) || 0) - 5)
     const yMax = (Math.max(...ys) || 100) + 5
 
-    const xMid = (xMin + xMax) / 2 // reference line at 2% CTR
-    const yMid = (yMin + yMax) / 2 // reference line at 50% view
+    const xMid = (xMin + xMax) / 2
+    const yMid = (yMin + yMax) / 2
 
     return {
       backgroundColor: 'transparent',
@@ -118,7 +118,7 @@ export default function ScatterChart({ data = [], loading = false }) {
         axisLabel: { color: '#555555', fontSize: 10, formatter: '{value}%' },
       },
       series: [
-        // Reference line X = 2%
+        // Reference line X = median CTR
         {
           type: 'line',
           markLine: {
@@ -126,11 +126,11 @@ export default function ScatterChart({ data = [], loading = false }) {
             symbol: 'none',
             label: { show: false },
             lineStyle: { color: '#333333', type: 'dashed', width: 1 },
-            data: [{ xAxis: 2 }],
+            data: [{ xAxis: xMid }],
           },
           data: [],
         },
-        // Reference line Y = 50%
+        // Reference line Y = median view %
         {
           type: 'line',
           markLine: {
@@ -138,7 +138,7 @@ export default function ScatterChart({ data = [], loading = false }) {
             symbol: 'none',
             label: { show: false },
             lineStyle: { color: '#333333', type: 'dashed', width: 1 },
-            data: [{ yAxis: 50 }],
+            data: [{ yAxis: yMid }],
           },
           data: [],
         },
