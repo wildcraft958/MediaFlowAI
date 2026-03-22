@@ -110,7 +110,7 @@ The SPA catchall in `api/main.py` routes all non-`/api` paths to `frontend/dist/
 
 ```bash
 uv run pytest data/test_enrich.py -v     # 32/32 — data enrichment + ArrowDtype fix
-uv run pytest api/test_api.py -v         # 52/52 — all API endpoints (inc. forecast + insights)
+uv run pytest api/test_api.py -v         # 59/59 — all API endpoints (forecast + insights + RBAC)
 uv run pytest agents/test_agents.py -v  # 43/43 — SQL-of-Thought + guardrails + NLQ
 ```
 

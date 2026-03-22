@@ -63,13 +63,13 @@ User question
     |
 [Input Guardrail] -- PII redaction, injection detection
     |
-[Router] -- LLM classifier: OFF_TOPIC | KPI_DEF | STANDARD_KPI | AD_HOC
+[Router] -- LLM classifier: GREETING | KPI_DEF | STANDARD_KPI | AD_HOC | CONTEXT_AWARE
     |                    |
 [Analytics Agent]   [Text2SQL Engine]
     |                    |
     |              schema link -> query plan -> SQL gen -> guardrails -> correction loop
     |                    |
-[Narrate] -- LLM-generated insight + chart spec
+[Narrate] -- LLM-generated markdown insight + chart spec
     |
 SSE stream to frontend
 ```
@@ -280,10 +280,10 @@ See [`DEPLOYMENT.md`](DEPLOYMENT.md) for Cloud Run deployment instructions.
 
 ```
 Data enrichment:  32/32 pass   (data/test_enrich.py)
-API endpoints:    52/52 pass   (api/test_api.py)
+API endpoints:    59/59 pass   (api/test_api.py)
 Agent pipeline:   43/43 pass   (agents/test_agents.py)
 ─────────────────────────────────────────────────────
-Total:           127/127 TDD tests
+Total:           134/134 TDD tests
 ```
 
 ```bash
@@ -297,8 +297,8 @@ uv run pytest data/test_enrich.py api/test_api.py agents/test_agents.py -v
 | Criteria | Weight | How we address it |
 |----------|--------|-------------------|
 | Business understanding & KPI design | 20 | 19 KPIs mapped to PS sections 6A-6E, YAML metric registry, 3-stage funnel, PCR variance as central data story |
-| Dashboard UX & navigability | 20 | 6 tabs with overview-to-detail flow, COUNT/HOURS toggle, D1xD2 CrossTab, 4-role RBAC, responsive layout |
-| Analytical depth & insight quality | 20 | LangGraph NLQ agent with SQL-of-Thought and guardrails, vector search, multi-turn memory, SSE streaming, Chronos 30-day forecast |
-| Data quality checks & correctness | 15 | MCI + DCDR KPIs, 390 null-upload rows tracked, ZSP zero-second detection, field completeness scoring, 119 TDD tests |
+| Dashboard UX & navigability | 20 | 6 tabs with overview-to-detail flow, COUNT/HOURS toggle, D1xD2 CrossTab, 4-role RBAC with per-KPI access control, notification bell, responsive layout |
+| Analytical depth & insight quality | 20 | LangGraph NLQ agent with SQL-of-Thought and guardrails, vector search, multi-turn memory, SSE streaming, Chronos 30-day forecast, ambient AI insights engine |
+| Data quality checks & correctness | 15 | MCI + DCDR KPIs, 390 null-upload rows tracked, ZSP zero-second detection, field completeness scoring, 134 TDD tests |
 | Scalability / extensibility | 15 | YAML metric registry (add KPIs without code), config-driven multi-tenant clients, FastMCP tool layer, dimension registry |
 | Presentation & communication | 10 | Workspace PCR variance narrative (38-92%), funnel drop-off story, AI-generated insight summaries |
