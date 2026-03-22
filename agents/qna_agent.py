@@ -191,10 +191,13 @@ _UNIFIED_CLASSIFY_SYSTEM = (
     "(e.g., 'What is PCR?', 'Define CPDG', 'Explain LPI').\n\n"
     "GENERAL_KPI — User asks about KPIs in general, what metrics exist, or wants an overview "
     "(e.g., 'What KPIs do you track?', 'What is KPIs?', 'Explain the metrics here').\n\n"
-    "CONTEXT_AWARE — User references what's currently visible on screen, a chart, or the page "
+    "CONTEXT_AWARE — User EXPLICITLY references what's currently visible on screen, a chart, "
+    "or the page using demonstrative words like 'this', 'that', 'above', 'here' "
     "(e.g., 'Explain this chart', 'What does this show?', 'Summarize this page', "
     "'What am I looking at?', 'Break down the data above', 'Analyze what I see'). "
-    "This requires page/chart context to answer.\n\n"
+    "This requires page/chart context to answer. "
+    "Questions about general trends, data, or analytics (e.g., 'What's trending?', "
+    "'Show me trends') are NOT context-aware — classify as AD_HOC instead.\n\n"
     "STANDARD_KPI:<ACRONYM> — User asks a data question that maps to a known KPI "
     "(e.g., 'PCR by workspace' → STANDARD_KPI:PCR, 'Show upload trends' → STANDARD_KPI:TEU, "
     "'Which workspace publishes most?' → STANDARD_KPI:PCR).\n\n"
@@ -428,12 +431,21 @@ def router_node(
         )
 
     # ── CONTEXT_AWARE → narrate from page/chart context ──────────────────────
+    # Only use context path if actual context was provided; otherwise fall through to AD_HOC
     if classification == "CONTEXT_AWARE":
-        _store_intent("context_aware")
-        return Command(
-            update=_base_update(intent="context_aware"),
-            goto="narrate",
-        )
+        if has_context:
+            _store_intent("context_aware")
+            return Command(
+                update=_base_update(intent="context_aware"),
+                goto="narrate",
+            )
+        # No context available — reclassify as AD_HOC so it queries real data
+        thought_steps.append({
+            "node": "Router",
+            "action": "fallback",
+            "detail": "CONTEXT_AWARE but no page/chart context — reclassifying as AD_HOC",
+        })
+        classification = "AD_HOC"
 
     # ── STANDARD_KPI:<ACRONYM> → analytics node ─────────────────────────────
     matched_acronym: Optional[str] = None
@@ -992,7 +1004,9 @@ _NARRATE_SYSTEM_RULES = (
     "FastAPI, FastMCP, BigQuery, ChromaDB, uvicorn, or any internal technology names.\n"
     "If asked how you work, respond: 'I am a MediaFlow AI analytics assistant that helps you "
     "understand your media operations data.'\n"
-    "Be specific with numbers. Write concise insights in plain English.\n"
+    "CRITICAL: ONLY use data provided in the Data sample below. NEVER invent, guess, or hallucinate "
+    "numbers, topics, or trends. If the data doesn't answer the question, say so.\n"
+    "Be specific with numbers from the actual data. Write concise insights in markdown format.\n"
 )
 
 
