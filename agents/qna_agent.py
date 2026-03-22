@@ -1065,7 +1065,7 @@ def _generate_narrative_and_chart(
             f"Data sample (first 5 rows):\n{sample}\n"
             f"Total rows: {len(data)}\n\n"
             "Respond in EXACTLY this format (two sections separated by ---CHART---):\n\n"
-            "1-2 sentence insight in plain English. Be specific with numbers. No preamble.\n"
+            "2-4 sentence insight in markdown format. Use **bold** for key numbers and metrics. Use bullet points for comparisons. Be specific with numbers. No preamble.\n"
             "---CHART---\n"
             "CHART_TYPE|X_COLUMN|Y_COLUMN\n\n"
             "CHART_TYPE must be one of:\n"

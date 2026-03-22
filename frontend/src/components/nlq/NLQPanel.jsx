@@ -8,6 +8,7 @@
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react'
+import Markdown from 'react-markdown'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   X,
@@ -274,7 +275,9 @@ function MessageBubble({ msg }) {
         </div>
         <div className="flex-1 min-w-0">
           <div className="bg-[#1e1e1e] border border-[#2a2a2a] rounded-2xl rounded-tl-sm px-4 py-3">
-            <p className="text-sm text-[#e8e8e8] leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+            <div className="text-sm text-[#e8e8e8] leading-relaxed prose prose-invert prose-sm max-w-none prose-p:my-1 prose-ul:my-1 prose-li:my-0.5 prose-headings:my-2 prose-strong:text-white">
+              <Markdown>{msg.text}</Markdown>
+            </div>
             {msg.filters && msg.filters.length > 0 && (
               <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-[#2a2a2a]">
                 <span className="text-[10px] text-[#555] mr-1">Filters:</span>
