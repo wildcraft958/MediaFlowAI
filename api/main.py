@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 from api.db import get_db
-from api.routers import health, dimensions, dashboard, kpis, trends, crosstab, videos, admin, nlq
+from api.routers import health, dimensions, dashboard, kpis, trends, crosstab, videos, admin, nlq, insights
 
 
 @asynccontextmanager
@@ -38,6 +38,26 @@ async def lifespan(app: FastAPI):
 
     threading.Thread(target=_warmup, daemon=True).start()
 
+    # Seed insights synchronously so they're available immediately
+    try:
+        from api.insights import seed_insights
+        seed_insights()
+    except Exception:
+        pass
+
+    # Run periodic insight generation in background (every 30 minutes)
+    def _insight_scheduler():
+        import time
+        from api.insights import generate_insights
+        while True:
+            time.sleep(1800)
+            try:
+                generate_insights()
+            except Exception:
+                pass
+
+    threading.Thread(target=_insight_scheduler, daemon=True).start()
+
     yield
     # Nothing to close — singleton connection lives for the process lifetime
 
@@ -57,7 +77,7 @@ app.add_middleware(
 )
 
 # Mount routers — all under /api prefix
-for r in [health, dimensions, dashboard, kpis, trends, crosstab, videos, admin, nlq]:
+for r in [health, dimensions, dashboard, kpis, trends, crosstab, videos, admin, nlq, insights]:
     app.include_router(r.router, prefix="/api")
 
 # Static file serving for production (npm run build → frontend/dist/)

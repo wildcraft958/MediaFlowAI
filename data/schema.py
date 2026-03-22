@@ -20,6 +20,7 @@ def create_db():
     create_kpi_views(con)
     compute_python_kpis(con)
     create_agg_tables(con)
+    create_insights_table(con)
     validate(con)
     con.close()
 
@@ -592,7 +593,31 @@ def create_agg_tables(con):
 
 
 # ---------------------------------------------------------------------------
-# 7. Validate
+# 7. Insights Table
+# ---------------------------------------------------------------------------
+
+def create_insights_table(con):
+    con.execute("""
+        CREATE OR REPLACE TABLE insights (
+            id INTEGER PRIMARY KEY,
+            type VARCHAR,
+            severity VARCHAR,
+            title VARCHAR,
+            body VARCHAR,
+            kpi VARCHAR,
+            workspace VARCHAR,
+            value DOUBLE,
+            threshold DOUBLE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            read BOOLEAN DEFAULT FALSE,
+            dismissed BOOLEAN DEFAULT FALSE
+        )
+    """)
+    print("✓ Created insights table")
+
+
+# ---------------------------------------------------------------------------
+# 8. Validate
 # ---------------------------------------------------------------------------
 
 def validate(con):

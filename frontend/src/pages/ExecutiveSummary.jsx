@@ -16,7 +16,7 @@ import FunnelViz from '../components/charts/FunnelViz'
 import FilterBar from '../components/common/FilterBar'
 import RoleGate from '../components/common/RoleGate'
 import useStore from '../store/useStore'
-import { getExecutiveSummary, getPublishFunnel, getPeriodComparison, getDataQuality, getBillableSplit } from '../api/client'
+import { getExecutiveSummary, getPublishFunnel, getPeriodComparison, getDataQuality, getBillableSplit, getInsights } from '../api/client'
 import { humanize, stripWs } from '../utils/format'
 import DraggableChart from '../components/common/DraggableChart'
 
@@ -57,54 +57,62 @@ const WORKSPACES = [
   { name: 'WS-SPORTS-LIVE',     pcr: 38, total: 898,  published: 341  },
 ]
 
+// ── Severity → color + icon (shared by InsightsPanel) ───────────────────────
+const INSIGHT_SEVERITY = {
+  warning: { color: '#ff9800', Icon: AlertTriangle },
+  danger:  { color: '#e63946', Icon: AlertTriangle },
+  success: { color: '#4caf50', Icon: TrendingUp    },
+  info:    { color: '#2196f3', Icon: Activity       },
+}
+const DEFAULT_INSIGHT_SEVERITY = INSIGHT_SEVERITY.info
+
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
 function InsightsPanel() {
-  const insights = [
-    {
-      id: 1,
-      type: 'warning',
-      icon: AlertTriangle,
-      title: 'Sports-Live bottleneck',
-      body: 'WS-SPORTS-LIVE publishes only 38% - 556 orphaned videos with no publish date.',
-      color: '#ff9800',
-    },
-    {
-      id: 2,
-      type: 'success',
-      icon: TrendingUp,
-      title: 'Top performer identified',
-      body: 'WS-DIGITAL-NEWS leads at 92% PCR - consistent high-throughput operation.',
-      color: '#4caf50',
-    },
-    {
-      id: 3,
-      type: 'warning',
-      icon: AlertTriangle,
-      title: 'Data quality gap',
-      body: '390 videos (8.5%) are missing upload_date - impacts MCI calculations.',
-      color: '#ff9800',
-    },
-  ]
+  const [insights, setInsights] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let mounted = true
+    getInsights({ limit: 5 }).then(data => {
+      if (mounted) {
+        setInsights(data.insights || [])
+        setLoading(false)
+      }
+    }).catch(() => {
+      if (mounted) setLoading(false)
+    })
+    return () => { mounted = false }
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-3">
+        {[1, 2, 3].map(i => (
+          <div key={i} className="h-20 rounded-xl bg-bg-card animate-pulse" />
+        ))}
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-3">
       {insights.map((ins, i) => {
-        const Icon = ins.icon
+        const { color, Icon } = INSIGHT_SEVERITY[ins.severity] || DEFAULT_INSIGHT_SEVERITY
         return (
           <motion.div
             key={ins.id}
             className="flex items-start gap-3 p-4 rounded-xl border"
-            style={{ background: `${ins.color}08`, borderColor: `${ins.color}30` }}
+            style={{ background: `${color}08`, borderColor: `${color}30` }}
             initial={{ opacity: 0, x: 12 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.5 + i * 0.1, duration: 0.35 }}
           >
             <div
               className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
-              style={{ background: `${ins.color}20` }}
+              style={{ background: `${color}20` }}
             >
-              <Icon size={14} style={{ color: ins.color }} />
+              <Icon size={14} style={{ color }} />
             </div>
             <div className="min-w-0">
               <p className="text-sm font-semibold text-white mb-0.5">{ins.title}</p>

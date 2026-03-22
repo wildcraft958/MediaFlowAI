@@ -1,33 +1,8 @@
 from fastapi import APIRouter, Depends, Query
-from api.db import query_df, query_one
+from api.db import query_df, query_one, safe_int as _safe_int, safe_float as _safe_float
 from api.filters import FilterParams, build_where_clause
-import math
 
 router = APIRouter()
-
-
-def _safe_int(v):
-    """Convert to int, treating None and NaN as 0."""
-    if v is None:
-        return 0
-    try:
-        if math.isnan(v):
-            return 0
-    except (TypeError, ValueError):
-        pass
-    return int(v)
-
-
-def _safe_float(v):
-    """Convert to float, treating None and NaN as 0.0."""
-    if v is None:
-        return 0.0
-    try:
-        if math.isnan(v):
-            return 0.0
-    except (TypeError, ValueError):
-        pass
-    return float(v)
 
 
 @router.get("/dashboard/executive")

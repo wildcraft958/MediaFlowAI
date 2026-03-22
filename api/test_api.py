@@ -366,3 +366,81 @@ def test_forecast_history_has_upload_counts():
     assert "date" in h[0]
     assert "uploaded" in h[0]
     assert isinstance(h[0]["uploaded"], (int, float))
+
+
+# ── Insights endpoints ────────────────────────────────────────────────────────
+
+def test_insights_returns_list():
+    resp = client.get("/api/insights")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "insights" in data
+    assert isinstance(data["insights"], list)
+
+
+def test_insights_count_returns_unread():
+    resp = client.get("/api/insights/count")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "unread" in data
+    assert isinstance(data["unread"], int)
+
+
+def test_insights_seeded_on_startup():
+    # Ensure seeding runs (idempotent — only seeds if table is empty)
+    from api.insights import seed_insights
+    seed_insights()
+    resp = client.get("/api/insights")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["insights"]) >= 5  # At least 5 seeded insights
+
+
+def test_insights_filter_by_type():
+    resp = client.get("/api/insights?type=alert")
+    assert resp.status_code == 200
+    data = resp.json()
+    for item in data["insights"]:
+        assert item["type"] == "alert"
+
+
+def test_insights_filter_by_severity():
+    resp = client.get("/api/insights?severity=warning")
+    assert resp.status_code == 200
+    data = resp.json()
+    for item in data["insights"]:
+        assert item["severity"] == "warning"
+
+
+def test_insights_mark_read():
+    # Get first insight
+    resp = client.get("/api/insights")
+    insights = resp.json()["insights"]
+    if insights:
+        first_id = insights[0]["id"]
+        mark_resp = client.post("/api/insights/mark-read", json={"id": first_id})
+        assert mark_resp.status_code == 200
+        assert mark_resp.json()["ok"] is True
+
+
+def test_insights_dismiss():
+    # Get insights, dismiss the last one
+    resp = client.get("/api/insights")
+    insights = resp.json()["insights"]
+    if insights:
+        last_id = insights[-1]["id"]
+        dismiss_resp = client.post(f"/api/insights/dismiss/{last_id}")
+        assert dismiss_resp.status_code == 200
+        assert dismiss_resp.json()["ok"] is True
+        # Verify it's gone from the list
+        resp2 = client.get("/api/insights")
+        ids = [i["id"] for i in resp2.json()["insights"]]
+        assert last_id not in ids
+
+
+def test_insights_generate():
+    resp = client.post("/api/insights/generate")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "generated" in data
+    assert isinstance(data["generated"], int)

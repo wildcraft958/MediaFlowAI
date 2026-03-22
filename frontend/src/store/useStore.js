@@ -16,36 +16,6 @@ const EMPTY_FILTERS = {
   date_to:              null,  // string | null
 }
 
-const DEFAULT_AGENT_MESSAGES = [
-  {
-    id: 1,
-    type: 'alert',
-    severity: 'warning',
-    title: 'Low PCR Alert',
-    body: 'WS-SPORTS-LIVE PCR dropped to 38% - 557 videos unresolved.',
-    time: '2 min ago',
-    read: false,
-  },
-  {
-    id: 2,
-    type: 'insight',
-    severity: 'info',
-    title: 'Publish Spike Detected',
-    body: 'WS-DIGITAL-NEWS published 142 videos in the last 6h - 2.3x above average.',
-    time: '18 min ago',
-    read: false,
-  },
-  {
-    id: 3,
-    type: 'question',
-    severity: 'neutral',
-    title: 'Review Request',
-    body: 'content_editor_04 requested review for 12 my_key_moments drafts.',
-    time: '1h ago',
-    read: true,
-  },
-]
-
 // Persist/restore agent messages from localStorage
 const INBOX_STORAGE_KEY = 'mediaflow_agent_inbox'
 function loadInbox() {
@@ -126,16 +96,58 @@ const useStore = create((set, get) => ({
   setPageContext: (ctx) => set({ pageContext: ctx }),
 
   // ─── Agent Inbox ──────────────────────────────────────────────────────────
-  agentInboxCount: (loadInbox() ?? DEFAULT_AGENT_MESSAGES).filter((m) => !m.read).length,
+  agentInboxCount: (loadInbox() ?? []).filter((m) => !m.read).length,
   setAgentInboxCount: (agentInboxCount) => set({ agentInboxCount }),
 
-  agentMessages: loadInbox() ?? [...DEFAULT_AGENT_MESSAGES],
+  agentMessages: loadInbox() ?? [],
+  insightsLoaded: false,
+
+  fetchInsights: async () => {
+    try {
+      const { getInsights, getInsightsCount } = await import('../api/client.js')
+      const [data, countData] = await Promise.all([
+        getInsights({ limit: 30 }),
+        getInsightsCount(),
+      ])
+      const messages = (data.insights || []).map(i => ({
+        id: i.id,
+        type: i.type === 'alert' ? 'alert' : i.type === 'anomaly' ? 'alert' : 'insight',
+        severity: i.severity || 'info',
+        title: i.title,
+        body: i.body,
+        time: i.created_at ? new Date(i.created_at).toLocaleString() : '',
+        read: i.read ?? false,
+      }))
+      const unread = countData.unread ?? 0
+      // Skip state update if nothing changed (avoids re-renders on poll)
+      const prev = get().agentMessages
+      const same = prev.length === messages.length
+        && unread === get().agentInboxCount
+        && prev.every((m, idx) => m.id === messages[idx]?.id && m.read === messages[idx]?.read)
+      if (!same || !get().insightsLoaded) {
+        saveInbox(messages)
+        set({
+          agentMessages: messages,
+          agentInboxCount: unread,
+          insightsLoaded: true,
+        })
+      }
+    } catch {
+      // API not available — keep localStorage cache
+      if (!get().insightsLoaded) set({ insightsLoaded: true })
+    }
+  },
+
   markMessageRead: (id) =>
     set((state) => {
       const updated = state.agentMessages.map((m) =>
         m.id === id ? { ...m, read: true } : m
       )
       saveInbox(updated)
+      // Fire and forget API call
+      import('../api/client.js').then(({ markInsightRead }) =>
+        markInsightRead(id).catch(() => {})
+      )
       return {
         agentMessages: updated,
         agentInboxCount: updated.filter((m) => !m.read).length,
@@ -145,6 +157,10 @@ const useStore = create((set, get) => ({
     set((state) => {
       const next = state.agentMessages.filter((m) => m.id !== id)
       saveInbox(next)
+      // Fire and forget API call
+      import('../api/client.js').then(({ dismissInsight }) =>
+        dismissInsight(id).catch(() => {})
+      )
       return {
         agentMessages: next,
         agentInboxCount: next.filter((m) => !m.read).length,

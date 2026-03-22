@@ -7,7 +7,7 @@
  *          (some controls hidden on small screens)
  */
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -146,6 +146,15 @@ function AlertBell() {
   const agentMessages       = useStore((s) => s.agentMessages)
   const markMessageRead     = useStore((s) => s.markMessageRead)
   const dismissMessage      = useStore((s) => s.dismissMessage)
+  const fetchInsights       = useStore((s) => s.fetchInsights)
+  const insightsLoaded      = useStore((s) => s.insightsLoaded)
+
+  // Fetch insights on mount and poll every 60s
+  useEffect(() => {
+    if (!insightsLoaded) fetchInsights()
+    const interval = setInterval(() => fetchInsights(), 60000)
+    return () => clearInterval(interval)
+  }, [fetchInsights, insightsLoaded])
 
   return (
     <div className="relative">

@@ -216,4 +216,17 @@ export function postNLQStream(body, onEvent) {
   return { abort: () => controller.abort() }
 }
 
+// ── Insights / Notifications ────────────────────────────────────────────────
+export const getInsights = (params = {}) =>
+  api.get('/insights', { params }).then(r => r.data)
+
+export const getInsightsCount = () =>
+  api.get('/insights/count').then(r => r.data)
+
+export const markInsightRead = (id) =>
+  api.post('/insights/mark-read', { id }).then(r => r.data)
+
+export const dismissInsight = (id) =>
+  api.post(`/insights/dismiss/${id}`).then(r => r.data)
+
 export default api
