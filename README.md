@@ -47,6 +47,7 @@ WS-SPORTS-LIVE     ███████              38%     341 published  <- 
 - 4-role RBAC (admin, cxo, manager, analyst) with per-KPI visibility
 - Multi-tenant support (CLIENT_1 / CLIENT_2) via YAML config
 - D1 x D2 CrossTab heatmap (e.g. Workspace x Input Type)
+- Ambient AI insights with proactive alerts and notification bell
 - Responsive layout (desktop, tablet, mobile)
 
 ---
@@ -79,6 +80,30 @@ SSE stream to frontend
 
 ---
 
+## Ambient Insights & Alert Engine
+
+The dashboard proactively generates AI-driven insights and threshold-based alerts without user interaction.
+
+**How it works:**
+- On startup, the engine queries all 19 KPIs against live DuckDB data and seeds 8 insights
+- A background scheduler regenerates alerts every 30 minutes
+- The notification bell in the top nav polls for new insights every 60 seconds
+- Admins can manually trigger generation via `POST /api/insights/generate`
+
+**Insight types:**
+| Type | Example | Trigger |
+|------|---------|---------|
+| **Threshold alert** | "WS-SPORTS-LIVE PCR at 38% - 557 videos stuck" | PCR drops below configured minimum |
+| **Data quality anomaly** | "390 videos (8.5%) missing upload_date" | MCI field completeness check |
+| **Performance insight** | "WS-DIGITAL-NEWS leads at 92% PCR" | Top/bottom workspace comparison |
+| **Trend signal** | "Upload volume up 11% WoW" | Week-over-week growth calculation |
+
+**API endpoints:** `GET /api/insights`, `GET /api/insights/count`, `POST /api/insights/mark-read`, `POST /api/insights/dismiss/{id}`, `POST /api/insights/generate`
+
+**Alert thresholds** are configurable from the Admin tab (PCR minimum, orphaned hours cap, MCI floor, anomaly z-score).
+
+---
+
 ## Architecture
 
 ```
@@ -99,7 +124,7 @@ React + Tailwind frontend (6 tabs + NLQ panel)
 |-------|-----------|
 | Data pipeline | Python, pandas, numpy (seed=42, fully reproducible) |
 | Storage | DuckDB -- star schema, 9 dimension tables, 16 KPI views, 4 pre-aggregated tables |
-| Backend | FastAPI, 9 router modules, 16+ endpoints |
+| Backend | FastAPI, 10 router modules, 20+ endpoints |
 | Agent framework | LangGraph + LangChain, SQL-of-Thought pattern |
 | LLM | Gemini 2.0 Flash via Vertex AI |
 | Embeddings | Vertex AI text-embedding-005 |
@@ -174,6 +199,7 @@ Executive Summary shows data quality bars per field. 390 rows with null upload_d
 | Dimension dictionary | 10 dimensions with cardinality | `data/DIMENSION_DICT.md` |
 | Data model (star schema) | 9 dim tables + fact view | `data/schema.py` |
 | Assumptions documented | All decisions with PS references | `data/ASSUMPTIONS.md` |
+| Ambient insights & alerts | Proactive AI insights with threshold alerts | `api/insights.py`, `api/routers/insights.py` |
 | Code + build notes | This README + deployment guide | `DEPLOYMENT.md` |
 
 ---
@@ -201,8 +227,9 @@ Executive Summary shows data quality bars per field. 390 rows with null upload_d
 │   ├── main.py                  # App entry, CORS, SPA serving
 │   ├── db.py                    # DuckDB connection (read-only, thread-safe)
 │   ├── llm.py                   # Vertex AI client (Gemini 2.0 Flash)
-│   ├── routers/                 # health, dashboard, kpis, trends, crosstab, videos, admin, nlq
-│   └── test_api.py              # 44 TDD tests
+│   ├── insights.py              # Ambient insight engine (seed, generate, query)
+│   ├── routers/                 # health, dashboard, kpis, trends, crosstab, videos, admin, nlq, insights
+│   └── test_api.py              # 52 TDD tests
 ├── agents/                      # LangGraph QnA agent
 │   ├── qna_agent.py             # 4-node graph (router, interpret, execute, narrate)
 │   ├── middleware.py            # Input/output/tool guardrails
@@ -253,10 +280,10 @@ See [`DEPLOYMENT.md`](DEPLOYMENT.md) for Cloud Run deployment instructions.
 
 ```
 Data enrichment:  32/32 pass   (data/test_enrich.py)
-API endpoints:    44/44 pass   (api/test_api.py)
+API endpoints:    52/52 pass   (api/test_api.py)
 Agent pipeline:   43/43 pass   (agents/test_agents.py)
 ─────────────────────────────────────────────────────
-Total:           119/119 TDD tests
+Total:           127/127 TDD tests
 ```
 
 ```bash
