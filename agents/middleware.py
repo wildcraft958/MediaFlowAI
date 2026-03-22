@@ -1,9 +1,9 @@
 """
 MediaFlow AI agent middleware - input, output, and tool-call guardrails.
 
-Input guardrail uses LLM classification for domain relevance (not regex).
-PII and injection checks remain regex-based (appropriate for pattern matching).
-Output guardrail uses regex for PII/tech-name redaction (post-processing).
+Input guardrail: fast regex checks only (PII, injection, sensitive content).
+Domain relevance classification is handled by the router's unified LLM call.
+Output guardrail: regex-based PII/tech-name redaction (post-processing).
 """
 from __future__ import annotations
 import re
@@ -60,38 +60,10 @@ def _redact_tech_names(text: str) -> str:
     return _TECH_NAME_RE.sub(_replace, text)
 
 
-# ── LLM-based domain relevance classifier ───────────────────────────────────
-
-_CLASSIFY_SYSTEM = (
-    "You are a query classifier for a media analytics dashboard called MediaFlow AI.\n"
-    "The dashboard tracks: video uploads, processing, publishing, KPIs (PCR, FSC, CRM, CPDG, etc.), "
-    "workspace/channel performance, team activity, content trends, and data quality.\n\n"
-    "Classify the user's query into exactly one of:\n"
-    "- RELEVANT: The query is about media analytics, dashboard features, KPIs, data, metrics, "
-    "content performance, workspace comparisons, user activity, publishing funnels, trends, "
-    "or how to use/understand the dashboard. This includes questions about how KPIs are calculated, "
-    "what metrics mean, requests to explain charts, summarize data, compare workspaces, etc.\n"
-    "- OFF_TOPIC: The query has nothing to do with media analytics (e.g., recipes, weather, "
-    "general knowledge, coding help, personal advice).\n\n"
-    "Respond with ONLY the single word: RELEVANT or OFF_TOPIC"
-)
-
-
-def _is_relevant_query(query: str) -> bool:
-    """Use LLM to classify if query is relevant to the analytics domain."""
-    try:
-        from api.llm import complete
-        result = complete(
-            prompt=f"User query: {query}",
-            system=_CLASSIFY_SYSTEM,
-            temperature=0.0,
-            max_tokens=10,
-        ).strip().upper()
-        return "OFF_TOPIC" not in result
-    except Exception:
-        # If LLM is unavailable, allow the query through (fail-open)
-        return True
-
+# ── Off-topic narrative (used by router's unified classifier) ────────────────
+# Domain relevance is now classified by the router's single unified LLM call
+# (agents/qna_agent.py _classify_query). Middleware only handles fast regex
+# checks: PII, injection, sensitive content. No LLM call here.
 
 _OFF_TOPIC_NARRATIVE = (
     "I can only answer questions about the MediaFlow AI analytics dashboard: "
@@ -107,14 +79,14 @@ class MediaFlowInputGuardrail:
     """
     Before-agent hook: validates and sanitizes inbound user query.
 
-    Checks (in order):
+    Checks (in order, all regex — fast, no LLM call):
     1. PII detection/redaction (regex - appropriate for pattern matching)
     2. Prompt injection detection (regex - flag only)
     3. Sensitive content hard-block (regex - passwords, SSN, etc.)
-    4. Domain relevance classification (LLM - handles ambiguous queries)
 
+    Domain relevance is handled by the router's unified LLM classifier.
     Returns updated state dict. On hard block, sets 'error' and 'narrative'
-    so the graph can jump straight to narrate.
+    so the conditional edge routes to narrate.
     """
 
     def before_agent(self, state: AgentState) -> AgentState:
@@ -150,15 +122,8 @@ class MediaFlowInputGuardrail:
                 "pii_redacted": bool(violations),
             }
 
-        # 4. Domain relevance classification (LLM)
-        if len(query.split()) > 2 and not _is_relevant_query(query):
-            return {
-                **state,
-                "error": "Query blocked: off-topic.",
-                "narrative": _OFF_TOPIC_NARRATIVE,
-                "input_guardrail_violations": violations + ["scope:off_topic"],
-                "pii_redacted": bool(violations),
-            }
+        # Domain relevance is handled by the router's unified LLM classifier.
+        # No LLM call here — middleware only does fast regex checks.
 
         return {
             **state,

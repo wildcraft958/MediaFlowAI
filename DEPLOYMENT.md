@@ -184,58 +184,40 @@ The recommended production path is **Docker → Google Cloud Run** since the pro
 
 ### 11.1 Dockerfile
 
-Create `Dockerfile` at the project root:
+The `Dockerfile` at the project root expects **pre-built artifacts** — no data pipeline or frontend build runs during Docker build. Only the Chronos model is downloaded at build time.
 
-```dockerfile
-FROM python:3.11-slim
-
-# System deps for WeasyPrint and Chronos
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libcairo2 libpango-1.0-0 libpangocairo-1.0-0 libgdk-pixbuf2.0-0 \
-    libffi-dev shared-mime-info fonts-liberation curl \
-    && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app
-
-# Install uv
-RUN pip install uv
-
-# Copy dependency files and install
-COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev
-
-# Copy source
-COPY . .
-
-# Copy pre-built frontend (run `npm run build` before docker build)
-# frontend/dist/ must exist at build time
-COPY frontend/dist ./frontend/dist
-
-# Expose port
-EXPOSE 8080
-
-# Entrypoint: build DB then serve
-CMD ["sh", "-c", "uv run python data/enrich.py && uv run python data/shift_dates.py && uv run python data/schema.py && uv run uvicorn api.main:app --host 0.0.0.0 --port 8080"]
-```
-
-### 11.2 Build and push
+### 11.2 Build locally, then deploy (no Docker required)
 
 ```bash
-# 1. Build frontend first (baked into the Docker image)
+# 1. Run data pipeline locally (produces analytics.duckdb)
+uv run python data/enrich.py
+uv run python data/shift_dates.py
+uv run python data/schema.py
+
+# 2. Build frontend locally (produces frontend/dist/)
 cd frontend && npm run build && cd ..
 
-# 2. Set your GCP project
+# 3. Verify both artifacts exist
+ls -lh analytics.duckdb frontend/dist/index.html
+
+# 4. Deploy — Cloud Build builds the Docker image remotely, then deploys
 export PROJECT_ID=analytics-prod-123
 export REGION=us-central1
-export IMAGE=gcr.io/$PROJECT_ID/mediaflow-dashboard:latest
 
-# 3. Build Docker image
-docker build -t $IMAGE .
-
-# 4. Push to Google Container Registry
-gcloud auth configure-docker
-docker push $IMAGE
+gcloud run deploy mediaflow-dashboard \
+  --source . \
+  --region $REGION \
+  --allow-unauthenticated \
+  --memory 4Gi \
+  --cpu 2 \
+  --timeout 300 \
+  --min-instances 1 \
+  --cpu-boost
 ```
+
+> **How it works:** `--source .` uploads the project (respecting `.gcloudignore`) to Cloud Build, which builds the Docker image from the `Dockerfile` remotely, pushes it to Artifact Registry, and deploys to Cloud Run — all in one command. No local Docker needed.
+>
+> **Key point:** `analytics.duckdb` and `frontend/dist/` are pre-built locally and baked into the image as-is. The container starts uvicorn immediately.
 
 ### 11.3 Deploy to Cloud Run
 
@@ -265,7 +247,7 @@ This removes the need to inject a key file — the service account identity is u
 
 ### 11.4 DuckDB persistence caveat
 
-Cloud Run instances are **ephemeral** — the DuckDB file is rebuilt on every cold start (`CMD` in Dockerfile). This is fine for a demo with a fixed dataset. For a production system with live data, move the DB to one of:
+Cloud Run instances are **ephemeral**, but since `analytics.duckdb` is baked into the Docker image, every instance starts with an identical, pre-built copy — no rebuild needed. This is ideal for a demo with a fixed dataset. For a production system with live data, move the DB to one of:
 
 | Option | How |
 |--------|-----|

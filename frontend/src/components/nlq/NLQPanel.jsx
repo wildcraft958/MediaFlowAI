@@ -380,6 +380,193 @@ function DynamicTable({ spec }) {
   )
 }
 
+// Render a single number card for chart_spec.type === 'number'
+function DynamicNumber({ spec }) {
+  const { label, value, data } = spec
+  const displayVal = typeof value === 'number'
+    ? (Number.isInteger(value) ? value.toLocaleString() : value.toFixed(2))
+    : String(value ?? '-')
+  // If the single row has multiple numeric fields, show them as secondary stats
+  const row = data?.[0] || {}
+  const extras = Object.entries(row).filter(
+    ([k, v]) => typeof v === 'number' && k.replace(/_/g, ' ').toLowerCase() !== label?.toLowerCase()
+  ).slice(0, 4)
+  return (
+    <div className="flex flex-col items-center justify-center py-6 gap-2">
+      <p className="text-[10px] text-[#555] uppercase tracking-wider font-semibold">{label || 'Result'}</p>
+      <motion.p
+        className="text-4xl font-black tabular-nums text-white"
+        initial={{ opacity: 0, scale: 0.8 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.4, ease: 'easeOut' }}
+      >
+        {displayVal}
+      </motion.p>
+      {extras.length > 0 && (
+        <div className="flex flex-wrap gap-3 mt-2 justify-center">
+          {extras.map(([k, v]) => (
+            <div key={k} className="text-center px-3 py-1.5 rounded-lg bg-[#0d0d0d] border border-[#1f1f1f]">
+              <p className="text-xs font-bold tabular-nums text-[#a0a0a0]">
+                {typeof v === 'number' ? (Number.isInteger(v) ? v.toLocaleString() : v.toFixed(2)) : String(v)}
+              </p>
+              <p className="text-[9px] text-[#444] uppercase tracking-wider mt-0.5">{k.replace(/_/g, ' ')}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Render a donut/pie chart for chart_spec.type === 'donut'
+function DynamicDonut({ spec }) {
+  const { x, y, data } = spec
+  const total = data.reduce((s, r) => s + Number(r[y] ?? 0), 0)
+  if (total === 0) return null
+  const COLORS = ['#e63946', '#4caf50', '#ff9800', '#2196f3', '#ce93d8', '#64b5f6', '#81c784']
+  let cumPct = 0
+  return (
+    <div className="flex flex-col items-center gap-4">
+      {/* Simple CSS donut via conic-gradient */}
+      <div className="relative w-36 h-36">
+        <div
+          className="w-full h-full rounded-full"
+          style={{
+            background: `conic-gradient(${data.map((row, i) => {
+              const pct = (Number(row[y] ?? 0) / total) * 100
+              const start = cumPct
+              cumPct += pct
+              return `${COLORS[i % COLORS.length]} ${start}% ${cumPct}%`
+            }).join(', ')})`,
+          }}
+        />
+        <div className="absolute inset-3 rounded-full bg-[#111] flex items-center justify-center flex-col">
+          <p className="text-lg font-black text-white tabular-nums">{total.toLocaleString()}</p>
+          <p className="text-[9px] text-[#555] uppercase">Total</p>
+        </div>
+      </div>
+      {/* Legend */}
+      <div className="flex flex-wrap gap-x-4 gap-y-1.5 justify-center">
+        {data.map((row, i) => {
+          const val = Number(row[y] ?? 0)
+          const pct = total > 0 ? ((val / total) * 100).toFixed(1) : '0'
+          const label = String(row[x] ?? '').replace('WS-', '').replace(/_/g, ' ')
+          return (
+            <div key={i} className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: COLORS[i % COLORS.length] }} />
+              <span className="text-[10px] text-[#a0a0a0]">{label}</span>
+              <span className="text-[10px] font-bold tabular-nums" style={{ color: COLORS[i % COLORS.length] }}>{pct}%</span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// Render a line chart for chart_spec.type === 'line'
+function DynamicLine({ spec }) {
+  const { x, y, data } = spec
+  const yKey = y[0]
+  const values = data.map((r) => Number(r[yKey] ?? 0))
+  const maxVal = Math.max(...values, 1)
+  const minVal = Math.min(...values, 0)
+  const range = maxVal - minVal || 1
+  const W = 400
+  const H = 140
+  const PAD = 20
+  const points = values.map((v, i) => ({
+    x: PAD + (i / Math.max(values.length - 1, 1)) * (W - PAD * 2),
+    y: PAD + (1 - (v - minVal) / range) * (H - PAD * 2),
+  }))
+  const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
+  const areaD = `${pathD} L ${points[points.length - 1].x} ${H - PAD} L ${points[0].x} ${H - PAD} Z`
+  // X-axis labels (first, middle, last)
+  const xLabels = data.length > 2
+    ? [
+        { i: 0, label: String(data[0][x] ?? '').slice(-5) },
+        { i: Math.floor(data.length / 2), label: String(data[Math.floor(data.length / 2)][x] ?? '').slice(-5) },
+        { i: data.length - 1, label: String(data[data.length - 1][x] ?? '').slice(-5) },
+      ]
+    : data.map((r, i) => ({ i, label: String(r[x] ?? '').slice(-5) }))
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-semibold text-[#888] uppercase tracking-wider">
+          {String(yKey).replace(/_/g, ' ')} over time
+        </p>
+        <span className="text-[9px] text-[#333]">{data.length} points</span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: 160 }}>
+        <defs>
+          <linearGradient id="nlq-line-grad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#e63946" stopOpacity="0.25" />
+            <stop offset="100%" stopColor="#e63946" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={areaD} fill="url(#nlq-line-grad)" />
+        <path d={pathD} fill="none" stroke="#e63946" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        {points.map((p, i) => (
+          <circle key={i} cx={p.x} cy={p.y} r="2.5" fill="#e63946" opacity={i === points.length - 1 ? 1 : 0.5} />
+        ))}
+        {xLabels.map(({ i, label }) => (
+          <text key={i} x={points[i]?.x ?? 0} y={H - 4} textAnchor="middle" fill="#555" fontSize="8">{label}</text>
+        ))}
+      </svg>
+    </div>
+  )
+}
+
+// Render a scatter plot for chart_spec.type === 'scatter'
+function DynamicScatter({ spec }) {
+  const { x: xKey, y: yKey, label: labelKey, data } = spec
+  const xVals = data.map((r) => Number(r[xKey] ?? 0))
+  const yVals = data.map((r) => Number(r[yKey] ?? 0))
+  const xMin = Math.min(...xVals)
+  const xMax = Math.max(...xVals, xMin + 1)
+  const yMin = Math.min(...yVals)
+  const yMax = Math.max(...yVals, yMin + 1)
+  const W = 400
+  const H = 200
+  const PAD = 30
+  const scaleX = (v) => PAD + ((v - xMin) / (xMax - xMin)) * (W - PAD * 2)
+  const scaleY = (v) => PAD + (1 - (v - yMin) / (yMax - yMin)) * (H - PAD * 2)
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-semibold text-[#888] uppercase tracking-wider">
+          {String(xKey).replace(/_/g, ' ')} vs {String(yKey).replace(/_/g, ' ')}
+        </p>
+        <span className="text-[9px] text-[#333]">{data.length} points</span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: 220 }}>
+        {/* Grid lines */}
+        {[0.25, 0.5, 0.75].map((f) => (
+          <line key={f} x1={PAD} x2={W - PAD} y1={PAD + f * (H - PAD * 2)} y2={PAD + f * (H - PAD * 2)} stroke="#1f1f1f" strokeWidth="0.5" />
+        ))}
+        {/* Points */}
+        {data.slice(0, 100).map((row, i) => {
+          const cx = scaleX(Number(row[xKey] ?? 0))
+          const cy = scaleY(Number(row[yKey] ?? 0))
+          return (
+            <g key={i}>
+              <circle cx={cx} cy={cy} r="4" fill="#e63946" opacity="0.7" />
+              {labelKey && (
+                <text x={cx + 6} y={cy + 3} fill="#666" fontSize="7" className="select-none">
+                  {String(row[labelKey] ?? '').slice(0, 12)}
+                </text>
+              )}
+            </g>
+          )
+        })}
+        {/* Axis labels */}
+        <text x={W / 2} y={H - 2} textAnchor="middle" fill="#555" fontSize="8">{xKey.replace(/_/g, ' ')}</text>
+        <text x={4} y={H / 2} textAnchor="middle" fill="#555" fontSize="8" transform={`rotate(-90, 8, ${H / 2})`}>{yKey.replace(/_/g, ' ')}</text>
+      </svg>
+    </div>
+  )
+}
+
 // Static fallback - shown before any query is made
 function StaticFallback() {
   return (
@@ -412,7 +599,7 @@ function StaticFallback() {
       </div>
       <div className="bg-[#111] border border-[#222] rounded-xl p-4">
         <p className="text-xs font-semibold text-[#888] mb-3 uppercase tracking-wider">Pipeline Summary</p>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
           {[
             { label: 'Uploaded',  value: '4,179', color: '#64b5f6' },
             { label: 'Processed', value: '4,179', color: '#81c784' },
@@ -464,8 +651,25 @@ function ChartPreviewArea({ chartData, chartCtx }) {
             </div>
           )}
 
-          {/* Chart */}
+          {/* Chart — renders based on chart_spec.type */}
           <div className="bg-[#111] border border-[#222] rounded-xl p-4 flex-1">
+            {chartData.chart_spec.type === 'number' && (
+              <DynamicNumber spec={chartData.chart_spec} />
+            )}
+            {chartData.chart_spec.type === 'donut' && (
+              <>
+                <p className="text-xs font-semibold text-[#888] mb-3 uppercase tracking-wider">
+                  {String(chartData.chart_spec.y ?? '').replace(/_/g, ' ')} by {String(chartData.chart_spec.x ?? '').replace(/_/g, ' ')}
+                </p>
+                <DynamicDonut spec={chartData.chart_spec} />
+              </>
+            )}
+            {chartData.chart_spec.type === 'line' && (
+              <DynamicLine spec={chartData.chart_spec} />
+            )}
+            {chartData.chart_spec.type === 'scatter' && (
+              <DynamicScatter spec={chartData.chart_spec} />
+            )}
             {chartData.chart_spec.type === 'bar' && (
               <>
                 <div className="flex items-center justify-between mb-3">
@@ -822,14 +1026,15 @@ export default function NLQPanel({ className = '' }) {
       exit={{ opacity: 0, y: 16, scale: 0.96 }}
       transition={{ type: 'spring', stiffness: 380, damping: 36 }}
       className={[
-        'fixed bottom-28 right-8 z-50',
-        'w-[420px]',
+        'fixed z-50',
+        'bottom-20 right-4 left-4 sm:left-auto sm:right-8 sm:bottom-28',
+        'w-auto sm:w-[420px]',
         'bg-[#0f0f0f] border border-[#272727]',
         'rounded-2xl flex flex-col overflow-hidden',
         'shadow-[0_24px_60px_rgba(0,0,0,0.7),0_0_0_1px_rgba(255,255,255,0.04)]',
         className,
       ].join(' ')}
-      style={{ height: 520 }}
+      style={{ height: 'min(520px, calc(100vh - 120px))' }}
     >
       {/* Header */}
       <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-[#222]">
@@ -940,11 +1145,11 @@ export default function NLQPanel({ className = '' }) {
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 24 }}
         transition={{ type: 'spring', stiffness: 280, damping: 28 }}
-        className="fixed inset-0 z-50 flex items-center justify-center p-6"
+        className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-6"
         onClick={(e) => e.target === e.currentTarget && setExpanded(false)}
       >
         <div
-          className="relative w-full max-w-[1300px] bg-[#0d0d0d] border border-[#2a2a2a] rounded-3xl flex flex-col overflow-hidden"
+          className="relative w-full max-w-[1300px] bg-[#0d0d0d] border border-[#2a2a2a] rounded-2xl sm:rounded-3xl flex flex-col overflow-hidden"
           style={{
             height: 'min(90vh, 860px)',
             boxShadow: '0 32px 100px rgba(0,0,0,0.85), 0 0 0 1px rgba(255,255,255,0.05)',
@@ -997,10 +1202,10 @@ export default function NLQPanel({ className = '' }) {
             ))}
           </div>
 
-          {/* Body - split: chat (left) + charts (right) */}
-          <div className="flex-1 flex min-h-0">
+          {/* Body - split: chat (left) + charts (right). Stacks on mobile. */}
+          <div className="flex-1 flex flex-col md:flex-row min-h-0">
             {/* Chat column */}
-            <div className="flex flex-col w-[480px] flex-shrink-0 border-r border-[#1e1e1e] min-h-0">
+            <div className="flex flex-col w-full md:w-[480px] md:flex-shrink-0 border-b md:border-b-0 md:border-r border-[#1e1e1e] min-h-0 flex-1 md:flex-initial">
               <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
                 {messages.map((msg, i) => (
                   <MessageBubble key={i} msg={msg} />
@@ -1027,8 +1232,8 @@ export default function NLQPanel({ className = '' }) {
               />
             </div>
 
-            {/* Charts / visual column */}
-            <div className="flex-1 overflow-y-auto px-6 py-5 bg-[#090909]">
+            {/* Charts / visual column — hidden on mobile */}
+            <div className="hidden md:flex flex-1 overflow-y-auto px-4 sm:px-6 py-5 bg-[#090909] flex-col">
               <ChartDropZone onDrop={(ctx) => { setChartCtx(ctx); setInput('Analyze this chart') }} />
               <ChartPreviewArea chartData={chartData} chartCtx={chartCtx} />
             </div>

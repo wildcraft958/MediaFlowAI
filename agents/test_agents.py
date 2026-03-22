@@ -89,8 +89,8 @@ def test_router_defaults_to_ad_hoc_without_vectorstore():
     result = router_node(state, store=InMemoryStore())
     # Router now returns Command, not a plain dict
     assert hasattr(result, "goto")
-    assert result.goto in ("analytics", "text2sql")
-    assert result.update.get("intent") in ("ad_hoc", "standard_kpi")
+    assert result.goto in ("analytics", "text2sql", "narrate")
+    assert result.update.get("intent") in ("ad_hoc", "standard_kpi", "off_topic", "kpi_definition", "context_aware")
     assert len(result.update.get("thought_steps", [])) >= 1
 
 

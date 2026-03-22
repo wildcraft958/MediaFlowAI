@@ -18,7 +18,6 @@ from __future__ import annotations
 import concurrent.futures
 import json
 import pathlib
-import re
 import sys
 import time
 from typing import Any, AsyncGenerator, Literal, Optional
@@ -150,16 +149,13 @@ _output_guardrail = MediaFlowOutputGuardrail()
 
 # ── Guardrail nodes ────────────────────────────────────────────────────────────
 
-def input_guardrail_node(state: AgentState) -> AgentState | Command:
+def input_guardrail_node(state: AgentState) -> AgentState:
     """
     First node in the graph. Validates/sanitizes the inbound query.
-    On hard block (out-of-scope, sensitive content): returns Command(goto='narrate')
-    so narrate picks up the pre-set narrative without re-generating.
+    On hard block (out-of-scope, sensitive content): sets 'error' and 'narrative'
+    in state. The conditional edge routes to 'narrate' when error is set.
     """
-    result = _input_guardrail.before_agent(state)
-    if result.get("error"):
-        return Command(update=result, goto="narrate")
-    return result
+    return _input_guardrail.before_agent(state)
 
 
 def output_guardrail_node(state: AgentState) -> AgentState:
@@ -171,25 +167,78 @@ def output_guardrail_node(state: AgentState) -> AgentState:
 
 # ── Router node ────────────────────────────────────────────────────────────────
 
-_CONTEXT_QUERY_SIGNALS = re.compile(
-    r"\b(this chart|this page|what I see|what's shown|on screen|what am I looking at|"
-    r"what does this show|explain this|what's displayed|current view)\b",
-    re.IGNORECASE,
+# ── Unified LLM query classifier ─────────────────────────────────────────────
+# Single LLM call handles ALL semantic routing: off-topic detection, KPI
+# definitions, context-aware queries, and KPI vs ad-hoc classification.
+# This replaces:
+#   - middleware._is_relevant_query() LLM call  (redundant, removed)
+#   - _try_kpi_definition() LLM call            (folded in)
+#   - _CONTEXT_QUERY_SIGNALS regex              (brittle, removed)
+#   - vector similarity search                  (fallback only)
+
+_UNIFIED_CLASSIFY_SYSTEM = (
+    "You are the query router for MediaFlow AI, a media analytics dashboard.\n"
+    "The dashboard tracks: video uploads, processing, publishing across 5 workspaces.\n\n"
+    "Available KPIs: PCR, FSC, GR, CRM, TEU, AIL, SAC, AHY, EDR, HTHR, "
+    "TSQI, PIG, AGV, PMI, MCI, DCDR, CPDG, ZSP, LPI.\n\n"
+    "Classify the user query into EXACTLY one category:\n\n"
+    "OFF_TOPIC — Query has nothing to do with media analytics, dashboards, video content, "
+    "KPIs, workspaces, teams, or data (e.g., recipes, weather, coding help, personal advice, "
+    "general knowledge questions unrelated to media/analytics).\n\n"
+    "KPI_DEF:<ACRONYM> — User asks what a SPECIFIC KPI means/is/stands for "
+    "(e.g., 'What is PCR?', 'Define CPDG', 'Explain LPI').\n\n"
+    "GENERAL_KPI — User asks about KPIs in general, what metrics exist, or wants an overview "
+    "(e.g., 'What KPIs do you track?', 'What is KPIs?', 'Explain the metrics here').\n\n"
+    "CONTEXT_AWARE — User references what's currently visible on screen, a chart, or the page "
+    "(e.g., 'Explain this chart', 'What does this show?', 'Summarize this page', "
+    "'What am I looking at?', 'Break down the data above', 'Analyze what I see'). "
+    "This requires page/chart context to answer.\n\n"
+    "STANDARD_KPI:<ACRONYM> — User asks a data question that maps to a known KPI "
+    "(e.g., 'PCR by workspace' → STANDARD_KPI:PCR, 'Show upload trends' → STANDARD_KPI:TEU, "
+    "'Which workspace publishes most?' → STANDARD_KPI:PCR).\n\n"
+    "AD_HOC — Any other analytics question that needs a custom SQL query "
+    "(e.g., 'Top 5 videos by duration', 'Compare Hindi vs English output', "
+    "'How many videos were uploaded last week?').\n\n"
+    "Respond with ONLY the classification label. Nothing else."
 )
 
-# KPI definition/explanation pattern
-_KPI_DEFINITION_RE = re.compile(
-    r"\b(what\s+is|what(?:'s| is)\s+the\s+meaning\s+of|explain|define|describe)\s+"
-    r"([A-Z]{2,5})\b",
-    re.IGNORECASE,
-)
 
-def _try_kpi_definition(query: str) -> Optional[str]:
-    """If query asks for a KPI definition, return the explanation or None."""
-    m = _KPI_DEFINITION_RE.search(query)
-    if not m:
-        return None
-    acronym = m.group(2).upper()
+def _classify_query(query: str, has_context: bool) -> str:
+    """
+    Single LLM call to classify query intent. Returns one of:
+    OFF_TOPIC, KPI_DEF:<ACRONYM>, GENERAL_KPI, CONTEXT_AWARE,
+    STANDARD_KPI:<ACRONYM>, AD_HOC.
+
+    Falls back to AD_HOC on LLM failure (fail-open for data queries).
+    """
+    try:
+        from api.llm import complete
+
+        context_hint = ""
+        if has_context:
+            context_hint = "\n[NOTE: The user has page/chart context available.]\n"
+
+        result = complete(
+            prompt=f"User query: {query}{context_hint}",
+            system=_UNIFIED_CLASSIFY_SYSTEM,
+            temperature=0.0,
+            max_tokens=30,
+        ).strip().upper()
+
+        # Validate the response is a known category
+        if result in ("OFF_TOPIC", "GENERAL_KPI", "CONTEXT_AWARE", "AD_HOC"):
+            return result
+        if result.startswith("KPI_DEF:") or result.startswith("STANDARD_KPI:"):
+            return result
+
+        # LLM returned something unexpected — fall back to AD_HOC
+        return "AD_HOC"
+    except Exception:
+        return "AD_HOC"
+
+
+def _build_kpi_definition(acronym: str) -> Optional[str]:
+    """Build a KPI definition narrative for a specific acronym."""
     try:
         from api.config import METRIC_REGISTRY
         kpi = METRIC_REGISTRY.get(acronym)
@@ -206,21 +255,47 @@ def _try_kpi_definition(query: str) -> Optional[str]:
     return None
 
 
+def _build_general_kpi_summary() -> str:
+    """Build a summary of all tracked KPIs."""
+    try:
+        from api.config import METRIC_REGISTRY
+        kpi_list = []
+        for acr, kpi in METRIC_REGISTRY.items():
+            kpi_list.append(f"- **{kpi['name']}** ({acr}): {kpi.get('description', '')[:80]}")
+        summary = "\n".join(kpi_list[:19])
+        return (
+            "**Key Performance Indicators (KPIs)** tracked in this dashboard:\n\n"
+            f"{summary}\n\n"
+            "Ask about any specific KPI for more details (e.g., 'What is PCR?')."
+        )
+    except Exception:
+        return "This dashboard tracks 19 KPIs across uploads, processing, and publishing."
+
+
 def router_node(
     state: AgentState, *, store: BaseStore
 ) -> Command[Literal["analytics", "text2sql", "narrate"]]:
     """
-    Classify query intent via vector similarity search.
+    Unified query classifier and router — single LLM call for ALL semantic routing.
+
+    One call to _classify_query() determines:
+      OFF_TOPIC        → narrate with off-topic message
+      KPI_DEF:<acr>    → narrate with KPI definition
+      GENERAL_KPI      → narrate with KPI summary
+      CONTEXT_AWARE    → narrate with context-based answer
+      STANDARD_KPI:<a> → analytics node
+      AD_HOC           → text2sql node
+
+    Vector similarity search used as fallback refinement for STANDARD_KPI
+    when the LLM doesn't specify an acronym, and to distinguish STANDARD_KPI
+    vs AD_HOC when the LLM returns AD_HOC but a strong KPI match exists.
 
     Uses Command (LangGraph v1) to combine state update + routing in one step.
-    - context_aware → narrate node (page/chart context answer, no SQL needed)
-    - standard_kpi  → analytics node (matched KPI acronym passed via _matched_acronym)
-    - ad_hoc        → text2sql node (full SQL-of-Thought pipeline)
-
     Also reads/writes long-term store to track query patterns across sessions.
     """
     query = state.get("query", "")
     session_id = state.get("session_id", "default")
+    has_context = bool(state.get("page_context") or state.get("chart_context"))
 
     namespace = ("mediaflow", session_id)
     try:
@@ -230,44 +305,36 @@ def router_node(
         prior_intents = []
 
     thought_steps: list[dict] = []
-    intent = "ad_hoc"
-    matched_acronym: Optional[str] = None
 
-    # KPI definition lookup: "what is CPDG", "explain PCR", etc.
-    kpi_def = _try_kpi_definition(query)
-    if kpi_def:
-        thought_steps.append({
-            "node": "Router",
-            "action": "classify",
-            "detail": "kpi_definition (matched KPI acronym in definition query)",
-        })
-        return Command(
-            update={
-                "intent": "kpi_definition",
-                "thought_steps": thought_steps,
-                "_matched_acronym": None,
-                "_kpi_definition": kpi_def,
-                "error": None,
-                "result": None,
-                "sql": None,
-                "chart_spec": None,
-                "hitl_pending": False,
-                "hitl_payload": None,
-                "hitl_decision": None,
-                "pending_inbox_items": [],
-            },
-            goto="narrate",
-        )
+    # ── Parallel: LLM classification + vector search run concurrently ────────
+    # Both are independent lookups on the same query. Running in parallel
+    # saves 100-300ms vs sequential (vector search only used as fallback).
+    from concurrent.futures import ThreadPoolExecutor, as_completed
 
-    # Context-aware routing: if query references visible page/chart content
-    has_context = bool(state.get("page_context") or state.get("chart_context"))
-    if has_context and _CONTEXT_QUERY_SIGNALS.search(query):
-        intent = "context_aware"
-        thought_steps.append({
-            "node": "Router",
-            "action": "classify",
-            "detail": "context_aware (query references visible content + context provided)",
-        })
+    def _do_vector_search():
+        try:
+            from agents.vector_store import query_kpi_similarity
+            matches = query_kpi_similarity(query, n_results=1)
+            if matches and matches[0]["score"] >= _SIMILARITY_THRESHOLD:
+                return matches[0]
+        except Exception:
+            pass
+        return None
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        classify_future = pool.submit(_classify_query, query, has_context)
+        vector_future = pool.submit(_do_vector_search)
+        classification = classify_future.result()
+        vector_match = vector_future.result()
+
+    thought_steps.append({
+        "node": "Router",
+        "action": "classify",
+        "detail": f"unified_llm → {classification}" + (f", vector → {vector_match['acronym']}({vector_match['score']:.3f})" if vector_match else ""),
+    })
+
+    # Helper: write to long-term store
+    def _store_intent(intent: str):
         try:
             store.put(namespace, f"q_{int(time.time() * 1000) % 10_000_000}", {
                 "query": query[:120],
@@ -275,58 +342,13 @@ def router_node(
             })
         except Exception:
             pass
-        return Command(
-            update={
-                "intent": intent,
-                "thought_steps": thought_steps,
-                "_matched_acronym": None,
-                "error": None,
-                "result": None,
-                "sql": None,
-                "narrative": None,
-                "chart_spec": None,
-                "hitl_pending": False,
-                "hitl_payload": None,
-                "hitl_decision": None,
-                "pending_inbox_items": [],
-            },
-            goto="narrate",
-        )
 
-    try:
-        from agents.vector_store import query_kpi_similarity
-        matches = query_kpi_similarity(query, n_results=1)
-        if matches and matches[0]["score"] >= _SIMILARITY_THRESHOLD:
-            intent = "standard_kpi"
-            matched_acronym = matches[0]["acronym"]
-            thought_steps.append({
-                "node": "Router",
-                "action": "classify",
-                "detail": f"standard_kpi (matched: {matched_acronym}, score={matches[0]['score']:.3f})",
-            })
-        else:
-            hint = f" (prior intents: {prior_intents[-3:]})" if prior_intents else ""
-            thought_steps.append({
-                "node": "Router",
-                "action": "classify",
-                "detail": f"ad_hoc (no strong KPI match){hint}",
-            })
-    except Exception as e:
-        thought_steps.append({"node": "Router", "action": "error", "detail": str(e)})
-
-    try:
-        store.put(namespace, f"q_{int(time.time() * 1000) % 10_000_000}", {
-            "query": query[:120],
-            "intent": intent,
-        })
-    except Exception:
-        pass
-
-    return Command(
-        update={
-            "intent": intent,
+    # Helper: base state update dict (clears stale fields)
+    def _base_update(**overrides):
+        base = {
             "thought_steps": thought_steps,
-            "_matched_acronym": matched_acronym,
+            "_matched_acronym": None,
+            "_kpi_definition": None,
             "error": None,
             "result": None,
             "sql": None,
@@ -336,8 +358,102 @@ def router_node(
             "hitl_payload": None,
             "hitl_decision": None,
             "pending_inbox_items": [],
-        },
-        goto="analytics" if intent == "standard_kpi" else "text2sql",
+        }
+        base.update(overrides)
+        return base
+
+    # ── OFF_TOPIC → block with user-friendly narrative ───────────────────────
+    if classification == "OFF_TOPIC":
+        from agents.middleware import _OFF_TOPIC_NARRATIVE
+        _store_intent("off_topic")
+        return Command(
+            update=_base_update(
+                intent="off_topic",
+                error="Query blocked: off-topic.",
+                narrative=_OFF_TOPIC_NARRATIVE,
+            ),
+            goto="narrate",
+        )
+
+    # ── KPI_DEF:<ACRONYM> → specific KPI definition ─────────────────────────
+    if classification.startswith("KPI_DEF:"):
+        acronym = classification.split(":")[1].strip()
+        kpi_def = _build_kpi_definition(acronym)
+        if kpi_def:
+            _store_intent("kpi_definition")
+            return Command(
+                update=_base_update(
+                    intent="kpi_definition",
+                    _kpi_definition=kpi_def,
+                ),
+                goto="narrate",
+            )
+        # Acronym not found in registry — fall through to AD_HOC
+        thought_steps.append({
+            "node": "Router",
+            "action": "fallback",
+            "detail": f"KPI {acronym} not in registry, falling through to ad_hoc",
+        })
+
+    # ── GENERAL_KPI → overview of all KPIs ───────────────────────────────────
+    if classification == "GENERAL_KPI":
+        _store_intent("kpi_definition")
+        return Command(
+            update=_base_update(
+                intent="kpi_definition",
+                _kpi_definition=_build_general_kpi_summary(),
+            ),
+            goto="narrate",
+        )
+
+    # ── CONTEXT_AWARE → narrate from page/chart context ──────────────────────
+    if classification == "CONTEXT_AWARE":
+        _store_intent("context_aware")
+        return Command(
+            update=_base_update(intent="context_aware"),
+            goto="narrate",
+        )
+
+    # ── STANDARD_KPI:<ACRONYM> → analytics node ─────────────────────────────
+    matched_acronym: Optional[str] = None
+    if classification.startswith("STANDARD_KPI:"):
+        acronym = classification.split(":")[1].strip()
+        try:
+            from api.config import METRIC_REGISTRY
+            if acronym in METRIC_REGISTRY:
+                matched_acronym = acronym
+        except Exception:
+            pass
+
+    # ── Fallback: use pre-computed vector search result (ran in parallel above)
+    if not matched_acronym and vector_match:
+        matched_acronym = vector_match["acronym"]
+        thought_steps.append({
+            "node": "Router",
+            "action": "vector_refine",
+            "detail": f"vector fallback: {matched_acronym} (score={vector_match['score']:.3f})",
+        })
+
+    # ── Route to analytics or text2sql ───────────────────────────────────────
+    if matched_acronym:
+        intent = "standard_kpi"
+        _store_intent(intent)
+        return Command(
+            update=_base_update(intent=intent, _matched_acronym=matched_acronym),
+            goto="analytics",
+        )
+
+    intent = "ad_hoc"
+    hint = f" (prior: {prior_intents[-3:]})" if prior_intents else ""
+    thought_steps.append({
+        "node": "Router",
+        "action": "route",
+        "detail": f"ad_hoc{hint}",
+    })
+    _store_intent(intent)
+    return Command(
+        update=_base_update(intent=intent),
+        goto="text2sql",
     )
 
 
@@ -375,24 +491,51 @@ async def analytics_node(
     sql = None
     error = None
 
-    if "run_kpi_query" in tools:
+    # ── Run KPI query + threshold check in parallel (both are independent MCP calls)
+    import asyncio
+
+    async def _run_kpi():
+        if "run_kpi_query" not in tools:
+            return None, None
         try:
             raw = await tools["run_kpi_query"].ainvoke(
                 {"kpi_name": acronym, "filters": state.get("filters", {})}
             )
-            result = raw if isinstance(raw, list) else [raw]
-            thought_steps.append({
-                "node": "Analytics",
-                "action": "mcp_kpi",
-                "detail": f"KPI={acronym}, rows={len(result)} (via MCP run_kpi_query)",
-            })
+            return (raw if isinstance(raw, list) else [raw]), None
         except Exception as e:
-            thought_steps.append({
-                "node": "Analytics",
-                "action": "mcp_fallback",
-                "detail": f"MCP failed ({e}), falling back to direct SQL",
-            })
+            return None, str(e)
 
+    async def _check_alerts():
+        if "check_thresholds" not in tools:
+            return []
+        try:
+            alerts_raw = await tools["check_thresholds"].ainvoke(
+                {"client_id": state.get("client_id", "CLIENT_1")}
+            )
+            alerts = alerts_raw if isinstance(alerts_raw, list) else [alerts_raw]
+            return [a for a in alerts if a.get("status") == "ALERT"]
+        except Exception:
+            return []
+
+    (kpi_result, kpi_error), real_alerts = await asyncio.gather(
+        _run_kpi(), _check_alerts()
+    )
+
+    if kpi_result is not None:
+        result = kpi_result
+        thought_steps.append({
+            "node": "Analytics",
+            "action": "mcp_kpi",
+            "detail": f"KPI={acronym}, rows={len(result)} (via MCP run_kpi_query)",
+        })
+    elif kpi_error:
+        thought_steps.append({
+            "node": "Analytics",
+            "action": "mcp_fallback",
+            "detail": f"MCP failed ({kpi_error}), falling back to direct SQL",
+        })
+
+    # Direct SQL fallback if MCP failed
     if result is None:
         import yaml
         cfg_path = pathlib.Path(__file__).parents[1] / "config" / "metric_registry.yaml"
@@ -413,35 +556,26 @@ async def analytics_node(
             "detail": f"KPI={acronym}, source={source}, rows={len(result) if result else 0}",
         })
 
-    # Check thresholds — route to HITL if alert found
-    if "check_thresholds" in tools:
-        try:
-            alerts_raw = await tools["check_thresholds"].ainvoke(
-                {"client_id": state.get("client_id", "CLIENT_1")}
-            )
-            alerts = alerts_raw if isinstance(alerts_raw, list) else [alerts_raw]
-            real_alerts = [a for a in alerts if a.get("status") == "ALERT"]
-            if real_alerts:
-                alert = real_alerts[0]
-                thought_steps.append({
-                    "node": "Analytics",
-                    "action": "threshold_alert",
-                    "detail": f"Alert: {alert.get('kpi')} {alert.get('workspace')} = {alert.get('value')}",
-                })
-                return Command(
-                    update={
-                        **state,
-                        "sql": sql,
-                        "result": result,
-                        "error": error,
-                        "thought_steps": thought_steps,
-                        "hitl_pending": True,
-                        "hitl_payload": alert,
-                    },
-                    goto="hitl",
-                )
-        except Exception:
-            pass
+    # Check threshold results (already computed in parallel)
+    if real_alerts:
+        alert = real_alerts[0]
+        thought_steps.append({
+            "node": "Analytics",
+            "action": "threshold_alert",
+            "detail": f"Alert: {alert.get('kpi')} {alert.get('workspace')} = {alert.get('value')}",
+        })
+        return Command(
+            update={
+                **state,
+                "sql": sql,
+                "result": result,
+                "error": error,
+                "thought_steps": thought_steps,
+                "hitl_pending": True,
+                "hitl_payload": alert,
+            },
+            goto="hitl",
+        )
 
     return Command(
         update={**state, "sql": sql, "result": result, "error": error, "thought_steps": thought_steps},
@@ -708,6 +842,23 @@ def narrate_node(state: AgentState) -> AgentState:
             "history": history[-20:],
         }
 
+    # Pre-set narrative path: guardrail or earlier node already set a user-friendly
+    # narrative (e.g., off-topic block, sensitive content block). Respect it.
+    existing_narrative = state.get("narrative")
+    if existing_narrative and error and not result:
+        thought_steps.append({
+            "node": "Narrate",
+            "action": "passthrough",
+            "detail": "narrative pre-set by guardrail",
+        })
+        history.append({"query": query, "answer": existing_narrative, "sql": sql or ""})
+        return {
+            **state,
+            "narrative": existing_narrative,
+            "thought_steps": thought_steps,
+            "history": history[-20:],
+        }
+
     if error and not result:
         narrative = f"I was unable to answer that question. Error: {error}"
         history.append({"query": query, "answer": narrative, "sql": sql or ""})
@@ -728,8 +879,7 @@ def narrate_node(state: AgentState) -> AgentState:
             "history": history[-20:],
         }
 
-    chart_spec = _infer_chart_spec(result, sql)
-    narrative = _generate_narrative(
+    narrative, chart_spec = _generate_narrative_and_chart(
         query, result, sql, history=history,
         page_context=page_context,
         chart_context=chart_context,
@@ -809,28 +959,8 @@ def _generate_context_narrative(
         return f"You're viewing the {ctx} page. (Context narrative error: {e})"
 
 
-def _infer_chart_spec(result: list[dict], sql: str) -> dict:
-    if not result:
-        return {"type": "none"}
-    # Unwrap MCP tool response format: [{type: "text", text: "[...]"}]
-    data = result
-    if len(data) == 1 and isinstance(data[0], dict) and data[0].get("type") == "text":
-        try:
-            parsed = json.loads(data[0]["text"])
-            if isinstance(parsed, list):
-                data = parsed
-        except (json.JSONDecodeError, KeyError):
-            pass
-    if not data:
-        return {"type": "none"}
-    first = data[0]
-    keys = list(first.keys())
-    if len(data) > 1 and len(keys) >= 2:
-        x_key = keys[0]
-        y_keys = [k for k in keys[1:] if isinstance(first.get(k), (int, float))]
-        if y_keys:
-            return {"type": "bar", "x": x_key, "y": y_keys, "data": data[:50]}
-    return {"type": "table", "data": data[:50]}
+## _infer_chart_spec removed — chart type is now decided by LLM in _generate_narrative_and_chart()
+## _infer_chart_spec_heuristic() is the fallback when LLM chart selection fails.
 
 
 _NARRATE_SYSTEM_RULES = (
@@ -844,7 +974,7 @@ _NARRATE_SYSTEM_RULES = (
 )
 
 
-def _generate_narrative(
+def _generate_narrative_and_chart(
     query: str,
     result: list[dict],
     sql: str,
@@ -852,11 +982,29 @@ def _generate_narrative(
     page_context: dict | None = None,
     chart_context: dict | None = None,
     web_search_results: str | None = None,
-) -> str:
+) -> tuple[str, dict]:
+    """
+    Single LLM call that returns both the narrative insight AND the best chart type.
+    Returns (narrative_text, chart_spec_dict).
+    """
+    # Prepare data for the LLM
+    data = result
+    # Unwrap MCP tool response format
+    if len(data) == 1 and isinstance(data[0], dict) and data[0].get("type") == "text":
+        try:
+            parsed = json.loads(data[0]["text"])
+            if isinstance(parsed, list):
+                data = parsed
+        except (json.JSONDecodeError, KeyError):
+            pass
+
+    first = data[0] if data else {}
+    all_keys = [k for k in first.keys() if not k.startswith("__")]
+
     try:
         from api.llm import complete
 
-        sample = json.dumps(result[:5], default=str)
+        sample = json.dumps(data[:5], default=str)
         history_context = ""
         if history:
             recent = history[-2:]
@@ -892,14 +1040,103 @@ def _generate_narrative(
             f"{page_ctx_text}"
             f"{chart_ctx_text}"
             f"{web_ctx_text}"
+            f"Data columns: {all_keys}\n"
             f"Data sample (first 5 rows):\n{sample}\n"
-            f"Total rows: {len(result)}\n\n"
-            "Write a 1-2 sentence insight in plain English. "
-            "Be specific with numbers. No preamble."
+            f"Total rows: {len(data)}\n\n"
+            "Respond in EXACTLY this format (two sections separated by ---CHART---):\n\n"
+            "1-2 sentence insight in plain English. Be specific with numbers. No preamble.\n"
+            "---CHART---\n"
+            "CHART_TYPE|X_COLUMN|Y_COLUMN\n\n"
+            "CHART_TYPE must be one of:\n"
+            "- number (single scalar result, 1 row — use the most important numeric column as Y)\n"
+            "- donut (categorical breakdown with 2-7 categories — good for distributions, shares, counts by category)\n"
+            "- line (time-series or sequential data with 7+ data points — good for trends over time)\n"
+            "- scatter (two numeric dimensions, 5+ points — good for correlations)\n"
+            "- bar (categorical comparison — good for ranking, comparing across groups)\n"
+            "- table (complex/wide data that doesn't fit other types)\n\n"
+            "X_COLUMN = the column name for the x-axis (category, date, or first numeric dimension)\n"
+            "Y_COLUMN = the column name for the y-axis (the main numeric value to visualize)\n\n"
+            "Example: bar|workspace|total_uploaded\n"
+            "Example: donut|language|count\n"
+            "Example: line|upload_date|uploaded\n"
+            "Example: number||pcr_pct\n"
         )
-        return complete(prompt, max_tokens=256)
+        raw = complete(prompt, max_tokens=350)
+
+        # Parse the response
+        if "---CHART---" in raw:
+            parts = raw.split("---CHART---", 1)
+            narrative = parts[0].strip()
+            chart_line = parts[1].strip().split("\n")[0].strip()
+        else:
+            # Fallback: treat entire response as narrative
+            narrative = raw.strip()
+            chart_line = ""
+
+        # Parse chart spec from LLM response
+        chart_spec = _parse_chart_line(chart_line, data)
+
+        return narrative, chart_spec
+
     except Exception as e:
-        return f"Found {len(result)} result(s). (Narrative error: {e})"
+        # Fallback: return basic narrative + heuristic chart
+        narrative = f"Found {len(data)} result(s). (Narrative error: {e})"
+        chart_spec = _infer_chart_spec_heuristic(data, sql)
+        return narrative, chart_spec
+
+
+def _parse_chart_line(chart_line: str, data: list[dict]) -> dict:
+    """Parse LLM chart recommendation like 'donut|workspace|total_uploaded' into a chart_spec."""
+    if not chart_line or "|" not in chart_line:
+        return _infer_chart_spec_heuristic(data, "")
+
+    parts = [p.strip() for p in chart_line.split("|")]
+    if len(parts) < 3:
+        return _infer_chart_spec_heuristic(data, "")
+
+    chart_type, x_col, y_col = parts[0].lower(), parts[1], parts[2]
+    valid_types = {"number", "donut", "line", "scatter", "bar", "table"}
+    if chart_type not in valid_types:
+        chart_type = "bar"
+
+    # Validate columns exist in data
+    first = data[0] if data else {}
+    all_keys = list(first.keys())
+    if x_col and x_col not in all_keys:
+        x_col = all_keys[0] if all_keys else ""
+    if y_col and y_col not in all_keys:
+        # Find first numeric column
+        y_col = next((k for k in all_keys if isinstance(first.get(k), (int, float))), all_keys[-1] if all_keys else "")
+
+    if chart_type == "number":
+        val = first.get(y_col, 0) if first else 0
+        return {"type": "number", "label": y_col.replace("_", " ").title(), "value": val, "data": data[:1]}
+    elif chart_type == "donut":
+        return {"type": "donut", "x": x_col, "y": y_col, "data": data[:10]}
+    elif chart_type == "line":
+        return {"type": "line", "x": x_col, "y": [y_col], "data": data[:100]}
+    elif chart_type == "scatter":
+        label_key = next((k for k in all_keys if isinstance(first.get(k), str)), None)
+        return {"type": "scatter", "x": x_col, "y": y_col, "label": label_key, "data": data[:100]}
+    elif chart_type == "table":
+        return {"type": "table", "data": data[:50]}
+    else:  # bar
+        return {"type": "bar", "x": x_col, "y": [y_col], "data": data[:50]}
+
+
+def _infer_chart_spec_heuristic(data: list[dict], sql: str) -> dict:
+    """Heuristic fallback when LLM chart selection fails."""
+    if not data:
+        return {"type": "none"}
+    first = data[0]
+    keys = [k for k in first.keys() if not k.startswith("__")]
+    str_keys = [k for k in keys if isinstance(first.get(k), str)]
+    numeric_keys = [k for k in keys if isinstance(first.get(k), (int, float))]
+    if str_keys and numeric_keys and len(data) > 1:
+        return {"type": "bar", "x": str_keys[0], "y": numeric_keys[:3], "data": data[:50]}
+    if numeric_keys and len(data) == 1:
+        return {"type": "number", "label": numeric_keys[0].replace("_", " ").title(), "value": first[numeric_keys[0]], "data": data}
+    return {"type": "table", "data": data[:50]}
 
 
 # ── Graph assembly ─────────────────────────────────────────────────────────────
@@ -916,12 +1153,18 @@ def _build_graph() -> StateGraph:
     builder.add_node("narrate", narrate_node)
     builder.add_node("output_guardrail", output_guardrail_node)
 
-    # Entry: input_guardrail first (hard-block path → narrate via Command)
+    # Entry: input_guardrail first
     builder.add_edge(START, "input_guardrail")
 
-    # Normal path: input_guardrail → router (when no block)
-    # Hard-block path uses Command(goto="narrate") from input_guardrail_node
-    builder.add_edge("input_guardrail", "router")
+    # Conditional routing from input_guardrail:
+    #   - If blocked (error set) → narrate (via Command from node)
+    #   - Normal flow → router
+    # Using conditional_edges so the static edge doesn't conflict with Command routing.
+    builder.add_conditional_edges(
+        "input_guardrail",
+        lambda state: "narrate" if state.get("error") else "router",
+        {"narrate": "narrate", "router": "router"},
+    )
 
     # Router uses Command → analytics, text2sql, or narrate (no static edge needed)
 

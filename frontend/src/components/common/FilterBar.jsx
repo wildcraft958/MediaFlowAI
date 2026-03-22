@@ -219,7 +219,7 @@ function FilterPill({ def, value, onChange }) {
             initial="hidden"
             animate="visible"
             exit="hidden"
-            className="absolute top-full left-0 mt-2 z-50 min-w-[180px] bg-[#111111] border border-[#2a2a2a] rounded-xl shadow-xl shadow-black/60 overflow-hidden"
+            className="absolute top-full left-0 mt-2 z-50 min-w-[160px] sm:min-w-[180px] max-w-[calc(100vw-2rem)] bg-[#111111] border border-[#2a2a2a] rounded-xl shadow-xl shadow-black/60 overflow-hidden"
             style={{ transformOrigin: 'top left' }}
           >
             <div className="py-1.5 max-h-64 overflow-y-auto">

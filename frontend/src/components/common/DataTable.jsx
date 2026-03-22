@@ -118,7 +118,7 @@ function Pagination({ page, total, pageSize, onPageChange }) {
   }
 
   return (
-    <div className="flex items-center justify-between px-4 py-3 border-t border-[#1f1f1f]">
+    <div className="flex flex-col sm:flex-row items-center justify-between px-4 py-3 border-t border-[#1f1f1f] gap-2">
       <span className="text-xs text-[#555555]">
         {total === 0 ? 'No records' : `Showing ${start}–${end} of ${total}`}
       </span>

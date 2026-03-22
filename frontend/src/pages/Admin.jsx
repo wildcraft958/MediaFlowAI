@@ -671,7 +671,7 @@ function ClientSettings() {
           </span>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <NumberInput label="Processing Backlog Threshold" field="opi_threshold_hours" suffix="hours" />
           <NumberInput label="AGV Drop %" field="agv_drop_pct" suffix="%" />
           <NumberInput label="ZScore Anomaly Level" field="zscore_anomaly_level" suffix="σ" />
@@ -825,7 +825,7 @@ export default function Admin() {
 
   return (
     <motion.div
-      className="p-6 space-y-6 min-h-screen bg-[#0a0a0a]"
+      className="p-4 sm:p-6 space-y-4 sm:space-y-6 min-h-screen bg-[#0a0a0a]"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}

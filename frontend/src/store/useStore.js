@@ -112,6 +112,11 @@ const useStore = create((set, get) => ({
   setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
   toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
 
+  // ─── Mobile menu ─────────────────────────────────────────────────────────
+  mobileMenuOpen: false,
+  setMobileMenuOpen: (mobileMenuOpen) => set({ mobileMenuOpen }),
+  toggleMobileMenu: () => set((state) => ({ mobileMenuOpen: !state.mobileMenuOpen })),
+
   // ─── NLQ panel ────────────────────────────────────────────────────────────
   nlqOpen: false,
   setNlqOpen: (nlqOpen) => set({ nlqOpen }),

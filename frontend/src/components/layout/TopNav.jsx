@@ -1,9 +1,10 @@
 /**
  * TopNav.jsx — Sticky top navigation bar (64px tall)
  *
- * Left:    breadcrumb (current page name)
- * Center:  global search input
+ * Left:    hamburger (mobile) + breadcrumb (current page name)
+ * Center:  global search input (hidden on mobile)
  * Right:   COUNT/HOURS toggle · Role badge · Alert bell · CLIENT_1 badge
+ *          (some controls hidden on small screens)
  */
 
 import React, { useState } from 'react'
@@ -19,9 +20,11 @@ import {
   AlertTriangle,
   Activity,
   Info,
+  Menu,
 } from 'lucide-react'
 import CountHoursToggle from '../common/CountHoursToggle'
 import useStore from '../../store/useStore'
+import useIsMobile from '../../hooks/useIsMobile'
 import clsx from 'clsx'
 
 // ─── Route → Page name map ────────────────────────────────────────────────────
@@ -73,7 +76,7 @@ function InboxDropdown({ messages, onMarkRead, onDismiss, onClose }) {
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 8, scale: 0.96 }}
       transition={{ duration: 0.15 }}
-      className="absolute top-full right-0 mt-2 w-80 z-50 bg-bg-card border border-border-2 rounded-card shadow-card-lg overflow-hidden"
+      className="absolute top-full right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] z-50 bg-bg-card border border-border-2 rounded-card shadow-card-lg overflow-hidden"
     >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border-1">
@@ -183,6 +186,8 @@ export default function TopNav() {
   const location  = useLocation()
   const navigate  = useNavigate()
   const [search, setSearch] = useState('')
+  const toggleMobileMenu = useStore((s) => s.toggleMobileMenu)
+  const isMobile = useIsMobile()
 
   const pageName = PAGE_NAMES[location.pathname] || 'Dashboard'
 
@@ -195,7 +200,7 @@ export default function TopNav() {
 
   return (
     <header
-      className="sticky top-0 z-20 flex items-center gap-4 px-6"
+      className="sticky top-0 z-20 flex items-center gap-2 sm:gap-4 px-3 sm:px-6"
       style={{
         height: 'var(--topnav-height, 64px)',
         background: 'rgba(10,10,10,0.85)',
@@ -204,15 +209,24 @@ export default function TopNav() {
         borderBottom: '1px solid #1f1f1f',
       }}
     >
-      {/* ─── Left: Breadcrumb ────────────────────────────────────────────── */}
+      {/* ─── Left: Hamburger (mobile) + Breadcrumb ──────────────────────── */}
       <div className="flex items-center gap-2 flex-shrink-0">
-        <span className="text-text-muted text-xs">MediaFlow AI</span>
-        <ChevronRight size={12} className="text-text-muted" />
-        <span className="text-white text-sm font-semibold">{pageName}</span>
+        {isMobile && (
+          <button
+            onClick={toggleMobileMenu}
+            className="w-9 h-9 rounded-[10px] flex items-center justify-center text-text-muted hover:bg-bg-card hover:text-white transition-colors"
+            aria-label="Open menu"
+          >
+            <Menu size={18} />
+          </button>
+        )}
+        <span className="text-text-muted text-xs hidden sm:inline">MediaFlow AI</span>
+        <ChevronRight size={12} className="text-text-muted hidden sm:inline" />
+        <span className="text-white text-sm font-semibold truncate">{pageName}</span>
       </div>
 
-      {/* ─── Center: Search ──────────────────────────────────────────────── */}
-      <div className="flex-1 max-w-sm mx-auto relative">
+      {/* ─── Center: Search (hidden on mobile) ─────────────────────────── */}
+      <div className="flex-1 max-w-sm mx-auto relative hidden md:block">
         <Search
           size={13}
           className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none"
@@ -222,7 +236,7 @@ export default function TopNav() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           onKeyDown={handleSearch}
-          placeholder="Search videos, KPIs, workspaces…"
+          placeholder="Search videos, KPIs, workspaces..."
           className={clsx(
             'w-full pl-8 pr-4 py-2 rounded-[10px] text-sm',
             'bg-bg-card border border-border-1',
@@ -243,19 +257,23 @@ export default function TopNav() {
 
       {/* ─── Right: Controls ─────────────────────────────────────────────── */}
       <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
-        {/* COUNT / HOURS toggle */}
-        <CountHoursToggle />
+        {/* COUNT / HOURS toggle — hidden on small screens */}
+        <div className="hidden lg:block">
+          <CountHoursToggle />
+        </div>
 
-        {/* Role badge (read-only) */}
-        <RoleBadge />
+        {/* Role badge (read-only) — hidden on very small screens */}
+        <div className="hidden sm:block">
+          <RoleBadge />
+        </div>
 
-        {/* Alert bell with inbox dropdown */}
+        {/* Alert bell with inbox dropdown — always visible */}
         <AlertBell />
 
-        {/* Client badge */}
+        {/* Client badge — hidden on small screens */}
         <div
           className={clsx(
-            'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[8px]',
+            'hidden lg:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[8px]',
             'bg-bg-card border border-border-2',
             'text-xs font-mono font-semibold text-text-secondary',
           )}

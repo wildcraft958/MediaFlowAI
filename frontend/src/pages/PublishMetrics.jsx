@@ -435,7 +435,7 @@ export default function PublishMetrics() {
 
   return (
     <motion.div
-      className="p-6 space-y-6 min-h-screen bg-[#0a0a0a]"
+      className="p-4 sm:p-6 space-y-4 sm:space-y-6 min-h-screen bg-[#0a0a0a]"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
@@ -465,7 +465,7 @@ export default function PublishMetrics() {
             title: 'Overall Publish Rate',
             value: overallPcr,
             unit: '%',
-            trend: (pd?.pcr_pct ?? 0) >= 0 ? 'up' : 'down',
+            trend: pd?.pcr_pct != null ? (pd.pcr_pct >= 0 ? 'up' : 'down') : null,
             trendValue: pd?.pcr_pct != null ? Math.abs(pd.pcr_pct) : null,
             trendLabel: 'vs prev 30d',
             icon: BarChart2,
@@ -490,7 +490,7 @@ export default function PublishMetrics() {
             title: 'Avg Processing',
             value: data?.comparison?.current?.avg_processing_h ?? 4.2,
             unit: 'h',
-            trend: (pd?.avg_processing_pct ?? 0) <= 0 ? 'down' : 'up',
+            trend: pd?.avg_processing_pct != null ? (pd.avg_processing_pct <= 0 ? 'down' : 'up') : null,
             trendValue: pd?.avg_processing_pct != null ? Math.abs(pd.avg_processing_pct) : null,
             trendLabel: 'vs prev 30d',
             icon: Clock,

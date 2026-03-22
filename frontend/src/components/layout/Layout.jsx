@@ -1,7 +1,8 @@
 /**
  * Layout.jsx - Main application shell
  *
- * Sidebar is a flex item (not fixed) — no gap, no marginLeft tricks.
+ * Sidebar is a flex item on desktop (not fixed) — no gap, no marginLeft tricks.
+ * On mobile (<768px), sidebar is hidden and rendered as a fixed overlay when toggled.
  * Main content: flex-col, flex-1, overflow-hidden.
  * main: flex-1 overflow-y-auto (only scrollable region).
  * NLQ panel and button are siblings outside the content area, rendered at
@@ -10,11 +11,13 @@
 
 import React, { useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
+import { AnimatePresence, motion } from 'framer-motion'
 import Sidebar from './Sidebar'
 import TopNav from './TopNav'
 import NLQButton from '../nlq/NLQButton'
 import NLQPanel from '../nlq/NLQPanel'
 import useStore from '../../store/useStore'
+import useIsMobile from '../../hooks/useIsMobile'
 
 const PATH_TO_TAB = {
   '/executive': 'executive',
@@ -30,16 +33,45 @@ export default function Layout({ children }) {
   const { pathname } = useLocation()
   const showNLQ = pathname !== '/admin'
   const setActiveTab = useStore((s) => s.setActiveTab)
+  const mobileMenuOpen = useStore((s) => s.mobileMenuOpen)
+  const setMobileMenuOpen = useStore((s) => s.setMobileMenuOpen)
+  const isMobile = useIsMobile()
 
   useEffect(() => {
     const tab = PATH_TO_TAB[pathname]
     if (tab) setActiveTab(tab)
   }, [pathname, setActiveTab])
+
+  // Close mobile menu when resizing to desktop
+  useEffect(() => {
+    if (!isMobile && mobileMenuOpen) {
+      setMobileMenuOpen(false)
+    }
+  }, [isMobile, mobileMenuOpen, setMobileMenuOpen])
+
   return (
     <div className="flex h-screen overflow-hidden bg-[#0a0a0a] text-white">
 
-      {/* Sidebar — flex item, animates its own width */}
-      <Sidebar />
+      {/* Desktop: Sidebar as flex item */}
+      {!isMobile && <Sidebar />}
+
+      {/* Mobile: Sidebar as overlay */}
+      <AnimatePresence>
+        {isMobile && mobileMenuOpen && (
+          <>
+            <motion.div
+              key="sidebar-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="sidebar-backdrop"
+              onClick={() => setMobileMenuOpen(false)}
+            />
+            <Sidebar isMobile onClose={() => setMobileMenuOpen(false)} />
+          </>
+        )}
+      </AnimatePresence>
 
       {/* Main content area — grows to fill remaining width */}
       <div className="flex flex-col flex-1 min-w-0 h-full overflow-hidden relative">

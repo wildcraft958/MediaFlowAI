@@ -1,8 +1,33 @@
 from fastapi import APIRouter, Depends, Query
 from api.db import query_df, query_one
 from api.filters import FilterParams, build_where_clause
+import math
 
 router = APIRouter()
+
+
+def _safe_int(v):
+    """Convert to int, treating None and NaN as 0."""
+    if v is None:
+        return 0
+    try:
+        if math.isnan(v):
+            return 0
+    except (TypeError, ValueError):
+        pass
+    return int(v)
+
+
+def _safe_float(v):
+    """Convert to float, treating None and NaN as 0.0."""
+    if v is None:
+        return 0.0
+    try:
+        if math.isnan(v):
+            return 0.0
+    except (TypeError, ValueError):
+        pass
+    return float(v)
 
 
 @router.get("/dashboard/executive")
@@ -122,14 +147,16 @@ def period_comparison(period_days: int = Query(30, ge=7, le=180), f: FilterParam
     row = df.iloc[0].to_dict() if len(df) > 0 else {}
 
     def delta(cur, prev):
-        if prev and prev > 0:
+        cur = _safe_float(cur)
+        prev = _safe_float(prev)
+        if prev > 0:
             return round((cur - prev) / prev * 100, 1)
         return None
 
-    cu = int(row.get('cur_uploaded') or 0)
-    cp = int(row.get('cur_published') or 0)
-    pu = int(row.get('prev_uploaded') or 0)
-    pp = int(row.get('prev_published') or 0)
+    cu = _safe_int(row.get('cur_uploaded'))
+    cp = _safe_int(row.get('cur_published'))
+    pu = _safe_int(row.get('prev_uploaded'))
+    pp = _safe_int(row.get('prev_published'))
     cur_pcr = round(cp / cu * 100, 1) if cu > 0 else 0
     prev_pcr = round(pp / pu * 100, 1) if pu > 0 else 0
     cur_proc = row.get('cur_avg_proc_h')
@@ -141,7 +168,7 @@ def period_comparison(period_days: int = Query(30, ge=7, le=180), f: FilterParam
             "uploaded_pct": delta(cu, pu),
             "published_pct": delta(cp, pp),
             "pcr_pct": round(cur_pcr - prev_pcr, 1) if pu > 0 else None,
-            "avg_processing_pct": delta(float(cur_proc or 0), float(prev_proc or 0)),
+            "avg_processing_pct": delta(cur_proc, prev_proc),
         },
     }
 
@@ -181,8 +208,11 @@ def data_quality(f: FilterParams = Depends()):
          "pct": round(int(row['platform_nn']) / total * 100, 1)},
     ]
     avg_health = round(sum(f["pct"] for f in fields) / len(fields), 1)
-    dup_df = query_df("SELECT total_records, duplicate_count, dcdr_pct FROM v_dcdr", [])
-    dup = dup_df.iloc[0].to_dict() if len(dup_df) > 0 else {}
+    try:
+        dup_df = query_df("SELECT total_records, duplicate_count, dcdr_pct FROM v_dcdr", [])
+        dup = dup_df.iloc[0].to_dict() if len(dup_df) > 0 else {}
+    except Exception:
+        dup = {}
     return {
         "total_rows": total,
         "fields": fields,
@@ -211,10 +241,15 @@ def billable_split(f: FilterParams = Depends()):
         GROUP BY workspace ORDER BY billable DESC""",
         params,
     )
-    total = int(df["total"].sum())
-    billable = int(df["billable"].sum())
-    billable_h = round(float(df["billable_hours"].sum()), 2)
-    non_billable_h = round(float(df["non_billable_hours"].sum()), 2)
+    if df.empty:
+        return {
+            "total": 0, "billable": 0, "non_billable": 0, "billable_pct": 0,
+            "billable_hours": 0, "non_billable_hours": 0, "by_workspace": [],
+        }
+    total = _safe_int(df["total"].sum())
+    billable = _safe_int(df["billable"].sum())
+    billable_h = round(_safe_float(df["billable_hours"].sum()), 2)
+    non_billable_h = round(_safe_float(df["non_billable_hours"].sum()), 2)
     return {
         "total": total,
         "billable": billable,

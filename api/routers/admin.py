@@ -1,4 +1,5 @@
 import pathlib
+import re
 from fastapi import APIRouter, HTTPException
 from api.config import METRIC_REGISTRY, CLIENT_CONFIG
 from api.models import KPIChatRequest, KPIChatResponse
@@ -101,10 +102,18 @@ KPI YAML format (metric_registry.yaml):
 """
 
 
+# ── Code fence extraction + SQL safety net (module-level, compiled once) ──────
+_YAML_FENCE_RE = re.compile(r"```yaml\s*(.*?)```", re.DOTALL)
+_SQL_FENCE_RE  = re.compile(r"```sql\s*(.*?)```",  re.DOTALL)
+_FORBIDDEN_SQL = re.compile(
+    r"\b(DELETE|DROP|ALTER|TRUNCATE|UPDATE|INSERT\s+INTO)\b",
+    re.IGNORECASE,
+)
+
+
 @router.post("/admin/kpi-chat", response_model=KPIChatResponse)
 def kpi_chat(body: KPIChatRequest):
     try:
-        import re
         system = (
             "You are a friendly KPI design assistant for MediaFlow AI analytics dashboard. "
             "IMPORTANT RULES:\n"
@@ -131,15 +140,11 @@ def kpi_chat(body: KPIChatRequest):
 
         text = llm_chat(history, system=system, max_tokens=1024)
 
-        yaml_match = re.search(r"```yaml\s*(.*?)```", text, re.DOTALL)
-        sql_match  = re.search(r"```sql\s*(.*?)```",  text, re.DOTALL)
+        yaml_match = _YAML_FENCE_RE.search(text)
+        sql_match  = _SQL_FENCE_RE.search(text)
 
         # Block destructive SQL in LLM output regardless of system prompt
-        _FORBIDDEN = re.compile(
-            r"\b(DELETE|DROP|ALTER|TRUNCATE|UPDATE|INSERT\s+INTO)\b",
-            re.IGNORECASE,
-        )
-        if sql_match and _FORBIDDEN.search(sql_match.group(1)):
+        if sql_match and _FORBIDDEN_SQL.search(sql_match.group(1)):
             sql_match = None
             yaml_match = None
             text = "I can only generate SELECT or CREATE VIEW statements. Please describe a read-only KPI metric."

@@ -1,0 +1,36 @@
+# .dockerignore — keep Docker build context small and fast
+# analytics.duckdb and frontend/dist/ are intentionally INCLUDED (pre-built locally)
+
+.git/
+.venv/
+frontend/node_modules/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.egg-info/
+.eggs/
+
+# Raw dataset (not needed — enriched data/dataset.csv is included)
+Corrected_dataset.csv
+
+# Dev/editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+.env
+*.env
+
+# Draft reference files (large PDFs, not needed at runtime)
+draft/
+
+# Project instructions (not needed at runtime)
+CLAUDE.md
+PPT.md
+DEPLOYMENT.md
+
+# Vector store local cache
+.chromadb/

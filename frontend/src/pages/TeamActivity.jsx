@@ -548,7 +548,7 @@ export default function TeamActivity() {
 
   return (
     <motion.div
-      className="p-6 space-y-6 min-h-screen bg-[#0a0a0a]"
+      className="p-4 sm:p-6 space-y-4 sm:space-y-6 min-h-screen bg-[#0a0a0a]"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
@@ -588,8 +588,8 @@ export default function TeamActivity() {
             title: 'Avg TEU Score',
             value: avgTeu,
             unit: 'h',
-            trend: avgTeu < 12 ? 'down' : 'up',
-            trendValue: avgTeu ? Math.abs(+(avgTeu - 12).toFixed(1)) : null,
+            trend: avgTeu != null ? (avgTeu < 12 ? 'down' : 'up') : null,
+            trendValue: avgTeu != null ? Math.abs(+(avgTeu - 12).toFixed(1)) : null,
             trendLabel: 'vs 12h target',
             icon: TrendingUp,
             subtitle: 'Time between uploads (lower = faster)',
@@ -737,7 +737,7 @@ export default function TeamActivity() {
           </span>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {lpiPair.map((l) => {
             const isPositive = l.lpi >= 0
             const color = isPositive ? '#4caf50' : '#e63946'

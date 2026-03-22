@@ -87,13 +87,13 @@ function TimeAnalysis({ dailyData, categoryData, forecastData, loading, metric, 
   return (
     <div className="space-y-6">
       {/* KPI Cards */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
           {
             title: 'Avg Processing Time',
             value: comparison?.current?.avg_processing_h ?? 4.2,
             unit: 'h',
-            trend: (d?.avg_processing_pct ?? 0) <= 0 ? 'down' : 'up',
+            trend: d?.avg_processing_pct != null ? (d.avg_processing_pct <= 0 ? 'down' : 'up') : null,
             trendValue: d?.avg_processing_pct != null ? Math.abs(d.avg_processing_pct) : null,
             trendLabel: 'vs prev 30d',
             icon: Clock,
@@ -114,7 +114,7 @@ function TimeAnalysis({ dailyData, categoryData, forecastData, loading, metric, 
             title: 'Total Hours',
             value: metric === 'hours' ? Math.round(totalHours) : totalUploaded,
             unit: metric === 'hours' ? 'h' : '',
-            trend: (d?.uploaded_pct ?? 0) >= 0 ? 'up' : 'down',
+            trend: d?.uploaded_pct != null ? (d.uploaded_pct >= 0 ? 'up' : 'down') : null,
             trendValue: d?.uploaded_pct != null ? Math.abs(d.uploaded_pct) : null,
             trendLabel: 'vs prev 30d',
             icon: Database,
@@ -308,7 +308,7 @@ function CategoryBreakdown({ loading, metric, outputTypeData = MOCK_OUTPUT_TYPES
               loading={loading}
             />
           </div>
-          <div className="mt-4 grid grid-cols-2 gap-3">
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex items-center gap-2.5 p-3 rounded-xl bg-[#0a0a0a] border border-[#1f1f1f]">
               <Youtube size={16} className="text-[#e63946] flex-shrink-0" />
               <div>
@@ -358,7 +358,7 @@ function StorageMetrics({ loading, metric, workspaceHours = WORKSPACE_HOURS, wee
   return (
     <div className="space-y-6">
       {/* Storage KPI cards */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {[
           {
             title: 'Total Storage Hours',
@@ -759,7 +759,7 @@ export default function UsageTrends() {
 
   return (
     <motion.div
-      className="p-6 space-y-6 min-h-screen bg-[#0a0a0a]"
+      className="p-4 sm:p-6 space-y-4 sm:space-y-6 min-h-screen bg-[#0a0a0a]"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}

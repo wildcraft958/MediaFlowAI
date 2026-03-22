@@ -95,9 +95,7 @@ function TrendBadge({ trend, trendValue, trendLabel }) {
         <Icon size={11} />
         {trendValue != null
           ? `${isUp ? '+' : '-'}${Math.abs(trendValue)}%`
-          : trend === 'up'
-          ? '↑'
-          : '↓'}
+          : ''}
       </span>
       {trendLabel && (
         <span className="text-xs text-[#555555] truncate">{trendLabel}</span>
@@ -189,7 +187,7 @@ export default function KPICard({
       transition={{ duration: 0.35, ease: 'easeOut' }}
       whileTap={{ scale: 0.98 }}
       className={[
-        'relative rounded-2xl p-6 cursor-default overflow-hidden',
+        'relative rounded-2xl p-4 sm:p-6 cursor-default overflow-hidden',
         // Glassmorphism base
         'bg-white/[0.03] backdrop-blur-sm',
         // Border
@@ -242,7 +240,7 @@ export default function KPICard({
       {/* Value block — lifted layer for depth */}
       <div className="mb-3" style={{ transform: 'translateZ(12px)' }}>
         <div className="flex items-baseline gap-1">
-          <span className="kpi-number text-3xl font-bold text-white leading-none">
+          <span className="kpi-number text-2xl sm:text-3xl font-bold text-white leading-none">
             {formatValue(animatedValue)}
           </span>
           {unit && (
@@ -254,8 +252,8 @@ export default function KPICard({
         )}
       </div>
 
-      {/* Trend */}
-      {(trend || trendValue != null) && (
+      {/* Trend — only show if there's an actual value to display */}
+      {trendValue != null && (
         <TrendBadge
           trend={trend}
           trendValue={trendValue}

@@ -1,13 +1,17 @@
 /**
  * Sidebar.jsx - Collapsible left sidebar navigation
  *
- * - Flex item (not fixed) — eliminates the gap issue
- * - Logo area: when collapsed, hover over "M" shows a ChevronRight expand button
- * - Logo area: when expanded, shows "MediaFlow AI" text + ChevronLeft collapse button
- * - NavLinks with lucide icons, active red styling
- * - RBAC: Admin item only shown for admin role
- * - Creator role: Video Explorer appears first
- * - User name + role badge at very bottom
+ * Desktop: Flex item (not fixed) — eliminates the gap issue.
+ *   - Logo area: when collapsed, hover over "M" shows a ChevronRight expand button
+ *   - Logo area: when expanded, shows "MediaFlow AI" text + ChevronLeft collapse button
+ *
+ * Mobile (isMobile prop): Fixed overlay from left, always expanded, close on nav click.
+ *   - Slide-in animation from the left
+ *   - Close (X) button in header
+ *   - Clicking a NavLink closes the overlay
+ *
+ * NavLinks with lucide icons, active red styling
+ * RBAC: Admin item only shown for admin role
  */
 
 import React from 'react'
@@ -25,6 +29,7 @@ import {
   Crown,
   Edit3,
   LogOut,
+  X,
 } from 'lucide-react'
 import useStore from '../../store/useStore'
 import clsx from 'clsx'
@@ -53,7 +58,7 @@ function getNavItems() {
   return BASE_NAV_ITEMS
 }
 
-// Tooltip on hover for collapsed items
+// Tooltip on hover for collapsed items (desktop only)
 function NavTooltip({ label, children }) {
   return (
     <div className="relative group">
@@ -80,7 +85,7 @@ function NavTooltip({ label, children }) {
 }
 
 // Single Nav Item
-function SidebarNavItem({ item, collapsed }) {
+function SidebarNavItem({ item, collapsed, onNavigate }) {
   const Icon = item.icon
 
   const linkContent = (active) => (
@@ -123,7 +128,7 @@ function SidebarNavItem({ item, collapsed }) {
   )
 
   const navLink = (
-    <NavLink to={item.path} end>
+    <NavLink to={item.path} end onClick={onNavigate}>
       {({ isActive }) => linkContent(isActive)}
     </NavLink>
   )
@@ -135,7 +140,7 @@ function SidebarNavItem({ item, collapsed }) {
   )
 }
 
-export default function Sidebar() {
+export default function Sidebar({ isMobile = false, onClose }) {
   const collapsed     = useStore((s) => s.sidebarCollapsed)
   const toggleSidebar = useStore((s) => s.toggleSidebar)
   const user          = useStore((s) => s.user)
@@ -149,36 +154,63 @@ export default function Sidebar() {
   const AvatarIcon  = role === 'analyst' ? Edit3 : Crown
   const avatarColor = ROLE_COLORS[role] || ROLE_COLORS.cxo
 
+  // On mobile, always show expanded; on desktop, use collapsed state
+  const isCollapsed = isMobile ? false : collapsed
+
   const handleLogout = () => {
     logout()
+    if (onClose) onClose()
     navigate('/login')
+  }
+
+  const handleNavClick = () => {
+    if (isMobile && onClose) onClose()
   }
 
   return (
     <motion.aside
       className={clsx(
-        'flex-shrink-0 flex flex-col h-full z-30',
+        'flex flex-col h-full z-30',
         'bg-[#111111] border-r border-[#272727]',
         'overflow-hidden',
+        isMobile
+          ? 'fixed left-0 top-0 bottom-0 w-[260px]'
+          : 'flex-shrink-0',
       )}
-      initial={false}
-      animate={{ width: collapsed ? 64 : 220 }}
+      initial={isMobile ? { x: -260 } : false}
+      animate={isMobile ? { x: 0 } : { width: isCollapsed ? 64 : 220 }}
+      exit={isMobile ? { x: -260 } : undefined}
       transition={{ type: 'tween', duration: 0.22, ease: 'easeInOut' }}
     >
-      {/* ── Logo header ─────────────────────────────────────────────────────── */}
+      {/* Logo header */}
       <div
         className="flex-shrink-0 flex items-center border-b border-[#1f1f1f]"
         style={{ height: 64 }}
       >
-        {collapsed ? (
-          /* Collapsed: "M" logo, hover shows expand arrow */
+        {isMobile ? (
+          /* Mobile: brand text + close button */
+          <div className="flex items-center gap-3 px-3 w-full">
+            <div className="flex-shrink-0 w-8 h-8 rounded-xl bg-accent flex items-center justify-center shadow-[0_0_16px_rgba(230,57,70,0.35)]">
+              <span className="text-white text-sm font-black leading-none select-none">M</span>
+            </div>
+            <div className="flex-1 min-w-0 overflow-hidden whitespace-nowrap">
+              <p className="text-sm font-bold text-white leading-tight">MediaFlow AI</p>
+              <p className="text-[10px] text-[#555555] leading-tight mt-0.5">Analytics Dashboard</p>
+            </div>
+            <button
+              onClick={onClose}
+              aria-label="Close menu"
+              className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-[#555] hover:text-white hover:bg-[#1a1a1a] transition-colors"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        ) : isCollapsed ? (
+          /* Desktop collapsed: "M" logo, hover shows expand arrow */
           <div className="group relative w-full flex items-center justify-center">
-            {/* Logo mark */}
             <div className="w-8 h-8 rounded-xl bg-accent flex items-center justify-center shadow-[0_0_16px_rgba(230,57,70,0.35)]">
               <span className="text-white text-sm font-black leading-none select-none">M</span>
             </div>
-
-            {/* Hover overlay — expand button */}
             <button
               onClick={toggleSidebar}
               aria-label="Expand sidebar"
@@ -192,7 +224,7 @@ export default function Sidebar() {
             </button>
           </div>
         ) : (
-          /* Expanded: logo + brand text + collapse button */
+          /* Desktop expanded: logo + brand text + collapse button */
           <div className="flex items-center gap-3 px-3 w-full">
             <div className="flex-shrink-0 w-8 h-8 rounded-xl bg-accent flex items-center justify-center shadow-[0_0_16px_rgba(230,57,70,0.35)]">
               <span className="text-white text-sm font-black leading-none select-none">M</span>
@@ -222,24 +254,24 @@ export default function Sidebar() {
         )}
       </div>
 
-      {/* ── Main Nav ────────────────────────────────────────────────────────── */}
+      {/* Main Nav */}
       <nav className="flex-1 py-3 space-y-0.5 overflow-y-auto overflow-x-hidden">
         {navItems.map((item) => (
-          <SidebarNavItem key={item.id} item={item} collapsed={collapsed} />
+          <SidebarNavItem key={item.id} item={item} collapsed={isCollapsed} onNavigate={handleNavClick} />
         ))}
 
         {isAdmin && (
           <>
             <div className="mx-4 my-3 border-t border-[#1f1f1f]" />
-            <SidebarNavItem item={ADMIN_ITEM} collapsed={collapsed} />
+            <SidebarNavItem item={ADMIN_ITEM} collapsed={isCollapsed} onNavigate={handleNavClick} />
           </>
         )}
       </nav>
 
-      {/* ── Bottom: Logout + User ────────────────────────────────────────────── */}
+      {/* Bottom: Logout + User */}
       <div className="flex-shrink-0 border-t border-[#1f1f1f] px-3 pb-4 pt-2 space-y-2">
         {/* Logout */}
-        {collapsed ? (
+        {isCollapsed ? (
           <NavTooltip label="Logout">
             <button
               onClick={handleLogout}
@@ -259,7 +291,7 @@ export default function Sidebar() {
         )}
 
         {/* User info */}
-        {collapsed ? (
+        {isCollapsed ? (
           <NavTooltip label={`${user?.name || 'Guest'} · ${role}`}>
             <div
               className="mx-auto w-8 h-8 rounded-full flex items-center justify-center cursor-default"

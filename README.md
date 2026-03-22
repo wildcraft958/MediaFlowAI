@@ -1,224 +1,255 @@
-# MediaFlow AI — Analytics Dashboard
+# Frammer AI - Product Usage Analytics Dashboard
 
-**IIT General Championship · Data Analytics 2026**
-Industry Partner: MediaFlow AI | Competition Track: Data Analytics
+**General Championship 2026 - Data Analytics**
+Industry Case Partner: Frammer AI
 
----
-
-## What This Is
-
-A full-stack, AI-powered analytics dashboard for MediaFlow AI's B2B media operations platform. MediaFlow AI ingests raw video uploads (interviews, debates, news bulletins, etc.) and uses AI to generate structured outputs (key moments, chapters, summaries, full packages) published to YouTube Shorts and Instagram Reels.
-
-The dashboard answers: *Which workspaces publish efficiently? Where is video getting stuck? What does the AI produce that actually reaches audiences?*
-
-**Live capabilities:** natural language querying via LangGraph agent, SQL-of-Thought pipeline, BigQuery vector search, period-over-period comparisons, real-time data quality monitoring.
+**Live Dashboard:** [mediaflow-dashboard-779023846662.us-central1.run.app](https://mediaflow-dashboard-779023846662.us-central1.run.app)
 
 ---
 
-## Key Numbers (authoritative — from enriched dataset, seed=42)
+## Problem
 
-| Metric | Value |
-|--------|-------|
-| Total videos | 4,569 |
-| Uploaded (valid upload\_date) | 4,179 (91.5%) |
-| AI Processed | 4,179 (100% of uploaded) |
-| Published | 3,188 (69.8% overall) |
-| PCR range | 38% (WS-SPORTS-LIVE) → 92% (WS-DIGITAL-NEWS) |
-| Billable | 3,188 (69.8%) / Non-billable: 1,381 (30.2%) |
-| Workspaces | 5 (Company\_A × 4, Company\_B × 1) |
-| Users | content\_editor\_01 → content\_editor\_04 |
-| Languages | English (72%), Hindi (28%) |
-| Data health | 84.5% overall field completeness |
+Frammer AI is a B2B platform that converts long-form video into short-form publish-ready outputs for media teams. The existing analytics dashboard lacks multi-dimensional drill-downs, natural language querying, and visibility into where content gets stuck between upload, AI processing, and publish.
+
+Three questions every head of content needs answered:
+1. What percentage of uploaded videos actually reach publish?
+2. Where is the drop-off - upload, AI processing, or editorial review?
+3. Which AI output formats drive the most published content?
+
+## Solution
+
+A 6-tab analytics dashboard with a conversational AI agent that answers these questions in English, not SQL.
+
+**Core Insight:** Publish Conversion Rate (PCR) varies from **38% to 92%** across workspaces - a 54-point gap that drives every dashboard view.
+
+```
+WS-DIGITAL-NEWS    ████████████████████ 92%   1,106 published
+WS-ENTERTAINMENT   ████████████████     82%     725 published
+WS-TECH-ANALYSIS   █████████████        68%     810 published
+WS-LIFESTYLE       ██████████           52%     206 published
+WS-SPORTS-LIVE     ███████              38%     341 published  <- 557 videos stuck
+```
+
+---
+
+## Dashboard Pages
+
+| # | Tab | What it answers | Key KPIs |
+|---|-----|-----------------|----------|
+| 1 | **Executive Summary** | Overall funnel health, period-over-period trends | PCR, FSC, AGV, MCI |
+| 2 | **Usage & Trends** | Upload volume over time, category breakdown, 30-day forecast | GR, AIL, TEU |
+| 3 | **Team Activity** | Who uploads what, cross-dimensional heatmaps | TEU, LPI, DCDR |
+| 4 | **Publish Metrics** | Workspace conversion rates, output mix, content-to-publish gap | FSC, CPDG, SAC, HTHR |
+| 5 | **Video Explorer** | Searchable video-level detail with filters and CSV export | ZSP, CPDG |
+| 6 | **Admin** | AI KPI chatbot, KPI registry management, client config | All 19 KPIs |
+
+**Cross-cutting features:**
+- COUNT / HOURS toggle on all metric views
+- 4-role RBAC (admin, cxo, manager, analyst) with per-KPI visibility
+- Multi-tenant support (CLIENT_1 / CLIENT_2) via YAML config
+- D1 x D2 CrossTab heatmap (e.g. Workspace x Input Type)
+- Responsive layout (desktop, tablet, mobile)
+
+---
+
+## Natural Language Query Agent
+
+Users ask questions in plain English via a floating NLQ panel. The system handles SQL generation, result narration, and chart rendering automatically.
+
+**Pipeline (4-node LangGraph graph):**
+
+```
+User question
+    |
+[Input Guardrail] -- PII redaction, injection detection
+    |
+[Router] -- LLM classifier: OFF_TOPIC | KPI_DEF | STANDARD_KPI | AD_HOC
+    |                    |
+[Analytics Agent]   [Text2SQL Engine]
+    |                    |
+    |              schema link -> query plan -> SQL gen -> guardrails -> correction loop
+    |                    |
+[Narrate] -- LLM-generated insight + chart spec
+    |
+SSE stream to frontend
+```
+
+**Text2SQL safeguards:** DDL/DML block, timestamp cast validation, boolean normalization, 50k char SQL cap, 5k row result cap, 30s execution timeout.
+
+**Vector search:** BigQuery Vector Search with Vertex AI embeddings (text-embedding-005) for KPI/dimension semantic retrieval.
+
+---
+
+## Architecture
+
+```
+data/dataset.csv (4,569 rows, 29 cols)
+        |
+data/schema.py --> analytics.duckdb (star schema + 16 KPI views + 4 agg tables)
+        |
+FastMCP servers (kpi_server, alert_server, report_server)
+        |
+LangGraph QnA Agent (Router --> Analytics | Text2SQL --> Narrate)
+        |
+FastAPI backend (16 endpoints under /api/*)
+        |
+React + Tailwind frontend (6 tabs + NLQ panel)
+```
+
+| Layer | Technology |
+|-------|-----------|
+| Data pipeline | Python, pandas, numpy (seed=42, fully reproducible) |
+| Storage | DuckDB - star schema, 9 dimension tables, 16 KPI views, 4 pre-aggregated tables |
+| Backend | FastAPI, 9 router modules, 16+ endpoints |
+| Agent framework | LangGraph + LangChain, SQL-of-Thought pattern |
+| LLM | Gemini 2.0 Flash via Vertex AI |
+| Embeddings | Vertex AI text-embedding-005 |
+| Vector search | BigQuery Vector Search |
+| MCP tools | FastMCP (kpi_server, alert_server, report_server) |
+| Frontend | React 18 (Vite) + Tailwind CSS + Apache ECharts + Zustand |
+| Forecasting | Chronos-Bolt-Tiny (9M params, zero-shot, 30-day horizon) |
+| Deployment | Google Cloud Run |
+
+---
+
+## Data Model
+
+**Star schema** built from an enriched dataset of 4,569 video events across 2 companies, 5 workspaces, 4 users, 7 input types, and 5 AI output types.
+
+**3-stage funnel:**
+```
+Uploaded (upload_date not null): 4,179
+        | 100% processed by Frammer AI
+Processed (processed_date not null): 4,179
+        | varies 38-92% by workspace
+Published (published_flag=True): 3,188
+```
+
+**19 KPIs** across 5 problem statement objectives:
+
+| PS Section | KPIs | What they measure |
+|------------|-------|-------------------|
+| 6A - Usage & Adoption | TEU, AGV, PMI, GR | Upload volume, video duration, growth trends |
+| 6B - Output Mix & Trends | AIL, CPDG, CRM, SAC, AHY, EDR, HTHR | AI processing patterns, content-to-publish gaps |
+| 6C - Publishing Funnel | PCR, FSC | Conversion rates, funnel stage completion |
+| 6D - Team/User/Platform | LPI, ZSP, TSQI, PIG | User productivity, zero-second detection, quality |
+| 6E - Data Quality | MCI, DCDR | Missing field completeness, data coverage |
+
+Full KPI definitions with DuckDB/Python formulas: [`kpis/KPI_FINAL.md`](kpis/KPI_FINAL.md)
+Complete 35-KPI catalog: [`kpis/KPI_CATALOG.md`](kpis/KPI_CATALOG.md)
+Metric registry: [`config/metric_registry.yaml`](config/metric_registry.yaml) - new KPIs added without code change.
+
+---
+
+## Deliverables Checklist (PS Section 7)
+
+| Deliverable | Status | Location |
+|-------------|--------|----------|
+| Working dashboard (3-5 pages) | 6 tabs, live at Cloud Run URL | `frontend/src/pages/` |
+| Natural language query interface | NLQ panel with SSE streaming | `agents/qna_agent.py`, `api/routers/nlq.py` |
+| Vector search / semantic retrieval | BigQuery Vector Search | `agents/vector_store.py` |
+| Metric dictionary | 19 KPIs with formulas | `kpis/KPI_FINAL.md` |
+| Dimension dictionary | 10 dimensions with cardinality | `data/DIMENSION_DICT.md` |
+| Data model (star schema) | 9 dim tables + fact view | `data/schema.py` |
+| Assumptions documented | All decisions with PS references | `data/ASSUMPTIONS.md` |
+| Insights presentation (8-12 slides) | 12-slide script | `draft/PPT.md` |
+| Code + build notes | This README + deployment guide | `DEPLOYMENT.md` |
 
 ---
 
 ## Project Structure
 
 ```
-GCAgent/
-├── data/
-│   ├── dataset.csv              ← Source of truth (4,569 rows, seed=42)
-│   ├── enrich.py                ← Reproducible 8-transform enrichment pipeline
-│   ├── shift_dates.py           ← Shifts dates so max(upload_date)=today
-│   ├── schema.py                ← DuckDB star schema + 16 KPI views
-│   ├── test_enrich.py           ← 32 TDD tests (all pass)
-│   ├── ASSUMPTIONS.md           ← All data decisions with PS rationale
-│   └── DIMENSION_DICT.md        ← PS mandatory deliverable
-├── kpis/
-│   ├── KPI_FINAL.md             ← 19 Phase-1 KPIs with DuckDB formulas
-│   └── KPI_CATALOG.md           ← All 35 KPIs including Phase 2+
-├── config/
-│   ├── metric_registry.yaml     ← 19 KPIs: type, view, page, persona
-│   ├── dimensions.yaml          ← Dimension registry with cardinality
-│   └── clients/CLIENT_1.yaml   ← Thresholds, enabled KPIs, alert channels
-├── api/
-│   ├── main.py                  ← FastAPI app + static SPA serving
-│   ├── db.py                    ← Read-only DuckDB singleton
-│   ├── filters.py               ← FilterParams + safe WHERE builder
-│   ├── routers/
-│   │   ├── dashboard.py         ← /executive /publish-funnel /period-comparison /data-quality /users
-│   │   ├── kpis.py              ← /kpis/{acronym}
-│   │   ├── trends.py            ← /trends/daily /trends/category /trends/output-type
-│   │   ├── crosstab.py          ← /crosstab (D1×D2 heatmap, metric=count|hours|pcr_pct)
-│   │   ├── videos.py            ← /videos (paginated) + /videos/export (CSV)
-│   │   ├── admin.py             ← KPI CRUD + KPI chatbot (Gemini)
-│   │   └── nlq.py               ← /nlq + /nlq/stream (SSE)
-│   └── test_api.py              ← 32 TDD tests (all pass)
-├── agents/
-│   ├── qna_agent.py             ← LangGraph 4-node orchestrator
-│   ├── graph_state.py           ← AgentState TypedDict
-│   ├── middleware.py            ← Input/output/tool guardrail nodes
-│   ├── vector_store.py          ← BigQuery Vector Search (kpi_embeddings)
-│   ├── mcp_servers/
-│   │   ├── kpi_server.py        ← FastMCP: run_kpi_query, list_kpis
-│   │   ├── alert_server.py      ← FastMCP: check_thresholds, fire_alert
-│   │   └── report_server.py     ← FastMCP: generate_client_brief (PDF)
-│   ├── text2sql/
-│   │   ├── schema_linker.py     ← NL → DuckDB columns (Gemini 2.0 Flash)
-│   │   ├── query_planner.py     ← CoT SQL plan generation
-│   │   ├── sql_generator.py     ← DuckDB SQL from plan
-│   │   ├── guardrails.py        ← DDL/DML block + PG-cast block + LLM validation
-│   │   └── correction_loop.py   ← Scratchpad-aware retry (max 2)
-│   ├── test_agents.py           ← 43 TDD tests (all pass)
-│   └── PLAN.md                  ← LangGraph architecture + MCP integration
-├── frontend/
+├── data/                        # Data pipeline
+│   ├── dataset.csv              # Source of truth (4,569 rows, seed=42)
+│   ├── enrich.py                # Reproducible enrichment (7 transforms)
+│   ├── shift_dates.py           # Rolling window date alignment
+│   ├── schema.py                # DuckDB star schema + KPI views
+│   ├── test_enrich.py           # 32 TDD tests
+│   ├── ASSUMPTIONS.md           # Data decisions with PS rationale
+│   └── DIMENSION_DICT.md        # Dimension dictionary
+├── kpis/                        # KPI definitions
+│   ├── KPI_FINAL.md             # 19 Phase-1 KPIs with formulas
+│   └── KPI_CATALOG.md           # Full 35-KPI catalog
+├── config/                      # YAML-driven configuration
+│   ├── metric_registry.yaml     # KPI metadata (type, view, page, roles)
+│   ├── dimensions.yaml          # Dimension registry
+│   └── clients/                 # Multi-tenant client configs (CLIENT_1, CLIENT_2)
+├── api/                         # FastAPI backend
+│   ├── main.py                  # App entry, CORS, SPA serving
+│   ├── db.py                    # DuckDB connection (read-only, thread-safe)
+│   ├── llm.py                   # Vertex AI client (Gemini 2.0 Flash)
+│   ├── routers/                 # health, dashboard, kpis, trends, crosstab, videos, admin, nlq
+│   └── test_api.py              # 44 TDD tests
+├── agents/                      # LangGraph QnA agent
+│   ├── qna_agent.py             # 4-node graph (router, interpret, execute, narrate)
+│   ├── middleware.py            # Input/output/tool guardrails
+│   ├── vector_store.py          # BigQuery Vector Search
+│   ├── text2sql/                # SQL-of-Thought: schema_linker, query_planner, sql_generator, guardrails, correction_loop
+│   ├── mcp_servers/             # FastMCP: kpi_server, alert_server, report_server
+│   └── test_agents.py           # 43 TDD tests
+├── frontend/                    # React (Vite) + Tailwind CSS
 │   └── src/
-│       ├── pages/               ← 6 dashboard tabs
-│       ├── components/          ← Charts, layout, NLQ panel, FilterBar
-│       ├── store/useStore.js    ← Zustand global state (metric, filters, persona)
-│       └── api/client.js        ← Axios API client (all endpoints)
-├── PPT.md                       ← Presentation script (Step 7 — slides 1-12)
-├── Agent.md                     ← Agent system design, personas, extensibility
-├── DEPLOYMENT.md                ← Single-server + dev deployment guide
-└── CLAUDE.md                    ← Project instructions (gitignored)
+│       ├── pages/               # 6 dashboard tabs + login + landing
+│       ├── components/          # Charts, layout, NLQ panel, FilterBar
+│       └── store/               # Zustand state management
+├── Dockerfile                   # Cloud Run deployment (pre-built artifacts)
+└── DEPLOYMENT.md                # Setup, dev mode, and Cloud Run deploy guide
 ```
 
 ---
 
-## Completion Status
-
-| Step | Status | Detail |
-|------|--------|--------|
-| 1 — Data enrichment | ✅ | 4,569 rows, 8 transforms, 32/32 TDD tests, seed=42 |
-| 2 — KPI design | ✅ | 19 Phase-1 KPIs, YAML registry, 35-KPI catalog |
-| 3 — DuckDB schema | ✅ | Star schema, 16 SQL views, 3 Python KPI tables, 4 agg tables |
-| 4 — FastAPI backend | ✅ | 16 endpoints, period-comparison, data-quality, forecast, 39/39 tests |
-| 5 — Agent layer | ✅ | LangGraph 4-node, SQL-of-Thought, MCP, SSE, HITL, 43/43 tests |
-| 6 — Frontend | ✅ | 6 tabs + NLQ panel, live API, COUNT↔HOURS, D1×D2 CrossTab, billable |
-| 7 — Insights deck | 🔲 | Script in PPT.md — needs export to PDF/PPT (10 marks) |
-| 8 — Predictive layer | ✅ | Chronos-Bolt-Tiny 30-day forecast band live in Usage & Trends |
-
----
-
-## Dashboard Tabs
-
-| Tab | Key Content | KPIs Shown |
-|-----|-------------|------------|
-| Executive Summary | PCR headline, 3-stage funnel, data quality monitor, workspace bars, period deltas | PCR, OPI, AGV, MCI |
-| Usage & Trends | 90-day upload/publish, category breakdown, workspace hours, weekly aggregates | GR, AIL, TEU |
-| Team Activity | Treemap, user table, D1×D2 CrossTab heatmap (COUNT/HOURS/PCR), LPI | TEU, OPI, LPI, DCDR |
-| Publish Metrics | Conversion bars, output mix donut, CPDG scatter, HTHR leaderboard | FSC, CPDG, SAC, AHY, EDR, HTHR, TSQI, PIG |
-| Video Explorer | Searchable paginated table, ZSP badges, filters, CSV export | ZSP, CPDG |
-| Admin | AI KPI chatbot (Gemini), KPI registry CRUD, client config | All 19 |
-
-**Global controls:** COUNT↔HOURS toggle · Persona switcher (Leadership/Creator) · Agent Inbox (HITL) · Workspace/language/date filters
-
----
-
-## API Endpoints
-
-| Endpoint | Description |
-|----------|-------------|
-| `GET /api/health` | DB status, row count |
-| `GET /api/dashboard/executive` | PCR, funnel, workspace PCR, 30-day trend |
-| `GET /api/dashboard/period-comparison` | Current vs previous period deltas |
-| `GET /api/dashboard/data-quality` | Field completeness, health score, duplicate rate |
-| `GET /api/dashboard/publish-funnel` | 3-stage funnel (count + hours) |
-| `GET /api/dashboard/users` | Per-user activity summary |
-| `GET /api/kpis/{acronym}` | Single KPI result (PCR, FSC, ZSP, etc.) |
-| `GET /api/trends/daily` | 90-day daily upload/publish |
-| `GET /api/trends/forecast` | 30-day Chronos forecast (history + p10/p50/p90 quantiles) |
-| `GET /api/trends/category` | By input type |
-| `GET /api/trends/output-type` | By MediaFlow output type |
-| `GET /api/crosstab` | D1×D2 heatmap (`metric=count\|hours\|pcr_pct`) |
-| `GET /api/videos` | Paginated video list |
-| `GET /api/videos/export` | CSV download |
-| `GET /api/dimensions` | Valid filter values |
-| `POST /api/nlq` | Natural language query (full response) |
-| `GET /api/nlq/stream` | SSE streaming NLQ |
-
----
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Data pipeline | Python + pandas + numpy (seed=42) |
-| Storage | DuckDB (`analytics.duckdb`) |
-| DB MCP | mcp-server-motherduck |
-| Custom MCP | FastMCP (kpi\_server, alert\_server, report\_server) |
-| Backend | FastAPI (Python) |
-| Agent framework | LangGraph + LangChain |
-| MCP bridge | langchain-mcp-adapters |
-| NLQ pipeline | SQL-of-Thought (arXiv:2509.00581) |
-| LLM | Gemini 2.0 Flash — Vertex AI (`langchain-google-vertexai`) |
-| Embeddings | Vertex AI `text-embedding-005` |
-| Vector store | BigQuery Vector Search (`analytics-prod-123.analytics_vectors`) |
-| GCP project | `analytics-prod-123`, region `us-central1` |
-| Frontend | React (Vite) + Tailwind CSS |
-| Charts | Apache ECharts (`echarts-for-react`) |
-| State | Zustand |
-| Animation | Framer Motion |
-| Icons | Lucide React |
-
----
-
-## Quick Setup
-
-See **`DEPLOYMENT.md`** for full instructions. TL;DR:
+## Setup
 
 ```bash
-# 1. Install deps
+# Install dependencies
 uv sync
 cd frontend && npm install && cd ..
 
-# 2. Build dataset
+# Build dataset + DuckDB
 uv run python data/enrich.py
 uv run python data/shift_dates.py
 uv run python data/schema.py
 
-# 3. Set GCP credentials
+# Set GCP credentials (required for Vertex AI + BigQuery)
 export GOOGLE_APPLICATION_CREDENTIALS=path/to/service-account.json
 
-# 4. Start (development — two terminals)
-uv run uvicorn api.main:app --reload --port 8000
-cd frontend && npm run dev   # http://localhost:5173
+# Development (two terminals)
+uv run uvicorn api.main:app --reload --port 8000     # backend
+cd frontend && npm run dev                             # frontend dev server
 
-# 5. Start (single server — after npm run build)
+# Production (single server)
 cd frontend && npm run build && cd ..
-uv run uvicorn api.main:app --port 8000   # http://localhost:8000
+uv run uvicorn api.main:app --port 8000
 ```
+
+See [`DEPLOYMENT.md`](DEPLOYMENT.md) for Cloud Run deployment instructions.
 
 ---
 
-## Test Suite
+## Tests
+
+```
+Data enrichment:  32/32 pass   (data/test_enrich.py)
+API endpoints:    44/44 pass   (api/test_api.py)
+Agent pipeline:   43/43 pass   (agents/test_agents.py)
+─────────────────────────────────────────────────────
+Total:           119/119 TDD tests
+```
 
 ```bash
-uv run pytest data/test_enrich.py -v     # 32/32 — data enrichment
-uv run pytest api/test_api.py -v         # 39/39 — API endpoints (inc. 7 forecast tests)
-uv run pytest agents/test_agents.py -v  # 43/43 — agent pipeline
+uv run pytest data/test_enrich.py api/test_api.py agents/test_agents.py -v
 ```
 
 ---
 
-## Workspace Publish Variance (core insight)
+## Scoring Alignment (PS Section 10)
 
-```
-WS-DIGITAL-NEWS    ████████████████████ 92%  ← Company_B, top performer
-WS-ENTERTAINMENT   ████████████████     82%
-WS-TECH-ANALYSIS   █████████████        68%
-WS-LIFESTYLE       ██████████           52%
-WS-SPORTS-LIVE     ███████              38%  ← 557 videos stuck (investigation target)
-```
-
-This 54-percentage-point gap is the central data story. Every dashboard tab is designed to explain and explore why it exists — input type mix, processing time, user activity, output type choices.
+| Criteria | Weight | How we address it |
+|----------|--------|-------------------|
+| Business understanding & KPI design | 20 | 19 KPIs mapped to PS sections, YAML metric registry, 3-stage funnel, PCR variance as data story |
+| Dashboard UX & navigability | 20 | 6 tabs with overview-to-detail flow, COUNT/HOURS toggle, D1xD2 CrossTab, 4-role RBAC, responsive |
+| Analytical depth & insight quality | 20 | LangGraph NLQ agent, SQL-of-Thought with guardrails, vector search, multi-turn memory, SSE streaming, Chronos forecast |
+| Data quality checks & correctness | 15 | MCI + DCDR KPIs, 390 null-upload rows tracked, ZSP zero-second detection, field completeness scoring |
+| Scalability / extensibility | 15 | YAML metric registry (add KPIs without code), config-driven multi-tenant clients, MCP tool layer, dimension registry |
+| Presentation & communication | 10 | Workspace PCR variance narrative (38-92%), funnel drop-off story, AI-generated insights panel |

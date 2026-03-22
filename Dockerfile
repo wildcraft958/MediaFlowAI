@@ -20,7 +20,7 @@ RUN uv sync --frozen
 COPY . .
 
 # GCP credentials — service account key baked in for demo
-ENV GOOGLE_APPLICATION_CREDENTIALS=/app/service-account-key.json
+ENV GOOGLE_APPLICATION_CREDENTIALS=/app/agrowise-192e3-feea2cfd6558.json
 
 # Web search uses Vertex AI Google Search grounding — no extra API key needed
 
@@ -32,11 +32,13 @@ from chronos import BaseChronosPipeline; \
 BaseChronosPipeline.from_pretrained('amazon/chronos-bolt-tiny', device_map='cpu', dtype=torch.float32); \
 print('Chronos model cached.')"
 
-# Build DuckDB fully at image build time: shift dates + star schema + KPI views.
-# Nothing runs at container start — uvicorn boots instantly.
-RUN uv run python data/shift_dates.py \
- && uv run python data/schema.py \
- && echo "analytics.duckdb pre-built."
+# NOTE: analytics.duckdb and frontend/dist/ are pre-built locally and COPY'd
+# in via the source tree above. No data pipeline runs during Docker build.
+# Before building this image, run locally:
+#   uv run python data/enrich.py
+#   uv run python data/shift_dates.py
+#   uv run python data/schema.py
+#   cd frontend && npm run build && cd ..
 
 # Cloud Run always uses 8080
 EXPOSE 8080

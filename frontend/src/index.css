@@ -395,3 +395,15 @@ select:focus-visible {
 .chart-md  { min-height: 280px; }
 .chart-lg  { min-height: 360px; }
 .chart-xl  { min-height: 440px; }
+
+/* ─── Mobile responsive utilities ──────────────────────────────── */
+
+/* Sidebar overlay backdrop */
+.sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 29;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}

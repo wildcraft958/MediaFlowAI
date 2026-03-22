@@ -60,7 +60,7 @@ function FilterSelect({ placeholder, value, options, onChange }) {
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="appearance-none bg-[#111111] border border-[#1f1f1f] text-xs text-[#a0a0a0] rounded-xl px-3 py-2 pr-7 focus:outline-none focus:border-[#e63946]/50 hover:border-[#333] transition-colors cursor-pointer min-w-[130px]"
+        className="appearance-none bg-[#111111] border border-[#1f1f1f] text-xs text-[#a0a0a0] rounded-xl px-3 py-2 pr-7 focus:outline-none focus:border-[#e63946]/50 hover:border-[#333] transition-colors cursor-pointer min-w-[100px] sm:min-w-[130px]"
       >
         <option value="">{placeholder}</option>
         {options.map((o) => (
@@ -252,7 +252,7 @@ export default function VideoExplorer() {
 
   return (
     <motion.div
-      className="p-6 space-y-6 min-h-screen bg-[#0a0a0a]"
+      className="p-4 sm:p-6 space-y-4 sm:space-y-6 min-h-screen bg-[#0a0a0a]"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
@@ -292,7 +292,7 @@ export default function VideoExplorer() {
       {/* Filter + Search row */}
       <div className="flex flex-wrap items-center gap-3">
         {/* Search */}
-        <div className="relative flex-1 min-w-[200px] max-w-xs">
+        <div className="relative flex-1 min-w-[140px] sm:min-w-[200px] max-w-xs">
           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#555]" />
           <input
             type="text"

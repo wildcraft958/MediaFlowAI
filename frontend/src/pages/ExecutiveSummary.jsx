@@ -416,7 +416,7 @@ function BillablePanel({ billable, loading }) {
   return (
     <div className="space-y-4">
       {/* Headline row */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {[
           { label: 'Billable Videos', value: (b ?? 0).toLocaleString(), pct: `${billable_pct ?? 0}%`, color: '#4caf50' },
           { label: 'Non-Billable', value: (nb ?? 0).toLocaleString(), pct: `${(100 - (billable_pct ?? 0)).toFixed(1)}%`, color: '#e63946' },
@@ -505,7 +505,7 @@ export default function ExecutiveSummary() {
       title: 'Total Uploaded',
       value: data?.summary?.funnel?.uploaded ?? 4179,
       unit: '',
-      trend: (d?.uploaded_pct ?? 0) >= 0 ? 'up' : 'down',
+      trend: d?.uploaded_pct != null ? (d.uploaded_pct >= 0 ? 'up' : 'down') : null,
       trendValue: d?.uploaded_pct != null ? Math.abs(d.uploaded_pct) : null,
       trendLabel: 'vs prev 30d',
       icon: Upload,
@@ -517,7 +517,7 @@ export default function ExecutiveSummary() {
       title: 'Published',
       value: data?.summary?.funnel?.published ?? 3188,
       unit: '',
-      trend: (d?.published_pct ?? 0) >= 0 ? 'up' : 'down',
+      trend: d?.published_pct != null ? (d.published_pct >= 0 ? 'up' : 'down') : null,
       trendValue: d?.published_pct != null ? Math.abs(d.published_pct) : null,
       trendLabel: 'vs prev 30d',
       icon: CheckCircle,
@@ -529,7 +529,7 @@ export default function ExecutiveSummary() {
       title: 'Overall PCR',
       value: data?.summary?.pcr_total ?? 69.8,
       unit: '%',
-      trend: (d?.pcr_pct ?? 0) >= 0 ? 'up' : 'down',
+      trend: d?.pcr_pct != null ? (d.pcr_pct >= 0 ? 'up' : 'down') : null,
       trendValue: d?.pcr_pct != null ? Math.abs(d.pcr_pct) : null,
       trendLabel: 'vs prev 30d',
       icon: BarChart2,
@@ -542,7 +542,7 @@ export default function ExecutiveSummary() {
       title: 'Avg Processing',
       value: data?.comparison?.current?.avg_processing_h ?? 4.2,
       unit: 'h',
-      trend: (d?.avg_processing_pct ?? 0) <= 0 ? 'down' : 'up',
+      trend: d?.avg_processing_pct != null ? (d.avg_processing_pct <= 0 ? 'down' : 'up') : null,
       trendValue: d?.avg_processing_pct != null ? Math.abs(d.avg_processing_pct) : null,
       trendLabel: 'vs prev 30d',
       icon: Clock,
@@ -554,7 +554,7 @@ export default function ExecutiveSummary() {
 
   return (
     <motion.div
-      className="p-6 space-y-6 min-h-screen bg-[#0a0a0a]"
+      className="p-4 sm:p-6 space-y-4 sm:space-y-6 min-h-screen bg-[#0a0a0a]"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
