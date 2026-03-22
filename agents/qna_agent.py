@@ -864,9 +864,10 @@ def narrate_node(state: AgentState) -> AgentState:
         }
 
     # Pre-set narrative path: guardrail or earlier node already set a user-friendly
-    # narrative (e.g., off-topic block, sensitive content block). Respect it.
+    # narrative (e.g., off-topic block, greeting, sensitive content block). Respect it.
     existing_narrative = state.get("narrative")
-    if existing_narrative and error and not result:
+    intent = state.get("intent", "")
+    if existing_narrative and (error or intent in ("off_topic", "greeting")) and not result:
         thought_steps.append({
             "node": "Narrate",
             "action": "passthrough",
