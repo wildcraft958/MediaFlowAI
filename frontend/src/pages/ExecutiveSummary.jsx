@@ -551,7 +551,9 @@ export default function ExecutiveSummary() {
       trendLabel: 'vs prev 30d',
       icon: BarChart2,
       accent: true,
-      subtitle: 'Ranges 38%-92% by workspace',
+      subtitle: workspaces.length > 1
+        ? `Ranges ${Math.min(...workspaces.map(w => w.pcr))}%-${Math.max(...workspaces.map(w => w.pcr))}% by workspace`
+        : 'By workspace',
       tooltip: 'Publish Conversion Rate: Published / Total Uploaded x 100. Higher = efficient pipeline, low = bottlenecks.',
       loading,
     },
@@ -594,7 +596,7 @@ export default function ExecutiveSummary() {
             </span>
           </div>
           <p className="text-sm text-[#a0a0a0]">
-            MediaFlow AI media operations - 4,569 total videos across 5 workspaces
+            MediaFlow AI media operations - {(data?.summary?.total ?? 4569).toLocaleString()} total videos across {workspaces.length} workspaces
           </p>
         </div>
       </div>
@@ -758,14 +760,20 @@ export default function ExecutiveSummary() {
                 <WorkspacePCRBar key={ws.name} {...ws} delay={0.55 + i * 0.08} />
               ))}
             </DraggableChart>
-            <div className="mt-4 p-3 rounded-xl bg-[#0a0a0a] border border-[#1f1f1f]">
-              <p className="text-xs text-[#a0a0a0]">
-                <span className="text-[#e63946] font-semibold">WS-SPORTS-LIVE</span> at 38% is
-                54pp below top performer.{' '}
-                <span className="text-[#4caf50] font-semibold">WS-DIGITAL-NEWS</span> at 92%
-                - Company_B's single workspace.
-              </p>
-            </div>
+            {workspaces.length >= 2 && (() => {
+              const sorted = [...workspaces].sort((a, b) => a.pcr - b.pcr)
+              const worst = sorted[0]
+              const best = sorted[sorted.length - 1]
+              const gap = Math.round(best.pcr - worst.pcr)
+              return (
+                <div className="mt-4 p-3 rounded-xl bg-[#0a0a0a] border border-[#1f1f1f]">
+                  <p className="text-xs text-[#a0a0a0]">
+                    <span className="text-[#e63946] font-semibold">{worst.name}</span> at {worst.pcr}% is {gap}pp below top performer.{' '}
+                    <span className="text-[#4caf50] font-semibold">{best.name}</span> at {best.pcr}%.
+                  </p>
+                </div>
+              )
+            })()}
           </motion.div>
         </RoleGate>
 

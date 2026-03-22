@@ -261,7 +261,7 @@ export default function VideoExplorer() {
       <div>
         <h1 className="text-2xl font-bold text-white mb-1">Video Explorer</h1>
         <p className="text-sm text-[#a0a0a0]">
-          Browse, search, and export 4,569 videos across 5 workspaces
+          Browse, search, and export {totalCount.toLocaleString()} videos across all workspaces
         </p>
       </div>
 

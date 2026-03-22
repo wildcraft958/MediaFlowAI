@@ -600,7 +600,14 @@ export default function PublishMetrics() {
             <span>70% target line</span>
           </div>
           <span className="text-[#e63946] font-medium">
-            WS-SPORTS-LIVE 38% is 32pp below target - 557 videos unpublished
+            {(() => {
+              const wsPcr = data?.workspacePcr
+              if (!wsPcr || wsPcr.length === 0) return 'Loading workspace data...'
+              const worst = [...wsPcr].sort((a, b) => a.pcr - b.pcr)[0]
+              const gap = Math.round(70 - worst.pcr)
+              const stuck = (worst.total ?? 0) - (worst.published ?? 0)
+              return `${worst.workspace} ${worst.pcr}% is ${gap}pp below target - ${stuck.toLocaleString()} videos unpublished`
+            })()}
           </span>
         </div>
       </motion.div>
@@ -660,7 +667,7 @@ export default function PublishMetrics() {
             <div className="flex items-center gap-2 mb-1">
               <h2 className="text-lg font-semibold text-white">Content Promise vs Delivery (CPDG)</h2>
               <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#2196f3]/10 border border-[#2196f3]/30 text-[#64b5f6]">
-                Leadership
+                Operations
               </span>
             </div>
             <p className="text-xs text-[#555]">
