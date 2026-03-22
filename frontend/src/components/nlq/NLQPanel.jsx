@@ -898,13 +898,15 @@ export default function NLQPanel({ className = '' }) {
       // Sync session ID into store for HITL wiring
       useStore.getState().setNlqSessionId(sessionId.current)
 
-      // Common SSE event handler
+      // Common SSE event handler — guard against duplicate final events
+      let finalReceived = false
       const handleSSEEvent = (event) => {
         if (event.type === 'thought_step') {
           setLiveThoughts((prev) => [...prev, event.data])
         } else if (event.type === 'sql_ready') {
           setLiveThoughts((prev) => [...prev, { node: 'SQL', action: 'Generated SQL', detail: event.data?.slice(0, 120) }])
-        } else if (event.type === 'final') {
+        } else if (event.type === 'final' && !finalReceived) {
+          finalReceived = true
           const answerText = sanitizeAnswer(event.answer)
           const thoughts = (event.thought_steps ?? []).map(
             (s) => `[${s.node}] ${s.action} - ${s.detail ?? ''}`

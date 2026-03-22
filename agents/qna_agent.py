@@ -1244,6 +1244,7 @@ async def stream_qna_agent(
     config = {"configurable": {"thread_id": session_id}}
 
     emitted_steps = 0
+    final_emitted = False
 
     try:
         async for chunk in _graph.astream(input_state, config=config, stream_mode="updates"):
@@ -1262,8 +1263,9 @@ async def stream_qna_agent(
                 if node_name == "text2sql" and update.get("sql"):
                     yield {"type": "sql_ready", "data": update["sql"]}
 
-                # Emit final when output_guardrail finishes (narrative is post-sanitized)
-                if node_name == "output_guardrail" and update.get("narrative"):
+                # Emit final exactly once when output_guardrail finishes
+                if node_name == "output_guardrail" and update.get("narrative") and not final_emitted:
+                    final_emitted = True
                     yield {
                         "type": "final",
                         "answer": update["narrative"],

@@ -245,10 +245,28 @@ def seed_insights():
     ])
 
 
+def _title_exists(title: str) -> bool:
+    """Check if a non-dismissed insight with this title already exists."""
+    row = query_one(
+        "SELECT COUNT(*) FROM insights WHERE title = ? AND dismissed = false",
+        [title],
+    )
+    return row is not None and row[0] > 0
+
+
+def _deduplicate_insights():
+    """Remove duplicate insights, keeping only the earliest row per title."""
+    rw_execute(
+        "DELETE FROM insights WHERE id NOT IN "
+        "(SELECT MIN(id) FROM insights GROUP BY title)"
+    )
+
+
 def generate_insights() -> list[dict]:
     """
     Generate fresh insights from current KPI data.
     Called periodically by the background scheduler.
+    Skips creation if a non-dismissed insight with the same title already exists.
     Returns list of new insights created.
     """
     new_insights = []
@@ -266,12 +284,15 @@ def generate_insights() -> list[dict]:
     for _, row in pcr_data.iterrows():
         pcr = _safe_float(row["pcr"])
         if pcr < 50:
+            title = f"Low PCR: {row['workspace']}"
+            if _title_exists(title):
+                continue
             stuck = _safe_int(row["total"]) - _safe_int(row["published"])
             insight = {
                 "id": next_id,
                 "type": "alert",
                 "severity": "warning",
-                "title": f"Low PCR: {row['workspace']}",
+                "title": title,
                 "body": f"Publish conversion at {pcr}% - {stuck} videos not yet published.",
                 "kpi": "PCR",
                 "workspace": row["workspace"],

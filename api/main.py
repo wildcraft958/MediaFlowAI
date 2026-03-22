@@ -39,9 +39,11 @@ async def lifespan(app: FastAPI):
     threading.Thread(target=_warmup, daemon=True).start()
 
     # Seed insights synchronously so they're available immediately
+    # Deduplicate cleans up any duplicates from prior scheduler runs
     try:
-        from api.insights import seed_insights
+        from api.insights import seed_insights, _deduplicate_insights
         seed_insights()
+        _deduplicate_insights()
     except Exception:
         pass
 
