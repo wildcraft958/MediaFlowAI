@@ -182,6 +182,8 @@ _UNIFIED_CLASSIFY_SYSTEM = (
     "Available KPIs: PCR, FSC, GR, CRM, TEU, AIL, SAC, AHY, EDR, HTHR, "
     "TSQI, PIG, AGV, PMI, MCI, DCDR, CPDG, ZSP, LPI.\n\n"
     "Classify the user query into EXACTLY one category:\n\n"
+    "GREETING — User is greeting, saying hello, hi, hey, good morning, etc. "
+    "Not asking a question, just initiating conversation.\n\n"
     "OFF_TOPIC — Query has nothing to do with media analytics, dashboards, video content, "
     "KPIs, workspaces, teams, or data (e.g., recipes, weather, coding help, personal advice, "
     "general knowledge questions unrelated to media/analytics).\n\n"
@@ -226,7 +228,7 @@ def _classify_query(query: str, has_context: bool) -> str:
         ).strip().upper()
 
         # Validate the response is a known category
-        if result in ("OFF_TOPIC", "GENERAL_KPI", "CONTEXT_AWARE", "AD_HOC"):
+        if result in ("OFF_TOPIC", "GREETING", "GENERAL_KPI", "CONTEXT_AWARE", "AD_HOC"):
             return result
         if result.startswith("KPI_DEF:") or result.startswith("STANDARD_KPI:"):
             return result
@@ -361,6 +363,25 @@ def router_node(
         }
         base.update(overrides)
         return base
+
+    # ── GREETING → friendly welcome ───────────────────────────────────────────
+    if classification == "GREETING":
+        _store_intent("greeting")
+        greeting_narrative = (
+            "Hi! I'm MediaFlow AI. Ask me anything about your content analytics "
+            "- workspace performance, publish funnels, KPI trends, or team activity.\n\n"
+            "Try asking:\n"
+            '- "Which workspace has the lowest publish rate?"\n'
+            '- "Show upload vs publish trend for WS-SPORTS-LIVE"\n'
+            '- "What are the top output types by volume?"'
+        )
+        return Command(
+            update=_base_update(
+                intent="greeting",
+                narrative=greeting_narrative,
+            ),
+            goto="narrate",
+        )
 
     # ── OFF_TOPIC → block with user-friendly narrative ───────────────────────
     if classification == "OFF_TOPIC":
