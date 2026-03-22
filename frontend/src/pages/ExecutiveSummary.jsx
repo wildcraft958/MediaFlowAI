@@ -16,6 +16,13 @@ import FunnelViz from '../components/charts/FunnelViz'
 import FilterBar from '../components/common/FilterBar'
 import RoleGate from '../components/common/RoleGate'
 import useStore from '../store/useStore'
+
+const ROLE_VIEW_LABELS = {
+  admin: 'Admin View',
+  cxo: 'Leadership View',
+  manager: 'Manager View',
+  analyst: 'Analyst View',
+}
 import { getExecutiveSummary, getPublishFunnel, getPeriodComparison, getDataQuality, getBillableSplit, getInsights } from '../api/client'
 import { humanize, stripWs } from '../utils/format'
 import DraggableChart from '../components/common/DraggableChart'
@@ -472,6 +479,8 @@ export default function ExecutiveSummary() {
   const filters = useStore((s) => s.filters)
   const metric = useStore((s) => s.metric)
   const comparePeriod = useStore((s) => s.comparePeriod)
+  const role = useStore((s) => s.user?.role)
+  const viewLabel = ROLE_VIEW_LABELS[role] || 'Leadership View'
 
   useEffect(() => {
     setLoading(true)
@@ -581,7 +590,7 @@ export default function ExecutiveSummary() {
             <h1 className="text-2xl font-bold text-white">Executive Summary</h1>
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-[#e63946]/15 text-[#e63946] border border-[#e63946]/30">
               <Users size={11} />
-              Leadership View
+              {viewLabel}
             </span>
           </div>
           <p className="text-sm text-[#a0a0a0]">
@@ -642,65 +651,69 @@ export default function ExecutiveSummary() {
         </motion.div>
       </div>
 
-      {/* Funnel */}
-      <motion.div
-        className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-6"
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.45, duration: 0.35 }}
-      >
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-white">3-Stage Publish Funnel</h2>
-          <span className="inline-flex items-center gap-1.5 text-xs text-[#555] border border-[#1f1f1f] rounded-full px-2.5 py-1">
-            Upload → Process → Publish
-          </span>
-        </div>
-        <FunnelViz stages={funnelData} loading={loading} />
-        <div className="mt-4 flex items-start gap-2 p-3 rounded-xl bg-[#0a0a0a] border border-[#1f1f1f]">
-          <AlertTriangle size={13} className="text-[#ff9800] mt-0.5 flex-shrink-0" />
-          <p className="text-xs text-[#a0a0a0]">
-            <span className="text-[#ff9800] font-semibold">
-              {data?.quality ? (data.quality.fields.find(f => f.field === 'upload_date')?.null ?? 390) : 390} videos
-            </span> have no upload_date
-            - data quality gap visible in MCI / DCDR KPIs.
-            100% of uploaded videos are processed by MediaFlow AI.
-          </p>
-        </div>
-      </motion.div>
-
-      {/* Data Quality Monitor */}
-      <motion.div
-        className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-6"
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.5, duration: 0.35 }}
-      >
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-white">Data Quality Monitor</h2>
-          <span className="text-xs font-bold border px-2 py-1 rounded-md"
-            style={{
-              color: (data?.quality?.overall_health_pct ?? 0) >= 80 ? '#4caf50' : (data?.quality?.overall_health_pct ?? 0) >= 60 ? '#ff9800' : '#e63946',
-              borderColor: (data?.quality?.overall_health_pct ?? 0) >= 80 ? '#4caf50' : (data?.quality?.overall_health_pct ?? 0) >= 60 ? '#ff9800' : '#e63946',
-              background: (data?.quality?.overall_health_pct ?? 0) >= 80 ? '#4caf5015' : (data?.quality?.overall_health_pct ?? 0) >= 60 ? '#ff980015' : '#e6394615',
-            }}
-          >
-            MCI
-          </span>
-        </div>
-        <DataQualityBars
-          fields={data?.quality?.fields}
-          health={data?.quality?.overall_health_pct}
-          loading={loading}
-        />
-        {data?.quality && (
-          <div className="mt-4 flex items-center justify-between text-xs text-[#555]">
-            <span>{(data.quality.total_rows ?? 0).toLocaleString()} total rows scanned</span>
-            {(data.quality.duplicate_pct ?? 0) > 0 && (
-              <span className="text-[#ff9800]">{data.quality.duplicate_pct ?? 0}% duplicate rate (DCDR)</span>
-            )}
+      {/* Funnel — PCR/FSC: cxo, manager */}
+      <RoleGate allowed={['cxo', 'manager']}>
+        <motion.div
+          className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-6"
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.45, duration: 0.35 }}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-white">3-Stage Publish Funnel</h2>
+            <span className="inline-flex items-center gap-1.5 text-xs text-[#555] border border-[#1f1f1f] rounded-full px-2.5 py-1">
+              Upload → Process → Publish
+            </span>
           </div>
-        )}
-      </motion.div>
+          <FunnelViz stages={funnelData} loading={loading} />
+          <div className="mt-4 flex items-start gap-2 p-3 rounded-xl bg-[#0a0a0a] border border-[#1f1f1f]">
+            <AlertTriangle size={13} className="text-[#ff9800] mt-0.5 flex-shrink-0" />
+            <p className="text-xs text-[#a0a0a0]">
+              <span className="text-[#ff9800] font-semibold">
+                {data?.quality ? (data.quality.fields.find(f => f.field === 'upload_date')?.null ?? 390) : 390} videos
+              </span> have no upload_date
+              - data quality gap visible in MCI / DCDR KPIs.
+              100% of uploaded videos are processed by MediaFlow AI.
+            </p>
+          </div>
+        </motion.div>
+      </RoleGate>
+
+      {/* Data Quality Monitor — MCI/DCDR: analyst */}
+      <RoleGate allowed={['analyst']}>
+        <motion.div
+          className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-6"
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5, duration: 0.35 }}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-white">Data Quality Monitor</h2>
+            <span className="text-xs font-bold border px-2 py-1 rounded-md"
+              style={{
+                color: (data?.quality?.overall_health_pct ?? 0) >= 80 ? '#4caf50' : (data?.quality?.overall_health_pct ?? 0) >= 60 ? '#ff9800' : '#e63946',
+                borderColor: (data?.quality?.overall_health_pct ?? 0) >= 80 ? '#4caf50' : (data?.quality?.overall_health_pct ?? 0) >= 60 ? '#ff9800' : '#e63946',
+                background: (data?.quality?.overall_health_pct ?? 0) >= 80 ? '#4caf5015' : (data?.quality?.overall_health_pct ?? 0) >= 60 ? '#ff980015' : '#e6394615',
+              }}
+            >
+              MCI
+            </span>
+          </div>
+          <DataQualityBars
+            fields={data?.quality?.fields}
+            health={data?.quality?.overall_health_pct}
+            loading={loading}
+          />
+          {data?.quality && (
+            <div className="mt-4 flex items-center justify-between text-xs text-[#555]">
+              <span>{(data.quality.total_rows ?? 0).toLocaleString()} total rows scanned</span>
+              {(data.quality.duplicate_pct ?? 0) > 0 && (
+                <span className="text-[#ff9800]">{data.quality.duplicate_pct ?? 0}% duplicate rate (DCDR)</span>
+              )}
+            </div>
+          )}
+        </motion.div>
+      </RoleGate>
 
       {/* Billable Analytics — Leadership/Admin only (CXO financial KPI per catalog) */}
       <RoleGate allowed={['cxo', 'manager']}>
@@ -725,34 +738,36 @@ export default function ExecutiveSummary() {
         </motion.div>
       </RoleGate>
 
-      {/* Workspace PCR + Agent Inbox */}
+      {/* Workspace PCR (cxo, manager) + Agent Inbox */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <motion.div
-          className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-6"
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.52, duration: 0.35 }}
-        >
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="text-lg font-semibold text-white">Workspace PCR</h2>
-            <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-[#e63946]/15 text-[#e63946] text-xs font-bold border border-[#e63946]/30">
-              PCR
-            </span>
-          </div>
-          <DraggableChart title="Workspace PCR" data={workspaces}>
-            {workspaces.map((ws, i) => (
-              <WorkspacePCRBar key={ws.name} {...ws} delay={0.55 + i * 0.08} />
-            ))}
-          </DraggableChart>
-          <div className="mt-4 p-3 rounded-xl bg-[#0a0a0a] border border-[#1f1f1f]">
-            <p className="text-xs text-[#a0a0a0]">
-              <span className="text-[#e63946] font-semibold">WS-SPORTS-LIVE</span> at 38% is
-              54pp below top performer.{' '}
-              <span className="text-[#4caf50] font-semibold">WS-DIGITAL-NEWS</span> at 92%
-              - Company_B's single workspace.
-            </p>
-          </div>
-        </motion.div>
+        <RoleGate allowed={['cxo', 'manager']}>
+          <motion.div
+            className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-6"
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.52, duration: 0.35 }}
+          >
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-lg font-semibold text-white">Workspace PCR</h2>
+              <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-[#e63946]/15 text-[#e63946] text-xs font-bold border border-[#e63946]/30">
+                PCR
+              </span>
+            </div>
+            <DraggableChart title="Workspace PCR" data={workspaces}>
+              {workspaces.map((ws, i) => (
+                <WorkspacePCRBar key={ws.name} {...ws} delay={0.55 + i * 0.08} />
+              ))}
+            </DraggableChart>
+            <div className="mt-4 p-3 rounded-xl bg-[#0a0a0a] border border-[#1f1f1f]">
+              <p className="text-xs text-[#a0a0a0]">
+                <span className="text-[#e63946] font-semibold">WS-SPORTS-LIVE</span> at 38% is
+                54pp below top performer.{' '}
+                <span className="text-[#4caf50] font-semibold">WS-DIGITAL-NEWS</span> at 92%
+                - Company_B's single workspace.
+              </p>
+            </div>
+          </motion.div>
+        </RoleGate>
 
         <motion.div
           className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-6"
