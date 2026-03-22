@@ -650,7 +650,9 @@ function ChartPreviewArea({ chartData, chartCtx }) {
           {chartData.answer && (
             <div className="bg-[#111] border border-[#1e2a1e] rounded-xl p-4">
               <p className="text-[10px] font-semibold text-[#4caf50] mb-1.5 uppercase tracking-wider">AI Insight</p>
-              <p className="text-xs text-[#a0a0a0] leading-relaxed">{chartData.answer.slice(0, 200)}</p>
+              <div className="text-xs text-[#a0a0a0] leading-relaxed prose prose-invert prose-sm max-w-none prose-p:my-1 prose-ul:my-1 prose-li:my-0.5 prose-strong:text-white">
+                <Markdown>{chartData.answer}</Markdown>
+              </div>
             </div>
           )}
 

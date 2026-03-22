@@ -1097,7 +1097,7 @@ def _generate_narrative_and_chart(
             "Example: line|upload_date|uploaded\n"
             "Example: number||pcr_pct\n"
         )
-        raw = complete(prompt, max_tokens=350)
+        raw = complete(prompt, max_tokens=512)
 
         # Parse the response
         if "---CHART---" in raw:
