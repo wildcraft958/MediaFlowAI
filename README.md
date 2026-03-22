@@ -1,26 +1,25 @@
 # Frammer AI - Product Usage Analytics Dashboard
 
-**General Championship 2026 - Data Analytics**
-Industry Case Partner: Frammer AI
+**General Championship 2026 - Data Analytics | Industry Case Partner: Frammer AI**
 
-**Live Dashboard:** [mediaflow-dashboard-779023846662.us-central1.run.app](https://mediaflow-dashboard-779023846662.us-central1.run.app)
+**Live Dashboard:** [mediaflow-dashboard-779023846662.us-central1.run.app](https://mediaflow-dashboard-779023846662.us-central1.run.app/)
 
 ---
 
 ## Problem
 
-Frammer AI is a B2B platform that converts long-form video into short-form publish-ready outputs for media teams. The existing analytics dashboard lacks multi-dimensional drill-downs, natural language querying, and visibility into where content gets stuck between upload, AI processing, and publish.
+Frammer AI converts long-form video into short-form, publish-ready outputs for media teams. The existing analytics dashboard lacks multi-dimensional drill-downs, natural language querying, and visibility into where content gets stuck between upload, AI processing, and publish.
 
 Three questions every head of content needs answered:
 1. What percentage of uploaded videos actually reach publish?
-2. Where is the drop-off - upload, AI processing, or editorial review?
+2. Where is the drop-off -- upload, AI processing, or editorial review?
 3. Which AI output formats drive the most published content?
 
 ## Solution
 
 A 6-tab analytics dashboard with a conversational AI agent that answers these questions in English, not SQL.
 
-**Core Insight:** Publish Conversion Rate (PCR) varies from **38% to 92%** across workspaces - a 54-point gap that drives every dashboard view.
+**Core Insight:** Publish Conversion Rate (PCR) varies from **38% to 92%** across workspaces -- a 54-point gap that drives every dashboard view.
 
 ```
 WS-DIGITAL-NEWS    ████████████████████ 92%   1,106 published
@@ -34,14 +33,14 @@ WS-SPORTS-LIVE     ███████              38%     341 published  <- 
 
 ## Dashboard Pages
 
-| # | Tab | What it answers | Key KPIs |
-|---|-----|-----------------|----------|
-| 1 | **Executive Summary** | Overall funnel health, period-over-period trends | PCR, FSC, AGV, MCI |
-| 2 | **Usage & Trends** | Upload volume over time, category breakdown, 30-day forecast | GR, AIL, TEU |
-| 3 | **Team Activity** | Who uploads what, cross-dimensional heatmaps | TEU, LPI, DCDR |
-| 4 | **Publish Metrics** | Workspace conversion rates, output mix, content-to-publish gap | FSC, CPDG, SAC, HTHR |
-| 5 | **Video Explorer** | Searchable video-level detail with filters and CSV export | ZSP, CPDG |
-| 6 | **Admin** | AI KPI chatbot, KPI registry management, client config | All 19 KPIs |
+| # | Tab | PS Objective | What it answers |
+|---|-----|-------------|-----------------|
+| 1 | **Executive Summary** | 6A, 6C | Overall funnel health, period-over-period trends, workspace PCR comparison |
+| 2 | **Usage & Trends** | 6A, 6B | Upload volume over time, category breakdown, 30-day Chronos forecast |
+| 3 | **Team Activity** | 6D | Who uploads what, D1 x D2 CrossTab heatmaps, user productivity |
+| 4 | **Publish Metrics** | 6B, 6C | Workspace conversion rates, output type mix, content-to-publish gap |
+| 5 | **Video Explorer** | 6D, 6E | Searchable video-level detail with filters and CSV export |
+| 6 | **Admin** | All | NLQ chatbot, KPI registry management, client configuration |
 
 **Cross-cutting features:**
 - COUNT / HOURS toggle on all metric views
@@ -99,7 +98,7 @@ React + Tailwind frontend (6 tabs + NLQ panel)
 | Layer | Technology |
 |-------|-----------|
 | Data pipeline | Python, pandas, numpy (seed=42, fully reproducible) |
-| Storage | DuckDB - star schema, 9 dimension tables, 16 KPI views, 4 pre-aggregated tables |
+| Storage | DuckDB -- star schema, 9 dimension tables, 16 KPI views, 4 pre-aggregated tables |
 | Backend | FastAPI, 9 router modules, 16+ endpoints |
 | Agent framework | LangGraph + LangChain, SQL-of-Thought pattern |
 | LLM | Gemini 2.0 Flash via Vertex AI |
@@ -116,7 +115,7 @@ React + Tailwind frontend (6 tabs + NLQ panel)
 
 **Star schema** built from an enriched dataset of 4,569 video events across 2 companies, 5 workspaces, 4 users, 7 input types, and 5 AI output types.
 
-**3-stage funnel:**
+**3-stage funnel (PS 6C):**
 ```
 Uploaded (upload_date not null): 4,179
         | 100% processed by Frammer AI
@@ -137,11 +136,34 @@ Published (published_flag=True): 3,188
 
 Full KPI definitions with DuckDB/Python formulas: [`kpis/KPI_FINAL.md`](kpis/KPI_FINAL.md)
 Complete 35-KPI catalog: [`kpis/KPI_CATALOG.md`](kpis/KPI_CATALOG.md)
-Metric registry: [`config/metric_registry.yaml`](config/metric_registry.yaml) - new KPIs added without code change.
+Metric registry: [`config/metric_registry.yaml`](config/metric_registry.yaml) -- new KPIs added without code change.
 
 ---
 
-## Deliverables Checklist (PS Section 7)
+## Extensibility (PS 8C)
+
+New KPIs, dimensions, and client tenants are added through configuration, not code:
+
+| What to add | How | File |
+|-------------|-----|------|
+| New KPI | Add YAML entry with view name, type, page, roles | `config/metric_registry.yaml` |
+| New dimension | Add to dimension registry | `config/dimensions.yaml` |
+| New client tenant | Add client config directory | `config/clients/` |
+| New dashboard filter | FilterBar reads dimensions.yaml automatically | `config/dimensions.yaml` |
+
+---
+
+## Data Quality (PS 8D)
+
+Two dedicated KPIs monitor data health:
+- **MCI (Missing Completeness Index):** Field-by-field null/unknown percentage across the dataset
+- **DCDR (Data Coverage & Duplication Rate):** Duplicate video_id detection, coverage by workspace
+
+Executive Summary shows data quality bars per field. 390 rows with null upload_date are tracked and excluded from funnel calculations with full documentation in [`data/ASSUMPTIONS.md`](data/ASSUMPTIONS.md).
+
+---
+
+## Deliverables Checklist (PS 7)
 
 | Deliverable | Status | Location |
 |-------------|--------|----------|
@@ -152,7 +174,6 @@ Metric registry: [`config/metric_registry.yaml`](config/metric_registry.yaml) - 
 | Dimension dictionary | 10 dimensions with cardinality | `data/DIMENSION_DICT.md` |
 | Data model (star schema) | 9 dim tables + fact view | `data/schema.py` |
 | Assumptions documented | All decisions with PS references | `data/ASSUMPTIONS.md` |
-| Insights presentation (8-12 slides) | 12-slide script | `draft/PPT.md` |
 | Code + build notes | This README + deployment guide | `DEPLOYMENT.md` |
 
 ---
@@ -160,6 +181,7 @@ Metric registry: [`config/metric_registry.yaml`](config/metric_registry.yaml) - 
 ## Project Structure
 
 ```
+.
 ├── data/                        # Data pipeline
 │   ├── dataset.csv              # Source of truth (4,569 rows, seed=42)
 │   ├── enrich.py                # Reproducible enrichment (7 transforms)
@@ -243,13 +265,13 @@ uv run pytest data/test_enrich.py api/test_api.py agents/test_agents.py -v
 
 ---
 
-## Scoring Alignment (PS Section 10)
+## Scoring Alignment (PS 10)
 
 | Criteria | Weight | How we address it |
 |----------|--------|-------------------|
-| Business understanding & KPI design | 20 | 19 KPIs mapped to PS sections, YAML metric registry, 3-stage funnel, PCR variance as data story |
-| Dashboard UX & navigability | 20 | 6 tabs with overview-to-detail flow, COUNT/HOURS toggle, D1xD2 CrossTab, 4-role RBAC, responsive |
-| Analytical depth & insight quality | 20 | LangGraph NLQ agent, SQL-of-Thought with guardrails, vector search, multi-turn memory, SSE streaming, Chronos forecast |
-| Data quality checks & correctness | 15 | MCI + DCDR KPIs, 390 null-upload rows tracked, ZSP zero-second detection, field completeness scoring |
-| Scalability / extensibility | 15 | YAML metric registry (add KPIs without code), config-driven multi-tenant clients, MCP tool layer, dimension registry |
-| Presentation & communication | 10 | Workspace PCR variance narrative (38-92%), funnel drop-off story, AI-generated insights panel |
+| Business understanding & KPI design | 20 | 19 KPIs mapped to PS sections 6A-6E, YAML metric registry, 3-stage funnel, PCR variance as central data story |
+| Dashboard UX & navigability | 20 | 6 tabs with overview-to-detail flow, COUNT/HOURS toggle, D1xD2 CrossTab, 4-role RBAC, responsive layout |
+| Analytical depth & insight quality | 20 | LangGraph NLQ agent with SQL-of-Thought and guardrails, vector search, multi-turn memory, SSE streaming, Chronos 30-day forecast |
+| Data quality checks & correctness | 15 | MCI + DCDR KPIs, 390 null-upload rows tracked, ZSP zero-second detection, field completeness scoring, 119 TDD tests |
+| Scalability / extensibility | 15 | YAML metric registry (add KPIs without code), config-driven multi-tenant clients, FastMCP tool layer, dimension registry |
+| Presentation & communication | 10 | Workspace PCR variance narrative (38-92%), funnel drop-off story, AI-generated insight summaries |

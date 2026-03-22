@@ -12,10 +12,15 @@ Env vars (set in .env):
 """
 from __future__ import annotations
 import os
+import warnings
 from functools import lru_cache
 
 from dotenv import load_dotenv
 load_dotenv()
+
+# ChatVertexAI emits a DeprecationWarning recommending ChatGoogleGenerativeAI;
+# suppress it so pytest -W error runs clean.
+warnings.filterwarnings("ignore", message="Use.*ChatGoogleGenerativeAI", category=DeprecationWarning)
 
 GCP_PROJECT  = os.environ.get("GCP_PROJECT_ID", "agrowise-192e3")
 GCP_REGION   = os.environ.get("GCP_REGION", "us-central1")
@@ -26,13 +31,15 @@ VERTEX_MODEL = os.environ.get("VERTEX_MODEL", "gemini-2.0-flash")
 def get_llm(temperature: float = 0.0, max_tokens: int = 1024):
     """Return a cached ChatVertexAI instance backed by Vertex AI service account."""
     from langchain_google_vertexai import ChatVertexAI
-    return ChatVertexAI(
-        model_name=VERTEX_MODEL,
-        project=GCP_PROJECT,
-        location=GCP_REGION,
-        temperature=temperature,
-        max_output_tokens=max_tokens,
-    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        return ChatVertexAI(
+            model_name=VERTEX_MODEL,
+            project=GCP_PROJECT,
+            location=GCP_REGION,
+            temperature=temperature,
+            max_output_tokens=max_tokens,
+        )
 
 
 def complete(
