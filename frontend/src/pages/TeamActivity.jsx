@@ -416,12 +416,13 @@ export default function TeamActivity() {
   const [crossTabData, setCrossTabData] = useState(null)
   const filters = useStore((s) => s.filters)
   const metric = useStore((s) => s.metric)
+  const role = useStore((s) => s.user?.role)
 
   useEffect(() => {
     setLoading(true)
     Promise.all([
       getExecutiveSummary(filters),
-      getKPI('LPI', filters),
+      getKPI('LPI', { ...filters, role }).catch(() => ({ data: { data: [] } })),
       getUserActivity(filters),
     ])
       .then(([exec, lpi, users]) => {

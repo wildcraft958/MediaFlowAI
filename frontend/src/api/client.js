@@ -79,6 +79,9 @@ export const getKPI = (acronym, params) =>
 export const getKPIs = (acronyms, params) =>
   Promise.all(acronyms.map((a) => getKPI(a, params)))
 
+export const getKPIList = (params) =>
+  api.get('/kpis', { params }).then(r => r.data)
+
 // ─── Trends ──────────────────────────────────────────────────────────────────
 export const getDailyTrends = (params) =>
   api.get('/trends/daily', { params })

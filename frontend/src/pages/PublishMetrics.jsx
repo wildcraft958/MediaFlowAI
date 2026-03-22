@@ -235,6 +235,7 @@ export default function PublishMetrics() {
   const filters = useStore((s) => s.filters)
   const comparePeriod = useStore((s) => s.comparePeriod)
   const metric = useStore((s) => s.metric)
+  const role = useStore((s) => s.user?.role)
 
   useEffect(() => {
     setLoading(true)
@@ -243,9 +244,9 @@ export default function PublishMetrics() {
       getExecutiveSummary(filters),
       getCategoryTrends(filters),
       getOutputTypeTrends(filters),
-      getKPI('HTHR', filters),
+      getKPI('HTHR', { ...filters, role }).catch(() => ({ data: { data: [] } })),
       getPeriodComparison({ period_days: comparePeriod, ...filters }),
-      getKPI('CPDG', filters).catch(() => ({ data: { data: [] } })),
+      getKPI('CPDG', { ...filters, role }).catch(() => ({ data: { data: [] } })),
     ])
       .then(([funnel, exec, category, outputType, hthr, comparison, cpdg]) => {
         setData({
@@ -674,7 +675,8 @@ export default function PublishMetrics() {
         </motion.div>
       </RoleGate>
 
-      {/* HTHR Leaderboard - Operations-focused (all roles, Creator badge) */}
+      {/* HTHR Leaderboard - Manager/Analyst per metric_registry roles */}
+      <RoleGate allowed={['manager', 'analyst']}>
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
@@ -699,6 +701,7 @@ export default function PublishMetrics() {
           onSort={() => {}}
         />
       </motion.div>
+      </RoleGate>
 
       {/* FSC Workspace Funnel Comparison */}
       <motion.div

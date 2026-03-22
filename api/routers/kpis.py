@@ -64,10 +64,17 @@ _AGGREGATED_QUERIES = {
 
 
 @router.get("/kpis/{acronym}")
-def get_kpi(acronym: str, f: FilterParams = Depends()):
+def get_kpi(acronym: str, role: str = None, f: FilterParams = Depends()):
     kpi = METRIC_REGISTRY.get(acronym.upper())
     if not kpi:
         raise HTTPException(status_code=404, detail=f"KPI '{acronym}' not found")
+
+    # Role-based access check (admin bypasses, no role = backward compat)
+    if role and role != "admin":
+        allowed_roles = kpi.get("roles", [])
+        if allowed_roles and role not in allowed_roles:
+            raise HTTPException(status_code=403, detail=f"Role '{role}' cannot access KPI '{acronym.upper()}'")
+
 
     # Some KPIs need aggregated queries instead of raw view data
     agg_sql = _AGGREGATED_QUERIES.get(acronym.upper())
@@ -91,10 +98,14 @@ def get_kpi(acronym: str, f: FilterParams = Depends()):
 
 
 @router.get("/kpis")
-def list_kpis():
-    """Return metadata for all KPIs in the registry."""
+def list_kpis(role: str = None):
+    """Return metadata for all KPIs in the registry, optionally filtered by role."""
     result = []
     for i, (acronym, kpi) in enumerate(METRIC_REGISTRY.items()):
+        allowed_roles = kpi.get("roles", [])
+        # Filter: skip KPIs this role can't access (admin and no-role see all)
+        if role and role != "admin" and allowed_roles and role not in allowed_roles:
+            continue
         result.append({
             "id": i + 1,
             "acronym": acronym,
@@ -104,6 +115,6 @@ def list_kpis():
             "enabled": True,
             "description": kpi.get("description", ""),
             "personas": kpi.get("personas", []),
-            "roles": kpi.get("roles", []),
+            "roles": allowed_roles,
         })
     return result

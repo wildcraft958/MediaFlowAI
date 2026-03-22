@@ -131,6 +131,57 @@ def test_kpi_list_returns_19_kpis():
     assert len(resp.json()) == 19
 
 
+# ── Slice 5b: KPI role-based access ──────────────────────────────────────────
+
+def test_kpi_list_filtered_by_cxo_role():
+    resp = client.get("/api/kpis?role=cxo")
+    assert resp.status_code == 200
+    acronyms = [k["acronym"] for k in resp.json()]
+    assert "PCR" in acronyms       # roles: [cxo, manager]
+    assert "AIL" in acronyms       # roles: [cxo]
+    assert "MCI" not in acronyms   # roles: [analyst] — cxo should NOT see
+
+
+def test_kpi_list_filtered_by_analyst_role():
+    resp = client.get("/api/kpis?role=analyst")
+    assert resp.status_code == 200
+    acronyms = [k["acronym"] for k in resp.json()]
+    assert "MCI" in acronyms       # roles: [analyst]
+    assert "DCDR" in acronyms      # roles: [analyst]
+    assert "AIL" not in acronyms   # roles: [cxo] — analyst should NOT see
+    assert "GR" not in acronyms    # roles: [cxo, manager] — analyst should NOT see
+
+
+def test_kpi_list_no_role_returns_all():
+    """Backward compat: no role param returns all 19 KPIs."""
+    resp = client.get("/api/kpis")
+    assert resp.status_code == 200
+    assert len(resp.json()) == 19
+
+
+def test_kpi_list_admin_role_returns_all():
+    resp = client.get("/api/kpis?role=admin")
+    assert resp.status_code == 200
+    assert len(resp.json()) == 19
+
+
+def test_kpi_detail_blocked_for_wrong_role():
+    """AIL is cxo-only. Analyst should get 403."""
+    resp = client.get("/api/kpis/AIL?role=analyst")
+    assert resp.status_code == 403
+
+
+def test_kpi_detail_allowed_for_correct_role():
+    resp = client.get("/api/kpis/PCR?role=cxo")
+    assert resp.status_code == 200
+    assert len(resp.json()["data"]) == 5
+
+
+def test_kpi_detail_admin_bypasses_role_check():
+    resp = client.get("/api/kpis/MCI?role=admin")
+    assert resp.status_code == 200
+
+
 # ── Slice 6: Trends ───────────────────────────────────────────────────────────
 
 def test_daily_trends_returns_list():
