@@ -6,7 +6,7 @@
 
 ---
 
-## Problem
+## Problem Statement
 
 Frammer AI converts long-form video into short-form, publish-ready outputs for media teams. The existing analytics dashboard lacks multi-dimensional drill-downs, natural language querying, and visibility into where content gets stuck between upload, AI processing, and publish.
 
