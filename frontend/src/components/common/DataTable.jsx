@@ -15,7 +15,7 @@
  *   className    string
  */
 
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import {
   ChevronUp,
   ChevronDown,
@@ -184,13 +184,28 @@ export default function DataTable({
   const [sortState, setSortState] = useState({ key: null, dir: 'asc' })
 
   const handleSort = (col) => {
-    if (!col.sortable || !onSort) return
+    if (!col.sortable) return
     const newDir =
       sortState.key === col.key && sortState.dir === 'asc' ? 'desc' : 'asc'
     const next = { key: col.key, dir: newDir }
     setSortState(next)
-    onSort(next)
+    if (onSort) onSort(next)
   }
+
+  // Client-side sort: always sort locally so tables work even without onSort
+  const sortedData = useMemo(() => {
+    if (!sortState.key) return data
+    return [...data].sort((a, b) => {
+      const av = a[sortState.key], bv = b[sortState.key]
+      if (av == null && bv == null) return 0
+      if (av == null) return 1
+      if (bv == null) return -1
+      const cmp = typeof av === 'number' && typeof bv === 'number'
+        ? av - bv
+        : String(av).localeCompare(String(bv), undefined, { numeric: true })
+      return sortState.dir === 'asc' ? cmp : -cmp
+    })
+  }, [data, sortState])
 
   const effectiveTotal = total || data.length
 
@@ -224,14 +239,14 @@ export default function DataTable({
                   style={{ width: col.width }}
                   className={[
                     'px-4 py-3 text-left text-[11px] font-semibold text-[#555555] uppercase tracking-widest whitespace-nowrap',
-                    col.sortable && onSort
+                    col.sortable
                       ? 'cursor-pointer select-none hover:text-[#a0a0a0] transition-colors'
                       : '',
                   ].join(' ')}
                 >
                   <span className="inline-flex items-center gap-1.5">
                     {col.label}
-                    {col.sortable && onSort && (
+                    {col.sortable && (
                       <SortIcon
                         active={sortState.key === col.key}
                         dir={sortState.dir}
@@ -251,7 +266,7 @@ export default function DataTable({
               ))}
 
             {/* Empty state */}
-            {!loading && data.length === 0 && (
+            {!loading && sortedData.length === 0 && (
               <tr>
                 <td colSpan={columns.length} className="py-16">
                   <div className="flex flex-col items-center gap-3 text-center">
@@ -271,7 +286,7 @@ export default function DataTable({
 
             {/* Data rows */}
             {!loading &&
-              data.map((row, rowIdx) => (
+              sortedData.map((row, rowIdx) => (
                 <tr
                   key={row.id ?? rowIdx}
                   onClick={() => onRowClick?.(row)}

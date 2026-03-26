@@ -119,8 +119,11 @@ def upload_forecast(
     if len(raw_df) == 0:
         return {"history": [], "forecast": [], "model": _MODEL_ID}
 
-    first_date = date.fromisoformat(raw_df["date"].iloc[0])
-    last_date = date.fromisoformat(raw_df["date"].iloc[-1])
+    try:
+        first_date = date.fromisoformat(raw_df["date"].iloc[0])
+        last_date = date.fromisoformat(raw_df["date"].iloc[-1])
+    except (ValueError, TypeError):
+        return {"history": [], "forecast": [], "model": _MODEL_ID}
     all_dates = [first_date + timedelta(days=i) for i in range((last_date - first_date).days + 1)]
     date_map = dict(zip(raw_df["date"], raw_df["uploaded"].astype(int)))
     history_counts = [date_map.get(str(d), 0) for d in all_dates]

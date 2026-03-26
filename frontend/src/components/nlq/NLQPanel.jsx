@@ -861,7 +861,8 @@ export default function NLQPanel({ className = '' }) {
       setCurrentPageCtx(ctx)
       setPageContext(ctx)
     }
-  }, [nlqOpen, activeTab])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nlqOpen, activeTab, filters, metric, persona])
 
   function formatTime(d) {
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })

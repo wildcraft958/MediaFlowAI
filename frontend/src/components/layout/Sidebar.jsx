@@ -200,9 +200,9 @@ export default function Sidebar({ isMobile = false, onClose }) {
             <button
               onClick={onClose}
               aria-label="Close menu"
-              className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-[#555] hover:text-white hover:bg-[#1a1a1a] transition-colors"
+              className="flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center text-[#555] hover:text-white hover:bg-[#1a1a1a] transition-colors"
             >
-              <X size={16} />
+              <X size={18} />
             </button>
           </div>
         ) : isCollapsed ? (

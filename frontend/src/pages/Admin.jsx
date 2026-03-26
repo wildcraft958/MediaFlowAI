@@ -11,7 +11,7 @@ import {
   Code, Settings, Users, Database,
 } from 'lucide-react'
 import useStore from '../store/useStore'
-import { getAdminKPIs, kpiChat, getAdminConfig, updateAdminConfig, deleteKPI } from '../api/client'
+import { getAdminKPIs, kpiChat, createKPI, getAdminConfig, updateAdminConfig, deleteKPI } from '../api/client'
 
 // ── Mock KPI Registry ──────────────────────────────────────────────────────────
 
@@ -78,6 +78,8 @@ const MOCK_CONFIG = {
 function ChatBubble({ msg, onAddKpi }) {
   const isBot = msg.role === 'bot'
   const [showDetails, setShowDetails] = useState(false)
+  const [added, setAdded] = useState(false)
+  const [adding, setAdding] = useState(false)
 
   // Extract KPI name/acronym from yaml for a friendly summary card
   const kpiAcronym = msg.yaml ? (msg.yaml.match(/acronym:\s*(\S+)/)?.[1] || '') : null
@@ -135,14 +137,23 @@ function ChatBubble({ msg, onAddKpi }) {
                 {msg.yaml}
               </pre>
             )}
-            {msg.showAddButton && (
+            {msg.showAddButton && !added && (
               <button
-                onClick={() => onAddKpi?.(msg.yaml)}
-                className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#e63946] text-white text-[11px] font-semibold rounded-lg hover:bg-[#c62828] transition-colors"
+                onClick={async () => {
+                  setAdding(true)
+                  try { await onAddKpi?.(msg.yaml); setAdded(true) } catch {} finally { setAdding(false) }
+                }}
+                disabled={adding}
+                className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#e63946] text-white text-[11px] font-semibold rounded-lg hover:bg-[#c62828] transition-colors disabled:opacity-50"
               >
                 <Plus size={11} />
-                Add to Registry
+                {adding ? 'Adding…' : 'Add to Registry'}
               </button>
+            )}
+            {added && (
+              <p className="mt-2 text-[11px] text-[#4caf50] inline-flex items-center gap-1">
+                <CheckCircle size={12} /> Added to registry
+              </p>
             )}
           </div>
         ) : (
@@ -162,7 +173,7 @@ const INITIAL_MESSAGES = [
 ]
 
 
-function KPIChat() {
+function KPIChat({ onAddKpi }) {
   const [messages, setMessages] = useState(INITIAL_MESSAGES)
   const [input, setInput] = useState('')
   const [typing, setTyping] = useState(false)
@@ -191,7 +202,7 @@ function KPIChat() {
           role: 'bot',
           text: data.explanation || "I've prepared a KPI configuration based on your description. Click \"Add to Registry\" to activate it.",
           yaml: data.yaml,
-          showAddButton: !!data.yaml,
+          showAddButton: data.showAddButton ?? !!data.yaml,
         },
       ])
     } catch {
@@ -220,7 +231,7 @@ function KPIChat() {
       {/* Messages */}
       <div className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1 pb-2">
         {messages.map((msg) => (
-          <ChatBubble key={msg.id} msg={msg} onAddKpi={() => {}} />
+          <ChatBubble key={msg.id} msg={msg} onAddKpi={onAddKpi} />
         ))}
         {typing && (
           <div className="flex gap-3">
@@ -405,6 +416,27 @@ function KPIConfigurator() {
     setEditingKpi(null)
   }
 
+  const handleAddKpi = async (yamlStr) => {
+    const acronym    = yamlStr.match(/acronym:\s*(\S+)/)?.[1]?.toUpperCase()
+    const name       = yamlStr.match(/name:\s*(.+)/)?.[1]?.trim()
+    const type       = yamlStr.match(/type:\s*(\S+)/)?.[1]?.trim() || 'sql'
+    const page       = yamlStr.match(/dashboard_page:\s*(\S+)/)?.[1]?.trim() || ''
+    const description = yamlStr.match(/description:\s*["']?(.+?)["']?\s*$/m)?.[1]?.trim() || ''
+
+    if (!acronym || !name) return
+
+    try {
+      const res = await createKPI({ acronym, name, type, description, page })
+      const created = res.data || res
+      setKpis((prev) => [
+        ...prev,
+        { id: Date.now(), acronym: created.acronym, name: created.name, type: created.type, page: created.dashboard_page || page, enabled: true, description: created.description },
+      ])
+    } catch (err) {
+      console.error('Failed to add KPI:', err.message)
+    }
+  }
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {/* Chat */}
@@ -418,7 +450,7 @@ function KPIConfigurator() {
             ONLINE
           </span>
         </div>
-        <KPIChat />
+        <KPIChat onAddKpi={handleAddKpi} />
       </div>
 
       {/* Registry */}

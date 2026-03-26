@@ -61,6 +61,9 @@ export default function Layout({ children }) {
           <>
             <motion.div
               key="sidebar-backdrop"
+              role="button"
+              tabIndex={-1}
+              aria-label="Close menu"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}

@@ -401,7 +401,9 @@ def router_node(
 
     # ── KPI_DEF:<ACRONYM> → specific KPI definition ─────────────────────────
     if classification.startswith("KPI_DEF:"):
-        acronym = classification.split(":")[1].strip()
+        acronym = classification.split(":", 1)[1].strip()
+        if not acronym:
+            classification = "AD_HOC"
         kpi_def = _build_kpi_definition(acronym)
         if kpi_def:
             _store_intent("kpi_definition")
@@ -450,7 +452,7 @@ def router_node(
     # ── STANDARD_KPI:<ACRONYM> → analytics node ─────────────────────────────
     matched_acronym: Optional[str] = None
     if classification.startswith("STANDARD_KPI:"):
-        acronym = classification.split(":")[1].strip()
+        acronym = classification.split(":", 1)[1].strip()
         try:
             from api.config import METRIC_REGISTRY
             if acronym in METRIC_REGISTRY:
@@ -1103,7 +1105,7 @@ def _generate_narrative_and_chart(
         if "---CHART---" in raw:
             parts = raw.split("---CHART---", 1)
             narrative = parts[0].strip()
-            chart_line = parts[1].strip().split("\n")[0].strip()
+            chart_line = parts[1].strip().split("\n")[0].strip() if len(parts) > 1 and parts[1].strip() else ""
         else:
             # Fallback: treat entire response as narrative
             narrative = raw.strip()

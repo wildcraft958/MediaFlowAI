@@ -1,6 +1,7 @@
 # Project internals
 CLAUDE.md
 draft/
+.claude/worktrees/
 
 # Python
 __pycache__/
